@@ -31,18 +31,19 @@ class VOCDataset(torch.utils.data.Dataset):
 
         img_path = os.path.join(self.img_dir, self.annotations.iloc[index, 0])
         image = Image.open(img_path)
-        boxes = torch.tensor(boxes)  # transform을 하게 되면 augmentation에서 boxex가 필요, 안할 경우 필요없는 작업
+
+        boxes = torch.tensor(boxes)  # Only needed when augmentation
 
         if self.transform:
             # data augmentation하게 되면 좌표도 같이 수정해야되서 boxes를 입력 받음
             image, boxes = self.transform(image, boxes)
         
-        label_matrix = torch.zeros((self.S, self.S, self.C + 5 * self.B))
+        label_matrix = torch.zeros((self.S, self.S, self.C + 5 * self.B))      
         for box in boxes:
-            class_label, x, y, width, height = box.tolist()
+            class_label, x, y, width, height = box.tolist()         # 4 parameters behind is normalized to the size of image (having 7x7 grid cells)
             class_label = int(class_label)
-            i, j = int(self.S * y), int(self.S * x)
-            x_cell, y_cell = self.S * x - j, self.S * y - i
+            i, j = int(self.S * y), int(self.S * x)                 # (i,j) is position of grid cell containing (x,y) center following (row, column)
+            x_cell, y_cell = self.S * x - j, self.S * y - i         # (x_cell, y_cell) is object center in cell (i,j)
             width_cell, height_cell = (
                 width * self.S,
                 height * self.S

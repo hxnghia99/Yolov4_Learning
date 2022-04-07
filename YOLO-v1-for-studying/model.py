@@ -3,7 +3,7 @@ import torch.nn as nn
 
 architecture_config = [
     # tuple = (kernel size, number of filters of output, stride, padding)
-    (7, 64, 2, 3),
+    (7, 64, 2, 3),                          # 64 for each colored plane
     "M",  # max-pooling 2x2 stride = 2
     (3, 192, 1, 1),
     "M",  # max-pooling 2x2 stride = 2

@@ -19,12 +19,16 @@ from utils import(
 
 from loss import YoloLoss
 
+import os
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+
 seed = 123
 torch.manual_seed(seed)
 
 # Hyperparameters etc.
 LEARNING_RATE = 2e-5
-DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+# DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE =  "cpu"
 BATCH_SIZE = 16
 WEIGHT_DECAY = 0
 EPOCHS = 1000
