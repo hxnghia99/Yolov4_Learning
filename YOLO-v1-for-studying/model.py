@@ -1,23 +1,32 @@
+"""
+Implementation of Yolo (v1) architecture
+with slight modification with added BatchNorm.
+"""
+
 import torch
 import torch.nn as nn
 
+""" 
+Information about architecture config:
+Tuple is structured by (kernel_size, filters, stride, padding) 
+"M" is simply maxpooling with stride 2x2 and kernel 2x2
+List is structured by tuples and lastly int with number of repeats
+"""
+
 architecture_config = [
-    # tuple = (kernel size, number of filters of output, stride, padding)
-    (7, 64, 2, 3),                          # 64 for each colored plane
-    "M",  # max-pooling 2x2 stride = 2
+    (7, 64, 2, 3),
+    "M",
     (3, 192, 1, 1),
-    "M",  # max-pooling 2x2 stride = 2
+    "M",
     (1, 128, 1, 0),
     (3, 256, 1, 1),
     (1, 256, 1, 0),
     (3, 512, 1, 1),
-    "M",  # max-pooling 2x2 stride = 2
-    # [tuple, tuple, repeat times]
+    "M",
     [(1, 256, 1, 0), (3, 512, 1, 1), 4],
     (1, 512, 1, 0),
     (3, 1024, 1, 1),
-    "M",  # max-pooling 2x2 stride = 2
-    # [tuple, tuple, repeat times]
+    "M",
     [(1, 512, 1, 0), (3, 1024, 1, 1), 2],
     (3, 1024, 1, 1),
     (3, 1024, 2, 1),
@@ -34,10 +43,7 @@ class CNNBlock(nn.Module):
         self.leakyrelu = nn.LeakyReLU(0.1)
 
     def forward(self, x):
-        x = self.conv(x)
-        x = self.batchnorm(x)
-        x = self.leakyrelu(x)
-        return x
+        return self.leakyrelu(self.batchnorm(self.conv(x)))
 
 
 class Yolov1(nn.Module):
@@ -50,9 +56,7 @@ class Yolov1(nn.Module):
 
     def forward(self, x):
         x = self.darknet(x)
-        x = torch.flatten(x, start_dim=1)
-        x = self.fcs(x)
-        return x
+        return self.fcs(torch.flatten(x, start_dim=1))
 
     def _create_conv_layers(self, architecture):
         layers = []
@@ -65,16 +69,15 @@ class Yolov1(nn.Module):
                         in_channels, x[1], kernel_size=x[0], stride=x[2], padding=x[3],
                     )
                 ]
-
                 in_channels = x[1]
 
             elif type(x) == str:
-                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+                layers += [nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))]
 
             elif type(x) == list:
-                conv1 = x[0]  # tuple
-                conv2 = x[1]  # tuple
-                num_repeats = x[2]  # integer
+                conv1 = x[0]
+                conv2 = x[1]
+                num_repeats = x[2]
 
                 for _ in range(num_repeats):
                     layers += [
@@ -86,7 +89,6 @@ class Yolov1(nn.Module):
                             padding=conv1[3],
                         )
                     ]
-
                     layers += [
                         CNNBlock(
                             conv1[1],
@@ -96,27 +98,22 @@ class Yolov1(nn.Module):
                             padding=conv2[3],
                         )
                     ]
-
                     in_channels = conv2[1]
 
         return nn.Sequential(*layers)
 
     def _create_fcs(self, split_size, num_boxes, num_classes):
         S, B, C = split_size, num_boxes, num_classes
+
+        # In original paper this should be
+        # nn.Linear(1024*S*S, 4096),
+        # nn.LeakyReLU(0.1),
+        # nn.Linear(4096, S*S*(B*5+C))
+
         return nn.Sequential(
             nn.Flatten(),
-            nn.Linear(1024*S*S, 4096),
-            nn.Dropout(0.5),
+            nn.Linear(1024 * S * S, 496),
+            nn.Dropout(0.0),
             nn.LeakyReLU(0.1),
-            nn.Linear(4096, S*S*(C+B*5)),  # (S,S,30)
+            nn.Linear(496, S * S * (C + B * 5)),
         )
-
-
-def test(S=7, B=2, C=20):
-    model = Yolov1(split_size=S, num_boxes=B, num_classes=C)
-    x = torch.randn((2, 3, 448, 448))
-    print(model(x).shape)
-
-
-if __name__ == "__main__":
-    test()

@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from collections import Counter
 
-
 def intersection_over_union(boxes_preds, boxes_labels, box_format="midpoint"):
     """
     Calculates intersection over union
@@ -36,7 +35,6 @@ def intersection_over_union(boxes_preds, boxes_labels, box_format="midpoint"):
         box2_x2 = boxes_labels[..., 2:3]
         box2_y2 = boxes_labels[..., 3:4]
 
-    # intersection 좌표 구하기
     x1 = torch.max(box1_x1, box2_x1)
     y1 = torch.max(box1_y1, box2_y1)
     x2 = torch.min(box1_x2, box2_x2)
@@ -66,26 +64,26 @@ def non_max_suppression(bboxes, iou_threshold, threshold, box_format="corners"):
 
     assert type(bboxes) == list
 
-    bboxes = [box for box in bboxes if box[1] > threshold]  # 객체가 존재할 확률이 threshold보다 높은 것들만 사용
-    bboxes = sorted(bboxes, key=lambda x: x[1], reverse=True)  # 정렬
+    bboxes = [box for box in bboxes if box[1] > threshold]
+    bboxes = sorted(bboxes, key=lambda x: x[1], reverse=True)
     bboxes_after_nms = []
 
     while bboxes:
-        chosen_box = bboxes.pop(0)  # 첫번째
+        chosen_box = bboxes.pop(0)
 
         bboxes = [
             box
             for box in bboxes
-            if box[0] != chosen_box[0]  # class가 다른 경우 남겨둔다
+            if box[0] != chosen_box[0]
             or intersection_over_union(
                 torch.tensor(chosen_box[2:]),
                 torch.tensor(box[2:]),
                 box_format=box_format,
             )
-            < iou_threshold  # iou_threshold보다 작은 것 남겨둔다 -> 겹치는 부분이 적은 것은 남겨둔다.
+            < iou_threshold
         ]
 
-        bboxes_after_nms.append(chosen_box)  # 남길 것 append
+        bboxes_after_nms.append(chosen_box)
 
     return bboxes_after_nms
 
@@ -235,7 +233,6 @@ def get_bboxes(
     threshold,
     pred_format="cells",
     box_format="midpoint",
-    # device="cuda",
     device="cuda",
 ):
     all_pred_boxes = []
