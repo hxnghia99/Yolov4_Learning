@@ -169,12 +169,6 @@ def decode(conv_output, NUM_CLASS, i=0):
     conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)
 
     # next need Draw the grid. Where output_size is equal to 13, 26 or 52  
-    #y = tf.range(output_size, dtype=tf.int32)
-    #y = tf.expand_dims(y, -1)
-    #y = tf.tile(y, [1, output_size])
-    #x = tf.range(output_size,dtype=tf.int32)
-    #x = tf.expand_dims(x, 0)
-    #x = tf.tile(x, [output_size, 1])
     xy_grid = tf.meshgrid(tf.range(output_size), tf.range(output_size))
     xy_grid = tf.expand_dims(tf.stack(xy_grid, axis=-1), axis=2)  # [gx, gy, 1, 2]
     xy_grid = tf.tile(tf.expand_dims(xy_grid, axis=0), [batch_size, 1, 1, 3, 1])
