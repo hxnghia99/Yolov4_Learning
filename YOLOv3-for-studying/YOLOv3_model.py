@@ -15,16 +15,8 @@ from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroP
 from tensorflow.keras.regularizers import L2
 import numpy as np
 from YOLOv3_config import *
+from YOLOv3_utils import *
 
-
-#Read coco file to extract class
-def read_class_names(class_file_name):
-    # loads class name from a file
-    names = {}
-    with open(class_file_name, 'r') as data:
-        for ID, name in enumerate(data):
-            names[ID] = name.strip('\n')
-    return names
 
 #Configure Batch Normalization layer for 2 trainable parameters
 class BatchNormalization(tf.keras.layers.BatchNormalization):
@@ -40,7 +32,7 @@ class BatchNormalization(tf.keras.layers.BatchNormalization):
 def convolutional(input_layer, filters_shape, downsample=False, activate=True, bn=True, activate_type='leaky'):
     #add zero-padding when downsampling
     if downsample:
-        input_layer = ZeroPadding2D(((1, 0), (1, 0)))(input_layer)
+        input_layer = ZeroPadding2D(((1, 0), (1, 0)))(input_layer)                  #To create the exact size from computation
         padding = 'valid'
         strides = 2
     else:
@@ -127,7 +119,7 @@ def YOLOv3_detector(input_layer, NUM_CLASS):
     #Add 1 convolutional layers after the feature maps after subconvolutional layers
     conv = convolutional(conv, (1, 1,  512,  256))
     #Upsampling using the nearest neighbor interpolation method
-    conv = upsample(conv)                                                                         
+    conv = upsample(conv)                                     
     #Concatenate the upsampling medium feature map and the medium-scaled backbone feature map
     conv = tf.concat([conv, fmap_backbone_medium], axis=-1)
     #There are 5 subconvolutional layers for medium-scaled feature map
@@ -157,43 +149,65 @@ def YOLOv3_detector(input_layer, NUM_CLASS):
 
 
 #Define function used to change the output tensor to the information of (bbox, confidence, class)
-# i represents for the grid scales
+# i represents for the grid scales: (0,1,2) <--> (large, medium, small)
 def decode(conv_output, NUM_CLASS, i=0):
-    conv_shape       = tf.shape(conv_output)
+    conv_shape       = tf.shape(conv_output)                # shape [batch_size, output_size, output_size, 255]           
     batch_size       = conv_shape[0]
     output_size      = conv_shape[1]
     #Change the output_shape of each scale into [batch_size, output_size, output_size, 3, 85]
     conv_output = tf.reshape(conv_output, (batch_size, output_size, output_size, 3, 5 + NUM_CLASS))
     
     #Split the final dimension into 4 information (offset xy, offset wh, confidence, class probabilities)
-    conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)
+    conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)   #shape [batch_size, output_size, output_size, 3, ...]
 
-    # next need Draw the grid. Where output_size is equal to 13, 26 or 52  
-    xy_grid = tf.meshgrid(tf.range(output_size), tf.range(output_size))
-    xy_grid = tf.expand_dims(tf.stack(xy_grid, axis=-1), axis=2)  # [gx, gy, 1, 2]
-    xy_grid = tf.tile(tf.expand_dims(xy_grid, axis=0), [batch_size, 1, 1, 3, 1])
-    xy_grid = tf.cast(xy_grid, tf.float32)
-    
-    #xy_grid = tf.concat([x[:, :, tf.newaxis], y[:, :, tf.newaxis]], axis=-1)
-    #xy_grid = tf.tile(xy_grid[tf.newaxis, :, :, tf.newaxis, :], [batch_size, 1, 1, 3, 1])
-    #y_grid = tf.cast(xy_grid, tf.float32)
+    # Create the matrix of grid cell indexes
+    x_gridcell, y_gridcell = tf.meshgrid(tf.range(output_size), tf.range(output_size))  #create 2 matrices of shape [output_size, output_size]
+    xy_gridcell = tf.stack([x_gridcell, y_gridcell], axis=-1)                           #Stack at final axis to create shape [output_size, output_size, 2]
+    xy_gridcell = tf.expand_dims(tf.expand_dims(xy_gridcell, axis=2), axis=0)           #Prepare shape [1, output_size, output_size, 1, 2]
+    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, 3, 1])                        #Create matrix of shape [batch_size, output_size, output_size, 3, 2]
+    xy_gridcell = tf.cast(xy_gridcell, tf.float32)
 
-    # Calculate the center position of the prediction box:
-    pred_xy = (tf.sigmoid(conv_raw_dxdy) + xy_grid) * STRIDES[i]
-    # Calculate the length and width of the prediction box:
-    pred_wh = (tf.exp(conv_raw_dwdh) * ANCHORS[i]) * STRIDES[i]
-
+    # Predicted boxes coordinates
+    pred_xy = (tf.sigmoid(conv_raw_dxdy) + xy_gridcell) * YOLO_SCALE_OFFSET[i]
+    pred_wh = (tf.exp(conv_raw_dwdh) * YOLO_ANCHORS[i])
     pred_xywh = tf.concat([pred_xy, pred_wh], axis=-1)
-    pred_conf = tf.sigmoid(conv_raw_conf) # object box calculates the predicted confidence
-    pred_prob = tf.sigmoid(conv_raw_prob) # calculating the predicted probability category box object
+    #Predicted box confidence scores
+    pred_conf = tf.sigmoid(conv_raw_conf)
+    #Predicted box class probabilities 
+    pred_prob = tf.sigmoid(conv_raw_prob)
 
-    # calculating the predicted probability category box object
+    #Prediction of shape [batch_size, output_size, output_size, 3, 85]
     return tf.concat([pred_xywh, pred_conf, pred_prob], axis=-1)
 
 
+def YOLOv3_Model(input_size=416, input_channel=3, training=False, CLASS_DIR = YOLO_COCO_CLASS_DIR):
+    #Read coco class names file
+    class_names = {}
+    with open(CLASS_DIR, 'r') as f:
+        for ID, name in enumerate(f):
+            class_names[ID] = name.strip('\n')
+    NUM_CLASS = len(class_names)
+    #Create input layer
+    input_layer = Input([input_size, input_size, input_channel])
+
+    conv_tensors = YOLOv3_detector(input_layer, NUM_CLASS)
+
+    output_tensors = []
+    for i, conv_tensor in enumerate(conv_tensors):
+        # pred_tensor = decode(conv_tensor, NUM_CLASS, i)
+
+        pred_tensor = decode(conv_tensor, NUM_CLASS, i)
+        if training: 
+            output_tensors.append(conv_tensor)
+        output_tensors.append(pred_tensor)
+
+    YOLOv3_model = tf.keras.Model(input_layer, output_tensors)
+    return YOLOv3_model
 
 
-
+if __name__ == '__main__':
+    yolo_model = YOLOv3_Model()
+    yolo_model.summary()
 
 
 
