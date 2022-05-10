@@ -20,7 +20,7 @@ from YOLOv3_utils import *
 
 #Configure Batch Normalization layer for 2 trainable parameters
 class BatchNormalization(tf.keras.layers.BatchNormalization):
-    def call(self, x, training=False):                      # BN has 2 type: frozen state , inference mode
+    def call(self, x, training=False):                      # BN has 2 types: frozen state , inference mode
         if not training:                                    # training = False: using frozen mode
             training = tf.constant(False)
         training = tf.logical_and(training, self.trainable)
@@ -44,7 +44,7 @@ def convolutional(input_layer, filters_shape, downsample=False, activate=True, b
                     strides             =   strides,
                     padding             =   padding,
                     use_bias            =   not bn,
-                    kernel_regularizer  =   L2(0.0005),
+                    kernel_regularizer  =   L2(0.0005),                             #L2 regularizer: smaller weights -> simpler model
                     kernel_initializer  =   tf.random_normal_initializer(stddev=0.01),
                     bias_initializer    =   tf.constant_initializer(0.)
                     )(input_layer)
@@ -116,7 +116,7 @@ def YOLOv3_detector(input_layer, NUM_CLASS):
     conv_small_scale_branch = convolutional(conv, (3, 3, 512, 1024))
     conv_large_bbox = convolutional(conv_small_scale_branch, (1, 1, 1024, 3*(NUM_CLASS + 5)), activate=False, bn=False)
 
-    #Add 1 convolutional layers after the feature maps after subconvolutional layers
+    #Add 1 convolutional layers after the feature maps behind subconvolutional layers
     conv = convolutional(conv, (1, 1,  512,  256))
     #Upsampling using the nearest neighbor interpolation method
     conv = upsample(conv)                                     
@@ -164,7 +164,7 @@ def decode(conv_output, NUM_CLASS, i=0):
     x_gridcell, y_gridcell = tf.meshgrid(tf.range(output_size), tf.range(output_size))  #create 2 matrices of shape [output_size, output_size]
     xy_gridcell = tf.stack([x_gridcell, y_gridcell], axis=-1)                           #Stack at final axis to create shape [output_size, output_size, 2]
     xy_gridcell = tf.expand_dims(tf.expand_dims(xy_gridcell, axis=2), axis=0)           #Prepare shape [1, output_size, output_size, 1, 2]
-    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, 3, 1])                        #Create matrix of shape [batch_size, output_size, output_size, 3, 2]
+    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, 3, 1])                        #Create indexes matrix of shape [batch_size, output_size, output_size, 3, 2]
     xy_gridcell = tf.cast(xy_gridcell, tf.float32)
 
     # Predicted boxes coordinates
@@ -194,13 +194,10 @@ def YOLOv3_Model(input_size=416, input_channel=3, training=False, CLASS_DIR = YO
 
     output_tensors = []
     for i, conv_tensor in enumerate(conv_tensors):
-        # pred_tensor = decode(conv_tensor, NUM_CLASS, i)
-
         pred_tensor = decode(conv_tensor, NUM_CLASS, i)
-        if training: 
+        if training:                                                            # *SOS* need reading again
             output_tensors.append(conv_tensor)
-        output_tensors.append(pred_tensor)
-
+        output_tensors.append(pred_tensor)                                      #shape [3, batch_size, output_size, output_size, 3, 85]
     YOLOv3_model = tf.keras.Model(input_layer, output_tensors)
     return YOLOv3_model
 
