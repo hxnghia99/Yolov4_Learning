@@ -205,7 +205,7 @@ def YOLOv3_Model(input_size=416, input_channel=3, training=False, CLASS_DIR = YO
 if __name__ == '__main__':
     yolo_model = YOLOv3_Model()
     yolo_model.summary()
-
+    
 
 
 
