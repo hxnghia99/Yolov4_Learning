@@ -314,7 +314,7 @@ def detect_image(Yolo, image_path, output_path, input_size=416, show=False, CLAS
         # To close the window after the required kill value was provided
         cv2.destroyAllWindows()
         
-    return image
+    return pred_bbox
 
 def Predict_bbox_mp(Frames_data, Predicted_data, Processing_times):
     gpus = tf.config.experimental.list_physical_devices('GPU')

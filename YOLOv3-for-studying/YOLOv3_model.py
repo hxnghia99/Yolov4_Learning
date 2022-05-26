@@ -8,12 +8,10 @@
 #                                                               #
 #===============================================================#
 
-import os
-from turtle import down
+
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, Input
 from tensorflow.keras.regularizers import L2
-import numpy as np
 from YOLOv3_config import *
 from YOLOv3_utils import *
 
@@ -112,7 +110,8 @@ def YOLOv3_detector(input_layer, NUM_CLASS):
     conv = convolutional(conv, (1, 1, 1024,  512))
     conv = convolutional(conv, (3, 3,  512, 1024))
     conv = convolutional(conv, (1, 1, 1024,  512))
-    #Make 2 convolutional layers for small-scaled features after subconvolutional layers, result to predict large-sized objects, shape = [None, 13, 13, 255]
+    #Make 2 convolutional layers for small-scaled features after subconvolutional layers
+    #result to predict large-sized objects, shape = [None, 13, 13, 255]
     conv_small_scale_branch = convolutional(conv, (3, 3, 512, 1024))
     conv_large_bbox = convolutional(conv_small_scale_branch, (1, 1, 1024, 3*(NUM_CLASS + 5)), activate=False, bn=False)
 
@@ -128,7 +127,8 @@ def YOLOv3_detector(input_layer, NUM_CLASS):
     conv = convolutional(conv, (1, 1, 512, 256))
     conv = convolutional(conv, (3, 3, 256, 512))
     conv = convolutional(conv, (1, 1, 512, 256))
-    #Make 2 convolutional layers for small-scaled features after subconvolutional layers, result to predict medium-sized objects, shape = [None, 26, 26, 255]
+    #Make 2 convolutional layers for small-scaled features after subconvolutional layers
+    #result to predict medium-sized objects, shape = [None, 26, 26, 255]
     conv_medium_scale_branch = convolutional(conv, (3, 3, 256, 512))
     conv_medium_bbox = convolutional(conv_medium_scale_branch, (1, 1, 512, 3*(NUM_CLASS + 5)), activate=False, bn=False)
 
@@ -143,7 +143,7 @@ def YOLOv3_detector(input_layer, NUM_CLASS):
     conv = convolutional(conv, (1, 1, 256, 128))
     conv_large_scale_branch = convolutional(conv, (3, 3, 128, 256))
     # The result is used to predict small-sized objects, shape = [None, 52, 52, 255]
-    conv_small_bbox = convolutional(conv_large_scale_branch, (1, 1, 256, 3*(NUM_CLASS +5)), activate=False, bn=False)
+    conv_small_bbox = convolutional(conv_large_scale_branch, (1, 1, 256, 3*(NUM_CLASS + 5)), activate=False, bn=False)
         
     return [conv_small_bbox, conv_medium_bbox, conv_large_bbox]
 
@@ -158,7 +158,8 @@ def decode(conv_output, NUM_CLASS, i=0):
     conv_output = tf.reshape(conv_output, (batch_size, output_size, output_size, 3, 5 + NUM_CLASS))
     
     #Split the final dimension into 4 information (offset xy, offset wh, confidence, class probabilities)
-    conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)   #shape [batch_size, output_size, output_size, 3, ...]
+    conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)
+    #shape [batch_size, output_size, output_size, 3, ...]
 
     # Create the matrix of grid cell indexes
     x_gridcell, y_gridcell = tf.meshgrid(tf.range(output_size), tf.range(output_size))  #create 2 matrices of shape [output_size, output_size]
@@ -183,8 +184,8 @@ def decode(conv_output, NUM_CLASS, i=0):
 def YOLOv3_Model(input_size=416, input_channel=3, training=False, CLASS_DIR = YOLO_COCO_CLASS_DIR):
     #Read coco class names file
     class_names = {}
-    with open(CLASS_DIR, 'r') as f:
-        for ID, name in enumerate(f):
+    with open(CLASS_DIR, 'r') as data:
+        for ID, name in enumerate(data):
             class_names[ID] = name.strip('\n')
     NUM_CLASS = len(class_names)
     #Create input layer
@@ -193,11 +194,11 @@ def YOLOv3_Model(input_size=416, input_channel=3, training=False, CLASS_DIR = YO
     conv_tensors = YOLOv3_detector(input_layer, NUM_CLASS)
 
     output_tensors = []
-    for i, conv_tensor in enumerate(conv_tensors):
+    for i, conv_tensor in enumerate(conv_tensors):                              #small -> medium -> large
         pred_tensor = decode(conv_tensor, NUM_CLASS, i)
-        if training:                                                            # *SOS* need reading again
+        if training:                                                           
             output_tensors.append(conv_tensor)
-        output_tensors.append(pred_tensor)                                      #shape [3, batch_size, output_size, output_size, 3, 85]
+        output_tensors.append(pred_tensor)                                      #shape [3 or 6, batch_size, output_size, output_size, 3, 85]
     YOLOv3_model = tf.keras.Model(input_layer, output_tensors)
     return YOLOv3_model
 

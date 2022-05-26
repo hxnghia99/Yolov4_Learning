@@ -89,6 +89,7 @@ def get_mAP(Yolo, dataset, score_threshold=0.25, iou_threshold=0.50, TEST_INPUT_
     print(f'\ncalculating mAP{int(iou_threshold*100)}...\n')
 
     gt_counter_per_class = {}
+    #each annotation including image and gt_boxes
     for index in range(dataset.num_samples):
         ann_dataset = dataset.annotations[index]
 
@@ -124,13 +125,14 @@ def get_mAP(Yolo, dataset, score_threshold=0.25, iou_threshold=0.50, TEST_INPUT_
     gt_classes = sorted(gt_classes)
     n_classes = len(gt_classes)
 
+
     times = []
     json_pred = [[] for i in range(n_classes)]
     for index in range(dataset.num_samples):
         ann_dataset = dataset.annotations[index]
 
         image_name = ann_dataset[0].split('/')[-1]
-        original_image, bbox_data_gt = dataset.parse_annotation(ann_dataset, True)
+        original_image, bbox_data_gt = dataset.parse_annotation(ann_dataset, True)  #do not preprocess image
         
         image = image_preprocess(np.copy(original_image), [TEST_INPUT_SIZE, TEST_INPUT_SIZE])
         image_data = image[np.newaxis, ...].astype(np.float32)

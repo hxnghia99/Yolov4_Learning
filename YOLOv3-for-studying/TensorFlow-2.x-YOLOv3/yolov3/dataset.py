@@ -22,7 +22,7 @@ from yolov3.configs import *
 class Dataset(object):
     # Dataset preprocess implementation
     def __init__(self, dataset_type, TEST_INPUT_SIZE=TEST_INPUT_SIZE):
-        self.annot_path  = TRAIN_ANNOT_PATH if dataset_type == 'train' else TEST_ANNOT_PATH
+        self.annot_path  = TRAIN_ANNOTATION_PATH if dataset_type == 'train' else TEST_ANNOTATION_PATH
         self.input_sizes = TRAIN_INPUT_SIZE if dataset_type == 'train' else TEST_INPUT_SIZE
         self.batch_size  = TRAIN_BATCH_SIZE if dataset_type == 'train' else TEST_BATCH_SIZE
         self.data_aug    = TRAIN_DATA_AUG   if dataset_type == 'train' else TEST_DATA_AUG
@@ -30,7 +30,7 @@ class Dataset(object):
         self.train_yolo_tiny = TRAIN_YOLO_TINY
         self.train_input_sizes = TRAIN_INPUT_SIZE
         self.strides = np.array(YOLO_STRIDES)
-        self.classes = read_class_names(TRAIN_CLASSES)
+        self.classes = read_class_names(LG_CLASSES)
         self.num_classes = len(self.classes)
         self.anchors = (np.array(YOLO_ANCHORS).T/self.strides).T
         self.anchor_per_scale = YOLO_ANCHOR_PER_SCALE
@@ -43,44 +43,66 @@ class Dataset(object):
 
 
     def load_annotations(self, dataset_type):
-        final_annotations = []
-        with open(self.annot_path, 'r') as f:
-            txt = f.read().splitlines()
-            annotations = [line.strip() for line in txt if len(line.strip().split()[1:]) != 0]
-        np.random.shuffle(annotations)
+        # final_annotations = []
+        # with open(self.annot_path, 'r') as f:
+        #     txt = f.read().splitlines()
+        #     annotations = [line.strip() for line in txt if len(line.strip().split()[1:]) != 0]
+        # np.random.shuffle(annotations)
 
+        # # for annotation in annotations:
+        # #     image_extension = '.jpg'
+        # #     extension_index = annotation.find(image_extension)
+        # #     image_path = annotation[:extension_index+len(image_extension)]
+        # #     line = annotation[extension_index+len(image_extension):].split()
+        # #     if not os.path.exists(image_path):
+        # #         raise KeyError("%s does not exist ... " %image_path)
+        # #     if TRAIN_LOAD_IMAGES_TO_RAM:
+        # #         image = cv2.imread(image_path)
+        # #     else:
+        # #         image = ''
+        # #     final_annotations.append([image_path, line, image])
+        # # return final_annotations
         # for annotation in annotations:
-        #     image_extension = '.jpg'
-        #     extension_index = annotation.find(image_extension)
-        #     image_path = annotation[:extension_index+len(image_extension)]
-        #     line = annotation[extension_index+len(image_extension):].split()
+        #     # fully parse annotations
+        #     line = annotation.split()
+        #     image_path, index = "", 1
+        #     for i, one_line in enumerate(line):
+        #         if not one_line.replace(",","").isnumeric():
+        #             if image_path != "": image_path += " "
+        #             image_path += one_line
+        #         else:
+        #             index = i
+        #             break
         #     if not os.path.exists(image_path):
         #         raise KeyError("%s does not exist ... " %image_path)
         #     if TRAIN_LOAD_IMAGES_TO_RAM:
         #         image = cv2.imread(image_path)
         #     else:
         #         image = ''
-        #     final_annotations.append([image_path, line, image])
+        #     final_annotations.append([image_path, line[index:], image])
         # return final_annotations
+        with open(self.annot_path, 'r') as f:
+            all_texts_by_line = f.read().splitlines()
+            #Ensure that image has objects
+            annotations = [text_by_line.strip() for text_by_line in all_texts_by_line if len(text_by_line.strip().split()[1:]) != 0]
+        np.random.shuffle(annotations)
+        #Go through each annotation to process
+        final_annotations = []
         for annotation in annotations:
-            # fully parse annotations
-            line = annotation.split()
-            image_path, index = "", 1
-            for i, one_line in enumerate(line):
-                if not one_line.replace(",","").isnumeric():
-                    if image_path != "": image_path += " "
-                    image_path += one_line
+            text_by_line = annotation.split()
+            bboxes_annotations = []
+            #At each annotations, divide into [image_path, [list of bboxes] ]
+            for text in text_by_line:
+                if not text.replace(',','').isnumeric():
+                    temp_path   = os.path.relpath(text, RELATIVE_PATH)
+                    temp_path   = os.path.join(PREFIX_PATH, temp_path)
+                    image_path  = temp_path.replace('\\','/')
                 else:
-                    index = i
-                    break
+                    bboxes_annotations.append(text)
             if not os.path.exists(image_path):
-                raise KeyError("%s does not exist ... " %image_path)
-            if TRAIN_LOAD_IMAGES_TO_RAM:
-                image = cv2.imread(image_path)
-            else:
-                image = ''
-            final_annotations.append([image_path, line[index:], image])
-        return final_annotations
+                raise KeyError("%s does not exit !" %image_path)
+            final_annotations.append([image_path, bboxes_annotations])
+        return final_annotations                                        #shape [num_samples, 2], item includes image_path + [list of bboxes]
 
     def __iter__(self):
         return self
@@ -244,7 +266,7 @@ class Dataset(object):
 
         label = [np.zeros((self.train_output_sizes[i], self.train_output_sizes[i], self.anchor_per_scale,
                            5 + self.num_classes)) for i in range(OUTPUT_LEVELS)]
-        bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(OUTPUT_LEVELS)]
+        bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(OUTPUT_LEVELS)]  
         bbox_count = np.zeros((OUTPUT_LEVELS,))
 
         for bbox in bboxes:

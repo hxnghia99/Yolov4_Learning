@@ -109,8 +109,8 @@ def darknet53(input_data):
     return route_1, route_2, input_data
 
 def cspdarknet53(input_data):
-    input_data = convolutional(input_data, (3, 3,  3,  32), activate_type="mish")
-    input_data = convolutional(input_data, (3, 3, 32,  64), downsample=True, activate_type="mish")
+    input_data = convolutional(input_data, (3, 3, 3, 32), activate_type="mish")
+    input_data = convolutional(input_data, (3, 3, 32, 64), downsample=True, activate_type="mish")
 
     route = input_data
     route = convolutional(route, (1, 1, 64, 64), activate_type="mish")
@@ -118,10 +118,11 @@ def cspdarknet53(input_data):
     for i in range(1):
         input_data = residual_block(input_data,  64,  32, 64, activate_type="mish")
     input_data = convolutional(input_data, (1, 1, 64, 64), activate_type="mish")
-
     input_data = tf.concat([input_data, route], axis=-1)
     input_data = convolutional(input_data, (1, 1, 128, 64), activate_type="mish")
     input_data = convolutional(input_data, (3, 3, 64, 128), downsample=True, activate_type="mish")
+    
+
     route = input_data
     route = convolutional(route, (1, 1, 128, 64), activate_type="mish")
     input_data = convolutional(input_data, (1, 1, 128, 64), activate_type="mish")
@@ -129,9 +130,11 @@ def cspdarknet53(input_data):
         input_data = residual_block(input_data, 64,  64, 64, activate_type="mish")
     input_data = convolutional(input_data, (1, 1, 64, 64), activate_type="mish")
     input_data = tf.concat([input_data, route], axis=-1)
-
     input_data = convolutional(input_data, (1, 1, 128, 128), activate_type="mish")
     input_data = convolutional(input_data, (3, 3, 128, 256), downsample=True, activate_type="mish")
+    
+    
+    
     route = input_data
     route = convolutional(route, (1, 1, 256, 128), activate_type="mish")
     input_data = convolutional(input_data, (1, 1, 256, 128), activate_type="mish")
@@ -143,6 +146,10 @@ def cspdarknet53(input_data):
     input_data = convolutional(input_data, (1, 1, 256, 256), activate_type="mish")
     route_1 = input_data
     input_data = convolutional(input_data, (3, 3, 256, 512), downsample=True, activate_type="mish")
+    
+    
+    
+    
     route = input_data
     route = convolutional(route, (1, 1, 512, 256), activate_type="mish")
     input_data = convolutional(input_data, (1, 1, 512, 256), activate_type="mish")
@@ -154,6 +161,9 @@ def cspdarknet53(input_data):
     input_data = convolutional(input_data, (1, 1, 512, 512), activate_type="mish")
     route_2 = input_data
     input_data = convolutional(input_data, (3, 3, 512, 1024), downsample=True, activate_type="mish")
+    
+    
+    
     route = input_data
     route = convolutional(route, (1, 1, 1024, 512), activate_type="mish")
     input_data = convolutional(input_data, (1, 1, 1024, 512), activate_type="mish")
@@ -473,6 +483,7 @@ def bbox_giou(boxes1, boxes2):
     boxes2 = tf.concat([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
                         boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
 
+#--> convert invalid boxes to valid boxes
     boxes1 = tf.concat([tf.minimum(boxes1[..., :2], boxes1[..., 2:]),
                         tf.maximum(boxes1[..., :2], boxes1[..., 2:])], axis=-1)
     boxes2 = tf.concat([tf.minimum(boxes2[..., :2], boxes2[..., 2:]),
@@ -560,6 +571,8 @@ def compute_loss(pred, conv, label, bboxes, i=0, CLASSES=YOLO_COCO_CLASSES):
     # Find the value of IoU with the real box The largest prediction box
     max_iou = tf.expand_dims(tf.reduce_max(iou, axis=-1), axis=-1)
 
+    
+
     # If the largest iou is less than the threshold, it is considered that the prediction box contains no objects, then the background box
     respond_bgd = (1.0 - respond_bbox) * tf.cast( max_iou < YOLO_IOU_LOSS_THRESH, tf.float32 )
 
@@ -580,3 +593,9 @@ def compute_loss(pred, conv, label, bboxes, i=0, CLASSES=YOLO_COCO_CLASSES):
     prob_loss = tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4]))
 
     return giou_loss, conf_loss, prob_loss
+
+
+
+if __name__ == '__main__':
+    yolo_model = Create_Yolo()
+    yolo_model.summary()
