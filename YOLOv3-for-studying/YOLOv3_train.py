@@ -92,13 +92,13 @@ def main():
             global_steps.assign_add(1)
 
             # writing summary data
-            with writer.as_default():
+            with training_writer.as_default():
                 tf.summary.scalar("lr", optimizer.lr, step=global_steps)
-                tf.summary.scalar("loss/total_loss", total_loss, step=global_steps)
-                tf.summary.scalar("loss/giou_loss", giou_loss, step=global_steps)
-                tf.summary.scalar("loss/conf_loss", conf_loss, step=global_steps)
-                tf.summary.scalar("loss/prob_loss", prob_loss, step=global_steps)
-            writer.flush()   
+                tf.summary.scalar("training_loss/total_loss", total_loss, step=global_steps)
+                tf.summary.scalar("training_loss/giou_loss", giou_loss, step=global_steps)
+                tf.summary.scalar("training_loss/conf_loss", conf_loss, step=global_steps)
+                tf.summary.scalar("training_loss/prob_loss", prob_loss, step=global_steps)
+            training_writer.flush()   
 
         return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
@@ -118,25 +118,45 @@ def main():
             total_loss = giou_loss + conf_loss + prob_loss
         return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
+    #Create log folder and summary
     if os.path.exists(TRAIN_LOGDIR): shutil.rmtree(TRAIN_LOGDIR)
-    writer = tf.summary.create_file_writer(TRAIN_LOGDIR)
-    validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR)
-
+    training_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'training/')
+    validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
 
     best_val_loss = 1000 # should be large at start
     #For each epoch, do training and validating
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
+        giou_val, conf_val, prob_val, total_val = 0, 0, 0, 0
         for image_data, target in trainset:
             results = train_step(image_data, target)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
             current_step = results[0] % steps_per_epoch
             print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.6f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f}"
                   .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5]))
+            giou_val += results[2]
+            conf_val += results[3]
+            prob_val += results[4]
+            total_val += results[5]    
+        
+        # writing training summary data
+        with training_writer.as_default():
+            tf.summary.scalar("loss/total_val", total_val/steps_per_epoch, step=epoch)
+            tf.summary.scalar("loss/giou_val", giou_val/steps_per_epoch, step=epoch)
+            tf.summary.scalar("loss/conf_val", conf_val/steps_per_epoch, step=epoch)
+            tf.summary.scalar("loss/prob_val", prob_val/steps_per_epoch, step=epoch)
+        training_writer.flush()
+
+        # print validate summary data
+        print("\n\n TRAINING")
+        print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}".
+              format(epoch+1, giou_val/steps_per_epoch, conf_val/steps_per_epoch, prob_val/steps_per_epoch, total_val/steps_per_epoch))
+
         #If we do not have testing dataset, we save weights for every epoch
         if len(testset) == 0:
             print("configure TEST options to validate model")
             yolo.save_weights(os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME))
             continue
+        
         #Validating the model with testing dataset
         num_testset = len(testset)
         giou_val, conf_val, prob_val, total_val = 0, 0, 0, 0
@@ -149,14 +169,15 @@ def main():
 
         # writing validate summary data
         with validate_writer.as_default():
-            tf.summary.scalar("validate_loss/total_val", total_val/num_testset, step=epoch)
-            tf.summary.scalar("validate_loss/giou_val", giou_val/num_testset, step=epoch)
-            tf.summary.scalar("validate_loss/conf_val", conf_val/num_testset, step=epoch)
-            tf.summary.scalar("validate_loss/prob_val", prob_val/num_testset, step=epoch)
+            tf.summary.scalar("loss/total_val", total_val/num_testset, step=epoch)
+            tf.summary.scalar("loss/giou_val", giou_val/num_testset, step=epoch)
+            tf.summary.scalar("loss/conf_val", conf_val/num_testset, step=epoch)
+            tf.summary.scalar("loss/prob_val", prob_val/num_testset, step=epoch)
         validate_writer.flush()
 
-        # print validate summary data 
-        print("\n\nepoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}\n\n".
+        # print validate summary data
+        print("\n VALIDATING")
+        print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}\n\n".
               format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset))
 
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
@@ -166,8 +187,6 @@ def main():
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = total_val/num_testset
-    #Save the final training weights
-    yolo.save_weights(TRAIN_MODEL_WEIGHTS)
 
     # # create second model to measure mAP
     # mAP_model = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASSES=LG_CLASS_NAMES_PATH) 

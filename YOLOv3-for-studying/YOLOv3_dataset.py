@@ -112,13 +112,13 @@ class Dataset(object):
             xy = (bbox_coordinates[:2] + bbox_coordinates[2:])*0.5
             wh = bbox_coordinates[2:] - bbox_coordinates[:2]
             bbox_xywh = np.concatenate([xy, wh], axis=-1)                       #shape [4,]
-            bbox_xywh_scaled = 1.0 * bbox_xywh[np.newaxis, :] / self.strides[:, np.newaxis]     #shape [1, 4] / shape [3, 1] = shape [3,4]
+            bbox_xywh_scaled = 1.0 * bbox_xywh[np.newaxis, :] / self.strides[:, np.newaxis]         #shape [1, 4] / shape [3, 1] = shape [3,4]
             #At each scale of bbox, select the good anchors
             all_iou_scores = []
             has_positive_flag = False
             for i in range(self.num_output_levels):
-                anchor_xywh = np.zeros((self.num_anchors_per_gcell, 4))                         #shape [3, 4]      
-                anchor_xywh[:, :2] = np.floor(bbox_xywh_scaled[i, :2]) + 0.5                    #xy of anchor is center of gridcell that has xy of bbox
+                anchor_xywh = np.zeros((self.num_anchors_per_gcell, 4))                             #shape [3, 4]      
+                anchor_xywh[:, :2] = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32) + 0.5       #xy of anchor is center of gridcell that has xy of bbox
                 anchor_xywh[:, 2:] = self.anchors[i]
                 #compare the iou between 3 anchors and 1 bbox within specific scale
                 iou_scores = bboxes_iou_from_xywh(bbox_xywh_scaled[i][np.newaxis, :], anchor_xywh)  #shape [3,]

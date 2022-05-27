@@ -24,11 +24,11 @@ YOLO_INPUT_SIZE                 = 416
 
 #Dataset configurations
 LG_CLASS_NAMES_PATH             = "YOLOv3-for-studying/LG_DATASET/lg_class_names.txt"
-TRAIN_ANNOTATION_PATH           = "YOLOv3-for-studying/LG_DATASET/train_400samples.txt"
+TRAIN_ANNOTATION_PATH           = "YOLOv3-for-studying/LG_DATASET/train.txt"
 TRAIN_INPUT_SIZE                = YOLO_INPUT_SIZE
 TRAIN_BATCH_SIZE                = 6
 TRAIN_DATA_AUG                  = False
-TEST_ANNOTATION_PATH            = "YOLOv3-for-studying/LG_DATASET/test_100samples2.txt"
+TEST_ANNOTATION_PATH            = "YOLOv3-for-studying/LG_DATASET/test.txt"
 TEST_INPUT_SIZE                 = YOLO_INPUT_SIZE
 TEST_BATCH_SIZE                 = 6
 TEST_DATA_AUG                   = False
@@ -41,7 +41,7 @@ ANCHORS_PER_GRID_CELL           = 3
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
 
 #Training settings
-TRAIN_LOGDIR                   = 'YOLOv3-for-studying/log'
+TRAIN_LOGDIR                    = 'YOLOv3-for-studying/log/'
 TRAIN_CHECKPOINTS_FOLDER        = "YOLOv3-for-studying/checkpoints"
 TRAIN_MODEL_NAME                = "YOLOv3_custom"
 TRAIN_MODEL_WEIGHTS             = "YOLOv3-for-studying/checkpoints/YOLOv3_transfer.weights"
@@ -50,16 +50,16 @@ TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints i
 TRAIN_TRANSFER                  = True
 
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 40
+TRAIN_EPOCHS                    = 50
 TRAIN_LR_END                    = 1e-6
-TRAIN_LR_INIT                   = 1e-3
+TRAIN_LR_INIT                   = 1e-4
 YOLO_LOSS_IOU_THRESHOLD         = 0.5
 
 LAMBDA_COORD                    = 5
 LAMBDA_NOOBJ                    = 0.5
 
 #Evaluation settings
-VALIDATE_SCORE_THRESHOLD        = 0.05
+VALIDATE_SCORE_THRESHOLD        = 0.3
 VALIDATE_IOU_THRESHOLD          = 0.5
 USE_CUSTOM_WEIGHTS              = True
 VALIDATE_GT_RESULTS_DIR         = 'YOLOv3-for-studying/mAP/ground-truth'
