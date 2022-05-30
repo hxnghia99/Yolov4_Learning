@@ -27,7 +27,7 @@ LG_CLASS_NAMES_PATH             = "YOLOv3-for-studying/LG_DATASET/lg_class_names
 TRAIN_ANNOTATION_PATH           = "YOLOv3-for-studying/LG_DATASET/train.txt"
 TRAIN_INPUT_SIZE                = YOLO_INPUT_SIZE
 TRAIN_BATCH_SIZE                = 6
-TRAIN_DATA_AUG                  = False
+TRAIN_DATA_AUG                  = True
 TEST_ANNOTATION_PATH            = "YOLOv3-for-studying/LG_DATASET/test.txt"
 TEST_INPUT_SIZE                 = YOLO_INPUT_SIZE
 TEST_BATCH_SIZE                 = 6
@@ -48,6 +48,7 @@ TRAIN_MODEL_WEIGHTS             = "YOLOv3-for-studying/checkpoints/YOLOv3_transf
 TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according validation loss (True recommended)
 TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_TRANSFER                  = True
+TRAIN_LOAD_IMAGES_TO_RAM        = False
 
 TRAIN_WARMUP_EPOCHS             = 2
 TRAIN_EPOCHS                    = 50

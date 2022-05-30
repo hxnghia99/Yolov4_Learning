@@ -115,25 +115,47 @@ input: (3) image, target_size, gt_boxes(opt)
 output: new image padded the resized old image 
 obj:    create image to put into YOLO model
 ##################################'''
+# def image_preprocess(image, target_size, gt_boxes=None):
+#     image_h, image_w, _ = image.shape   
+#     resize_ratio = min(target_size/image_w, target_size/image_h)                      #resize ratio of the larger coordinate into 416
+#     new_image_w, new_image_h = int(resize_ratio*image_w), int(resize_ratio*image_h)
+#     image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
+
+#     image_padded = np.full(shape=[target_size, target_size, 3], fill_value=128.0)
+#     dw, dh = (target_size - new_image_w) // 2, (target_size - new_image_h) // 2
+#     image_padded[dh:new_image_h+dh, dw:new_image_w+dw] = image_resized                #pad the resized image into image_padded
+#     image_padded = image_padded/255.0
+    
+#     if gt_boxes is None:
+#         return image_padded
+
+#     else: #gt_boxes have shape of [xmin, ymin, xmax, ymax]
+#         gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * resize_ratio + dw
+#         gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * resize_ratio + dh
+#         return image_padded, gt_boxes
+    
+
 def image_preprocess(image, target_size, gt_boxes=None):
-    image_h, image_w, _ = image.shape   
-    resize_ratio = min(target_size/image_w, target_size/image_h)                      #resize ratio of the larger coordinate into 416
-    new_image_w, new_image_h = int(resize_ratio*image_w), int(resize_ratio*image_h)
-    image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
+    ih, iw    = target_size, target_size
+    h,  w, _  = image.shape
 
-    image_padded = np.full(shape=[target_size, target_size, 3], fill_value=128.0)
-    dw, dh = (target_size - new_image_w) // 2, (target_size - new_image_h) // 2
-    image_padded[dh:new_image_h+dh, dw:new_image_w+dw] = image_resized                #pad the resized image into image_padded
-    image_padded = image_padded/255.0
-    
+    scale = min(iw/w, ih/h)
+    nw, nh  = int(scale * w), int(scale * h)
+    image_resized = cv2.resize(image, (nw, nh))
+
+    image_paded = np.full(shape=[ih, iw, 3], fill_value=128.0)
+    dw, dh = (iw - nw) // 2, (ih-nh) // 2
+    image_paded[dh:nh+dh, dw:nw+dw, :] = image_resized
+    image_paded = image_paded / 255.
+
     if gt_boxes is None:
-        return image_padded
+        return image_paded
 
-    else: #gt_boxes have shape of [xmin, ymin, xmax, ymax]
-        gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * resize_ratio + dw
-        gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * resize_ratio + dh
-        return image_padded, gt_boxes
-    
+    else:
+        gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * scale + dw
+        gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * scale + dh
+        return image_paded, gt_boxes
+
 
 
 '''#################################################################################

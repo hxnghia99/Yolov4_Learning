@@ -9,7 +9,7 @@
 #===============================================================#
 
 
-##############################################################################################
+# #############################################################################################
 # """
 # INFERENCE TIME
 # """
@@ -23,16 +23,14 @@
 # USE_LG_WEIGHTS = False
 # if USE_LG_WEIGHTS:
 #     yolo = Load_YOLOv3_Model("LG_WEIGHTS")
-#     detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASS_FILE=LG_CLASS_NAMES_PATH)
+#     image = detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASS_FILE=LG_CLASS_NAMES_PATH)
 # else:
 #     yolo = Load_YOLOv3_Model("COCO_WEIGHTS")
-#     detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASS_FILE=YOLO_COCO_CLASS_DIR)
-##############################################################################################
+#     image = detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASS_FILE=YOLO_COCO_CLASS_DIR)
+# #############################################################################################
 
-
-
-
-
+import sys
+sys.modules[__name__].__dict__.clear()
 
 # import os
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -121,8 +119,8 @@
 # print('abc')
 
 
-a = 'alf/abc/'
-print(a+'123/')
+# a = 'alf/abc/'
+# print(a+'123/')
 
 
 

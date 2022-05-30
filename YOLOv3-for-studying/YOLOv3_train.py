@@ -12,7 +12,7 @@
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-
+import sys
 from tensorflow.python.client import device_lib
 print(device_lib.list_local_devices())
 import shutil
@@ -148,7 +148,7 @@ def main():
 
         # print validate summary data
         print("\n\n TRAINING")
-        print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}".
+        print("epoch={:2.0f} : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f}".
               format(epoch+1, giou_val/steps_per_epoch, conf_val/steps_per_epoch, prob_val/steps_per_epoch, total_val/steps_per_epoch))
 
         #If we do not have testing dataset, we save weights for every epoch
@@ -199,4 +199,5 @@ def main():
         
 if __name__ == '__main__':
     main()
+    sys.modules[__name__].__dict__.clear()
 

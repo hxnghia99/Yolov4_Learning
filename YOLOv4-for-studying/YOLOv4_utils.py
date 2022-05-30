@@ -186,20 +186,18 @@ obj:    Use normal IoU method to calculate IoU between 1 bbox and list of bboxes
 from (Xmin, Ymin, Xmax, Ymax)
 ################################################################################'''
 def bboxes_iou_from_minmax(boxes1, boxes2):
-    boxes1  = np.array(boxes1)
-    boxes2  = np.array(boxes2)
     #area of bboxes1 and bboxes2
     boxes1_area = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
     boxes2_area = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
     #coordinates of intersection
-    inters_top_left     = np.maximum(boxes1[..., :2], boxes2[..., :2])
-    inters_bottom_right = np.minimum(boxes1[..., 2:], boxes2[..., 2:])
+    inters_top_left     = tf.maximum(boxes1[..., :2], boxes2[..., :2])
+    inters_bottom_right = tf.minimum(boxes1[..., 2:], boxes2[..., 2:])
     #area of intersection and union
-    intersection = np.maximum(inters_bottom_right - inters_top_left, 0.)
-    intersection_area = np.multiply.reduce(intersection, axis=-1)
+    intersection = tf.maximum(inters_bottom_right - inters_top_left, 0.)
+    intersection_area = tf.math.reduce_prod(intersection, axis=-1)
     union_area = boxes1_area + boxes2_area - intersection_area
     #ious for list of bboxes
-    ious = np.maximum(1.0 * intersection_area / union_area, np.finfo(np.float32).eps)
+    ious = intersection_area / union_area
     return ious
 
 
@@ -210,12 +208,10 @@ obj:    Use normal IoU method to calculate IoU between 1 bbox and list of bboxes
 from XYWH
 ################################################################################'''
 def bboxes_iou_from_xywh(boxes1, boxes2):
-    boxes1  = np.array(boxes1)
-    boxes2  = np.array(boxes2)
     #convert xywh to minmax
-    boxes1 = np.concatenate([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
+    boxes1 = tf.concat([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
                              boxes1[..., :2] + boxes1[..., 2:] * 0.5], axis=-1)
-    boxes2 = np.concatenate([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
+    boxes2 = tf.concat([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
                              boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
     #calculate IOU
     ious = bboxes_iou_from_minmax(boxes1, boxes2)
@@ -229,25 +225,23 @@ obj:    Use generalized IoU method to calculate IoU between 1 bbox and list of b
 from (Xmin, Ymin, Xmax, Ymax)
 ################################################################################'''
 def bboxes_giou_from_minmax(boxes1, boxes2):
-    boxes1  = np.array(boxes1)
-    boxes2  = np.array(boxes2)
     #area of bboxes1 and bboxes2
     boxes1_area = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
     boxes2_area = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
     #coordinates of intersection
-    inters_top_left     = np.maximum(boxes1[..., :2], boxes2[..., :2])
-    inters_bottom_right = np.minimum(boxes1[..., 2:], boxes2[..., 2:])
+    inters_top_left     = tf.maximum(boxes1[..., :2], boxes2[..., :2])
+    inters_bottom_right = tf.minimum(boxes1[..., 2:], boxes2[..., 2:])
     #area of intersection and union
-    intersection = np.maximum(inters_bottom_right - inters_top_left, 0.)
-    intersection_area = np.multiply.reduce(intersection, axis=-1)
+    intersection = tf.maximum(inters_bottom_right - inters_top_left, 0.)
+    intersection_area = tf.math.reduce_prod(intersection, axis=-1)
     union_area = boxes1_area + boxes2_area - intersection_area
     #ious for list of bboxes
     ious = intersection_area / union_area
     #enclose area
-    enclose_top_left    = np.minimum(boxes1[..., :2], boxes2[..., :2])
-    enclose_bottom_right= np.maximum(boxes1[..., 2:], boxes2[..., 2:])
-    enclose             = np.maximum(enclose_bottom_right - enclose_top_left, 0.0)
-    enclose_area        = np.multiply.reduce(enclose, axis=-1)
+    enclose_top_left    = tf.minimum(boxes1[..., :2], boxes2[..., :2])
+    enclose_bottom_right= tf.maximum(boxes1[..., 2:], boxes2[..., 2:])
+    enclose             = tf.maximum(enclose_bottom_right - enclose_top_left, 0.0)
+    enclose_area        = tf.math.reduce_prod(enclose, axis=-1)
     #gious for list of bboxes
     gious = ious - 1.0 * (enclose_area - union_area) / enclose_area
     return gious
@@ -260,13 +254,11 @@ obj:    Use generalized IoU method to calculate IoU between 1 bbox and list of b
 from XYWH
 ################################################################################'''
 def bboxes_giou_from_xywh(boxes1, boxes2):
-    boxes1  = np.array(boxes1)
-    boxes2  = np.array(boxes2)
     #convert xywh to minmax
-    boxes1 = np.concatenate([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
-                             boxes1[..., :2] + boxes1[..., 2:] * 0.5], axis=-1)
-    boxes2 = np.concatenate([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
-                             boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
+    boxes1 = tf.concat([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
+                        boxes1[..., :2] + boxes1[..., 2:] * 0.5], axis=-1)
+    boxes2 = tf.concat([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
+                        boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
     #calculate gious from minmax
     gious = bboxes_giou_from_minmax(boxes1, boxes2)
     return gious

@@ -35,7 +35,7 @@ YOLO_LOSS_IOU_THRESHOLD         = 0.5
 TRAIN_ANNOTATION_PATH           = "YOLOv4-for-studying/LG_DATASET/train_400samples.txt"
 TRAIN_INPUT_SIZE                = YOLO_INPUT_SIZE
 TRAIN_BATCH_SIZE                = 4
-TRAIN_DATA_AUG                  = False
+TRAIN_DATA_AUG                  = True
 TEST_ANNOTATION_PATH            = "YOLOv4-for-studying/LG_DATASET/test_100samples.txt"
 TEST_INPUT_SIZE                 = YOLO_INPUT_SIZE
 TEST_BATCH_SIZE                 = 4
@@ -49,7 +49,7 @@ ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
 
 
 #Training settings
-TRAIN_LOGDIR                   = 'YOLOv4-for-studying/log'
+TRAIN_LOGDIR                   = 'YOLOv4-for-studying/log/'
 TRAIN_CHECKPOINTS_FOLDER        = "YOLOv4-for-studying/checkpoints"
 TRAIN_MODEL_NAME                = "YOLOv4_custom"
 TRAIN_MODEL_WEIGHTS             = "YOLOv4-for-studying/checkpoints/YOLOv4_transfer.weights"
@@ -58,7 +58,7 @@ TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints i
 TRAIN_TRANSFER                  = True
 
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 40
+TRAIN_EPOCHS                    = 50
 TRAIN_LR_END                    = 1e-6
 TRAIN_LR_INIT                   = 1e-4
 YOLO_LOSS_IOU_THRESHOLD         = 0.5

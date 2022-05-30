@@ -9,27 +9,27 @@
 #===============================================================#
 
 
-##############################################################################################
-"""
-INFERENCE TIME
-"""
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-from YOLOv4_utils import *
-from YOLOv4_config import *
+# ##############################################################################################
+# """
+# INFERENCE TIME
+# """
+# import os
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# from YOLOv4_utils import *
+# from YOLOv4_config import *
 
-# IMAGE_PATH = "./YOLOv4-for-studying/IMAGES/kite.jpg"
-IMAGE_PATH = "./YOLOv4-for-studying/IMAGES/lg_street.jpg"
-USE_LG_WEIGHTS = False
-if USE_LG_WEIGHTS:
-    yolo = Load_YOLOv4_Model("LG_WEIGHTS")
-    detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASSES_PATH=YOLO_LG_CLASS_PATH)
-else:
-    yolo = Load_YOLOv4_Model("COCO_WEIGHTS")
-    detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH)
-##############################################################################################
+# # IMAGE_PATH = "./YOLOv4-for-studying/IMAGES/kite.jpg"
+# IMAGE_PATH = "./YOLOv4-for-studying/IMAGES/lg_street.jpg"
+# USE_LG_WEIGHTS = False
+# if USE_LG_WEIGHTS:
+#     yolo = Load_YOLOv4_Model("LG_WEIGHTS")
+#     detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASSES_PATH=YOLO_LG_CLASS_PATH)
+# else:
+#     yolo = Load_YOLOv4_Model("COCO_WEIGHTS")
+#     detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH)
+# ##############################################################################################
 
-print('a')
+# print('a')
 
 
 
@@ -66,3 +66,4 @@ print('a')
 
 # if cv2.waitKey() == 'q':
 #     pass
+
