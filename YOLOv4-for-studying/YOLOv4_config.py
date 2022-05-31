@@ -20,6 +20,7 @@ ANCHORS_PER_GRID_CELL           = 3
 
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/coco/coco.names"
 YOLO_LG_CLASS_PATH              = "YOLOv4-for-studying/LG_DATASET/lg_class_names.txt"
+YOLO_VISDRONE_CLASS_PATH        = "YOLOv4-for-studying/Visdrone_DATASET/Visdrone_class_names.txt"
 
 YOLO_INPUT_SIZE                 = 416
 USE_LOADED_WEIGHT               = True
@@ -43,6 +44,13 @@ TEST_DATA_AUG                   = False
 
 RELATIVE_PATH                   = 'E:/dataset/TOTAL/'
 PREFIX_PATH                     = '.\YOLOv4-for-studying\LG_DATASET'
+
+USE_VISDRONE_DATASET            = True
+if USE_VISDRONE_DATASET:
+    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/Visdrone_DATASET/train.txt"
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/Visdrone_DATASET/validation.txt"
+    RELATIVE_PATH               = ""
+    PREFIX_PATH                 = ""
 
 YOLO_MAX_BBOX_PER_SCALE         = 100
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3

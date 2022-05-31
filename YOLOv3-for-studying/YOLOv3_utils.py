@@ -100,6 +100,7 @@ def Load_YOLOv3_Model(weight_type="LG_WEIGHTS"):
         yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASS_DIR=LG_CLASS_NAMES_PATH)
     elif weight_type== "COCO_WEIGHTS":
         yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASS_DIR=YOLO_COCO_CLASS_DIR)
+        
     if USE_LOADED_WEIGHT:
         if weight_type== "LG_WEIGHTS":
             YOLOv3_weights = YOLO_V3_LG_WEIGHTS

@@ -18,6 +18,7 @@ YOLO_ANCHORS                    =   [[[10,  13], [16,   30], [33,   23]],
 YOLO_COCO_CLASS_DIR             = "YOLOv3-for-studying/coco/coco.names"
 YOLO_V3_COCO_WEIGHTS            = "YOLOv3-for-studying/model_data/yolov3.weights"
 YOLO_V3_LG_WEIGHTS              = "YOLOv3-for-studying/checkpoints/YOLOv3_custom"
+# YOLO_V3_LG_WEIGHTS              = "YOLOv3-for-studying/Best_weights/yolov3_custom"
 
 USE_LOADED_WEIGHT               = True
 YOLO_INPUT_SIZE                 = 416

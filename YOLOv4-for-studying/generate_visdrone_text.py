@@ -14,7 +14,7 @@
 import glob
 from matplotlib.cbook import boxplot_stats
 import numpy as np
-PREFIX_PATH             = "./Visdrone_DATASET/"  
+PREFIX_PATH             = "./YOLOv4-for-studying/Visdrone_DATASET/"  
 
 DATASET_TYPE = ["VisDrone2019-DET-train/", "VisDrone2019-DET-val/", "VisDrone2019-DET-test-dev/"]
 TEXT_NAME    = ['train', 'validation', 'test']

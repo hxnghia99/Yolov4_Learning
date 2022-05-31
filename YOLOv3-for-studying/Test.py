@@ -9,28 +9,28 @@
 #===============================================================#
 
 
-# #############################################################################################
-# """
-# INFERENCE TIME
-# """
-# import os
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-# from YOLOv3_utils import *
-# from YOLOv3_config import *
+#############################################################################################
+"""
+INFERENCE TIME
+"""
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+from YOLOv3_utils import *
+from YOLOv3_config import *
 
-# # IMAGE_PATH = "./YOLOv3-for-studying/IMAGES/kite.jpg"
-# IMAGE_PATH = "./YOLOv3-for-studying/IMAGES/lg_street.jpg"
-# USE_LG_WEIGHTS = False
-# if USE_LG_WEIGHTS:
-#     yolo = Load_YOLOv3_Model("LG_WEIGHTS")
-#     image = detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASS_FILE=LG_CLASS_NAMES_PATH)
-# else:
-#     yolo = Load_YOLOv3_Model("COCO_WEIGHTS")
-#     image = detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASS_FILE=YOLO_COCO_CLASS_DIR)
-# #############################################################################################
+# IMAGE_PATH = "./YOLOv3-for-studying/IMAGES/kite.jpg"
+IMAGE_PATH = "./YOLOv3-for-studying/IMAGES/lg_street.jpg"
+USE_LG_WEIGHTS = True
+if USE_LG_WEIGHTS:
+    yolo = Load_YOLOv3_Model("LG_WEIGHTS")
+    image = detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASS_FILE=LG_CLASS_NAMES_PATH)
+else:
+    yolo = Load_YOLOv3_Model("COCO_WEIGHTS")
+    image = detect_image(yolo, IMAGE_PATH, show=True, save=False, CLASS_FILE=YOLO_COCO_CLASS_DIR)
+#############################################################################################
 
-import sys
-sys.modules[__name__].__dict__.clear()
+# import sys
+# sys.modules[__name__].__dict__.clear()
 
 # import os
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
