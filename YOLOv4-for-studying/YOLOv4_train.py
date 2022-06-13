@@ -49,7 +49,7 @@ def main():
         Darknet = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_COCO_CLASS_PATH)
         load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
     #Create YOLO model
-    yolo = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, training=True, CLASSES_PATH=YOLO_LG_CLASS_PATH)
+    yolo = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, training=True, CLASSES_PATH=YOLO_CLASS_PATH)
     if TRAIN_TRANSFER:
         for i, l in enumerate(Darknet.layers):
             layer_weights = l.get_weights()
@@ -70,7 +70,7 @@ def main():
             #calculate loss at each scale  
             for i in range(num_scales):
                 conv, pred = pred_result[i*2], pred_result[i*2+1]
-                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_LG_CLASS_PATH)
+                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
@@ -84,7 +84,7 @@ def main():
                 lr = global_steps / warmup_steps * TRAIN_LR_INIT
             else:
                 lr = TRAIN_LR_END + 0.5 * (TRAIN_LR_INIT - TRAIN_LR_END)*(
-                    (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))     #what is this calculation?
+                    (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))    
             optimizer.lr.assign(lr.numpy())
             #increase global steps 
             global_steps.assign_add(1)
@@ -109,7 +109,7 @@ def main():
             #calculate loss at each each
             for i in range(grid):
                 conv, pred = pred_result[i*2], pred_result[i*2+1]
-                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_LG_CLASS_PATH)
+                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
@@ -185,18 +185,7 @@ def main():
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = total_val/num_testset
-    #Save the final training weights
-    yolo.save_weights(TRAIN_MODEL_WEIGHTS)
 
-    # # create second model to measure mAP
-    # mAP_model = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASSES=LG_CLASS_NAMES_PATH) 
-    # # measure mAP of trained custom model
-    # try:
-    #     mAP_model.load_weights(save_directory) # use keras weights
-    #     get_mAP(mAP_model, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD)
-    # except UnboundLocalError:
-    #     print("You don't have saved model weights to measure mAP, check TRAIN_SAVE_BEST_ONLY and TRAIN_SAVE_CHECKPOINT lines in configs.py")
-        
 if __name__ == '__main__':
     main()
     sys.modules[__name__].__dict__.clear()

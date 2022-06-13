@@ -10,13 +10,14 @@
 
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import cv2
 import numpy as np
 import tensorflow as tf
 from YOLOv4_utils import *
 from YOLOv4_config import *
 import random
+
+
 
 class Dataset(object):
     def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE):    #train and test data use only one size 416x416
@@ -26,7 +27,7 @@ class Dataset(object):
         self.batch_size             = TRAIN_BATCH_SIZE if dataset_type == 'train' else TEST_BATCH_SIZE
         self.data_aug               = TRAIN_DATA_AUG if dataset_type == 'train' else TEST_DATA_AUG
         #settings of classes
-        self.class_names            = read_class_names(YOLO_LG_CLASS_PATH)
+        self.class_names            = read_class_names(YOLO_CLASS_PATH)
         self.num_classes            = len(self.class_names)
         #settings of anchors in different scales
         self.strides                = np.array(YOLO_SCALE_OFFSET)
@@ -40,7 +41,8 @@ class Dataset(object):
         self.max_bbox_per_scale     = YOLO_MAX_BBOX_PER_SCALE
         #settings of output sizes, output levels
         self.num_output_levels      = len(self.strides)
-        self.output_gcell_sizes = self.input_size // self.strides   #number of gridcells each scale
+        self.output_gcell_sizes_w   = self.input_size[0] // self.strides   #number of gridcells each scale
+        self.output_gcell_sizes_h   = self.input_size[1] // self.strides
 
     #special method to give number of batchs in dataset
     def __len__(self):
@@ -68,14 +70,22 @@ class Dataset(object):
                     bboxes_annotations.append(text)
             if not os.path.exists(image_path):
                 raise KeyError("%s does not exit !" %image_path)
-            final_annotations.append([image_path, bboxes_annotations])
+            if TRAIN_LOAD_IMAGES_TO_RAM:
+                image = cv2.imread(image_path)
+                final_annotations.append([image_path, bboxes_annotations, image])
+            else:
+                final_annotations.append([image_path, bboxes_annotations])
         return final_annotations                                        #shape [num_samples, 2], item includes image_path + [list of bboxes]
 
     #Receive annotation, preprocess image and produce image+bboxes in size 416x416
     def parse_annotation(self, annotation, mAP=False):
-        #Get data inside annotation
-        image_path, bboxes_annotations = annotation
-        image = cv2.imread(image_path)
+        if TRAIN_LOAD_IMAGES_TO_RAM:
+            image, bboxes_annotations = annotation[2], annotation[1]
+        else:
+            #Get data inside annotation
+            image_path, bboxes_annotations = annotation
+            image = cv2.imread(image_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations])
         """
         DATA AUGMENTATION if needed
@@ -84,18 +94,29 @@ class Dataset(object):
             image, bboxes = self.random_horizontal_flip(np.copy(image), np.copy(bboxes))
             image, bboxes = self.random_crop(np.copy(image), np.copy(bboxes))
             image, bboxes = self.random_translate(np.copy(image), np.copy(bboxes))
-            
+
         if mAP:
             return image, bboxes
         #preprocess, bboxes as (xmin, ymin, xmax, ymax)
         image, bboxes = image_preprocess(np.copy(image), self.input_size, np.copy(bboxes))
+        
+        """
+        VISDRONE ignored region and class "other" preprocessing
+        """
+        bbox_mask = np.logical_and(bboxes[:,4]>0.0, bboxes[:,4]<11.0)
+        for bbox in bboxes:
+            if bbox[4] == 0:     #class 0 : ignored region
+                x_tl, y_tl, x_br, y_br = bbox[:4]
+                image[y_tl:y_br, x_tl:x_br] = 128/255.0 #make ignored region into gray
+        bboxes = bboxes[bbox_mask]
+
         return image, bboxes
         
     #Find the best anchors for each bbox at each scale
     def preprocess_true_bboxes(self, bboxes):
         #create label from true bboxes
         #shape [3, gcell, gcell, anchors, 5 + num_classes]
-        label = [np.zeros((self.output_gcell_sizes[i], self.output_gcell_sizes[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float)
+        label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float)
                             for i in range(self.num_output_levels)]
         bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(self.num_output_levels)]
         bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)
@@ -112,13 +133,13 @@ class Dataset(object):
             xy = (bbox_coordinates[:2] + bbox_coordinates[2:])*0.5
             wh = bbox_coordinates[2:] - bbox_coordinates[:2]
             bbox_xywh = np.concatenate([xy, wh], axis=-1)                       #shape [4,]
-            bbox_xywh_scaled = 1.0 * bbox_xywh[np.newaxis, :] / self.strides[:, np.newaxis]     #shape [1, 4] / shape [3, 1] = shape [3,4]
+            bbox_xywh_scaled = 1.0 * bbox_xywh[np.newaxis, :] / self.strides[:, np.newaxis]         #shape [1, 4] / shape [3, 1] = shape [3,4]
             #At each scale of bbox, select the good anchors
             all_iou_scores = []
             has_positive_flag = False
             for i in range(self.num_output_levels):
-                anchor_xywh = np.zeros((self.num_anchors_per_gcell, 4))                         #shape [3, 4]      
-                anchor_xywh[:, :2] = np.floor(bbox_xywh_scaled[i, :2]) + 0.5                    #xy of anchor is center of gridcell that has xy of bbox
+                anchor_xywh = np.zeros((self.num_anchors_per_gcell, 4))                             #shape [3, 4]      
+                anchor_xywh[:, :2] = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32) + 0.5       #xy of anchor is center of gridcell that has xy of bbox
                 anchor_xywh[:, 2:] = self.anchors[i]
                 #compare the iou between 3 anchors and 1 bbox within specific scale
                 iou_scores = bboxes_iou_from_xywh(bbox_xywh_scaled[i][np.newaxis, :], anchor_xywh)  #shape [3,]
@@ -126,6 +147,7 @@ class Dataset(object):
                 iou_mask = iou_scores > ANCHOR_SELECTION_IOU_THRESHOLD
                 if np.any(iou_mask):
                     column, row = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32)
+                    label[i][row, column, iou_mask, :]  = 0             
                     label[i][row, column, iou_mask, :4] = bbox_xywh     #coordinates
                     label[i][row, column, iou_mask, 4]  = 1.0           #confidence score
                     label[i][row, column, iou_mask, 5:] = smooth_onehot #class probabilities
@@ -140,6 +162,7 @@ class Dataset(object):
                 best_anchor_idx = int(best_anchor_in_all_idx % self.num_anchors_per_gcell)
                 column, row = np.floor(bbox_xywh_scaled[best_scale_idx, :2]).astype(np.int32)
                 #assign the anchor with best iou to the label
+                label[best_scale_idx][row, column, best_anchor_idx, :]  = 0
                 label[best_scale_idx][row, column, best_anchor_idx, :4] = bbox_xywh
                 label[best_scale_idx][row, column, best_anchor_idx, 4]  = 1.0
                 label[best_scale_idx][row, column, best_anchor_idx, 5:] = smooth_onehot
@@ -157,12 +180,12 @@ class Dataset(object):
     def __next__(self):
         with tf.device('/cpu:0'):
             #Generate initial variables for batch: image, label small+medium+large bboxes
-            batch_image = np.zeros((self.batch_size, self.input_size, self.input_size, 3), dtype=np.float32)
-            batch_label_sbboxes = np.zeros((self.batch_size, self.output_gcell_sizes[0], self.output_gcell_sizes[0],
+            batch_image = np.zeros((self.batch_size, self.input_size[1], self.input_size[0], 3), dtype=np.float32)
+            batch_label_sbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[0], self.output_gcell_sizes_w[0],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
-            batch_label_mbboxes = np.zeros((self.batch_size, self.output_gcell_sizes[1], self.output_gcell_sizes[1],
+            batch_label_mbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[1], self.output_gcell_sizes_w[1],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
-            batch_label_lbboxes = np.zeros((self.batch_size, self.output_gcell_sizes[2], self.output_gcell_sizes[2],
+            batch_label_lbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[2], self.output_gcell_sizes_w[2],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
             batch_sbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32)
             batch_mbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32)
@@ -253,11 +276,21 @@ class Dataset(object):
     #Function to test when reading annotation
     def test(self):
         image, bboxes = self.parse_annotation(self.annotations[0])
-        self.preprocess_true_bboxes(bboxes)
+        image = cv2.cvtColor(np.array(image, np.float32), cv2.COLOR_BGR2RGB)
+        image_test = draw_bbox(np.copy(image), np.copy(bboxes), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+        
+        label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes = self.preprocess_true_bboxes(bboxes)
+        bbox_test = np.concatenate([sbboxes[:,:2] - sbboxes[:,2:]*0.5, sbboxes[:,:2]+sbboxes[:,2:]*0.5], axis=-1)
+        bbox_test = np.concatenate([bbox_test, np.ones((YOLO_MAX_BBOX_PER_SCALE,1))], axis=-1)
+
+        image_test2 = draw_bbox(np.copy(image), np.copy(bbox_test), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+        cv2.imshow("Test label", image_test2)
+        cv2.imshow("Test", image_test)
+        if cv2.waitKey() == "q":
+            pass
+        print("Test")
+        
 
 if __name__ == '__main__':
     train_dataset = Dataset('train')
-    i = 0
-    for image, label in train_dataset:
-        print(i)
-        i+=1
+    train_dataset.test() 

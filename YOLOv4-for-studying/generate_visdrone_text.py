@@ -13,7 +13,7 @@
 
 import glob
 import numpy as np
-PREFIX_PATH             = ".YOLOv4-for-studying/Visdrone_DATASET/"  
+PREFIX_PATH             = "./YOLOv4-for-studying/dataset/Visdrone_DATASET/"  
 
 DATASET_TYPE = ["VisDrone2019-DET-train/", "VisDrone2019-DET-val/", "VisDrone2019-DET-test-dev/"]
 TEXT_NAME    = ['train', 'validation', 'test']
@@ -25,6 +25,7 @@ for idx, _ in enumerate(DATASET_TYPE):
     list_images = glob.glob(IMAGES_FOLDER + "*.jpg")
     with open(TEXT_SAVE_PATH, 'w') as f1:
         max = 0
+        min = 1000
         for image_path in list_images:
             annotation_name = (image_path.split("/")[-1]).split(".")[0]                                     #get annotation name for each pair (image-annotation)
             with open(ANNOTATION_FOLDER + annotation_name + ".txt", 'r') as f2:    
@@ -33,16 +34,20 @@ for idx, _ in enumerate(DATASET_TYPE):
 
             bbox_annotations = [list(map(int, x.split(","))) for x in bbox_annotations]                 #split each line of annotation file by "," and cast those values into int32
             bbox_annotations = [np.concatenate([bbox[:2],
-                                                np.add(bbox[0:1],bbox[2:3]),
-                                                np.add(bbox[1:2],bbox[3:4]), 
-                                                bbox[5:6]], axis=-1) for bbox in bbox_annotations if bbox[4] == 1]    #Select bbox with confidence score == 1 and store bbox coordinates with class
+                                                np.add(bbox[0:1],bbox[2:3]) - 1,
+                                                np.add(bbox[1:2],bbox[3:4]) - 1, 
+                                                bbox[5:6]], axis=-1) for bbox in bbox_annotations]    #Select bbox with confidence score == 1 and store bbox coordinates with class
             if max < len(bbox_annotations):
                 max = len(bbox_annotations)
                 name_image = image_path
-
+            if min > len(bbox_annotations):
+                min = len(bbox_annotations)
+                name_min_image = image_path
             if len(bbox_annotations) < 1000:
                 bbox_annotations = [",".join(list(map(str, bbox))) for bbox in bbox_annotations]
                 all_info_annotation = image_path + " " + " ".join(bbox_annotations)
                 f1.write(all_info_annotation + "\n")
         print(max)
         print(name_image)
+        print(min)
+        print(name_min_image)

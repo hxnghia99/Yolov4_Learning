@@ -17,13 +17,17 @@ from YOLOv4_utils import *
 
 #Compute YOLOv4 loss for each scale using reference code
 def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS_PATH):
+    label       = tf.convert_to_tensor(label)
+    gt_bboxes   = tf.convert_to_tensor(gt_bboxes)
     NUM_CLASSES = len(read_class_names(CLASSES_PATH))
     pred_shape  = tf.shape(pred)
     batch_size  = pred_shape[0]
-    output_size = pred_shape[1]
-    input_size  = tf.cast(output_size * YOLO_SCALE_OFFSET[i], tf.float32)
+    output_size_h = pred_shape[1]
+    output_size_w = pred_shape[2]
+    input_size_h  = tf.cast(output_size_h * YOLO_SCALE_OFFSET[i], tf.float32)
+    input_size_w  = tf.cast(output_size_w * YOLO_SCALE_OFFSET[i], tf.float32)
     #change shape of raw convolutional output
-    conv = tf.reshape(conv, (batch_size, output_size, output_size, ANCHORS_PER_GRID_CELL, 5 + NUM_CLASSES)) #shape [batch, output size, output size, 3, 85]
+    conv = tf.reshape(conv, (batch_size, output_size_h, output_size_w, ANCHORS_PER_GRID_CELL, 5 + NUM_CLASSES)) #shape [batch, output size, output size, 3, 85]
     #get individual data:
     # 1) raw convolutional output
     conv_conf_raw       = conv[:, :, :, :, 4:5]
@@ -38,7 +42,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
     
     # *** Calculate giou loss from prediction and label ***
     giou = tf.expand_dims(bboxes_giou_from_xywh(pred_xywh, label_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]
-    bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size ** 2)
+    bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size_h * input_size_w)
     giou_loss = label_respond * bbox_loss_scale * (1 - giou)
     
     # *** Calculate confidence score loss for grid cell containing objects and background ***

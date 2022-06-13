@@ -9,8 +9,6 @@
 #===============================================================#
 
 
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import tensorflow as tf
 import numpy as np
 import cv2
@@ -91,23 +89,19 @@ output: YOLOv4 model
 obj:    select GPU, create YOLOv3 model and load pretrained weights
 ######################################################################'''
 #Config using GPU and create YOLOv3_Model with loaded parameters
-def Load_YOLOv4_Model(weight_type="LG_WEIGHTS"):
+def Load_YOLOv4_Model():
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if len(gpus) > 0:
         print(f'GPUs {gpus}')
         try: tf.config.experimental.set_memory_growth(gpus[0], True)
         except RuntimeError: pass
-    if  weight_type== "LG_WEIGHTS":
-        yolo = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_LG_CLASS_PATH)
-    elif weight_type== "COCO_WEIGHTS":
-        yolo = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_COCO_CLASS_PATH)
+    yolo = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_CLASS_PATH)
     if USE_LOADED_WEIGHT:
-        if weight_type== "LG_WEIGHTS":
-            YOLOv4_weights = YOLO_V4_LG_WEIGHTS
-            yolo.load_weights(YOLOv4_weights)
-        elif weight_type== "COCO_WEIGHTS":
-            YOLOv4_weights = YOLO_V4_COCO_WEIGHTS
+        YOLOv4_weights = PREDICTION_WEIGHT_FILE
+        if TRAINING_DATASET_TYPE == "COCO":
             load_yolov4_weights(yolo, YOLOv4_weights)
+        else:
+            yolo.load_weights(YOLOv4_weights) 
         print("Loading Darknet_weights from:", YOLOv4_weights)
     return yolo
 
@@ -117,16 +111,17 @@ output: new image padded the resized old image
 obj:    create image to put into YOLO model
 ##################################'''
 def image_preprocess(image, target_size, gt_boxes=None):
+    target_size_w, target_size_h = target_size
     image_h, image_w, _ = image.shape   
-    resize_ratio = min(target_size/image_w, target_size/image_h)                      #resize ratio of the larger coordinate into 416
+    resize_ratio = min(target_size_w/image_w, target_size_h/image_h)                      #resize ratio of the larger coordinate into 416
     new_image_w, new_image_h = int(resize_ratio*image_w), int(resize_ratio*image_h)
     image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
 
-    image_padded = np.full(shape=[target_size, target_size, 3], fill_value=128.0)
-    dw, dh = (target_size - new_image_w) // 2, (target_size - new_image_h) // 2
+    image_padded = np.full(shape=[target_size_h, target_size_w, 3], fill_value=128.0)
+    dw, dh = (target_size_w - new_image_w) // 2, (target_size_h - new_image_h) // 2
     image_padded[dh:new_image_h+dh, dw:new_image_w+dw] = image_resized                #pad the resized image into image_padded
     image_padded = image_padded/255.0
-    
+
     if gt_boxes is None:
         return image_padded
 
@@ -156,9 +151,9 @@ def postprocess_boxes(pred_bbox, original_image, input_size, score_threshold):
                                 pred_xywh[:, :2] + pred_xywh[:, 2:] * 0.5], axis=-1)
     # prediction (xmin, ymin, xmax, ymax) -> prediction (xmin_org, ymin_org, xmax_org, ymax_org)
     org_image_h, org_image_w = original_image.shape[:2]
-    resize_ratio = min(input_size / org_image_w, input_size / org_image_h)
-    dw = (input_size - resize_ratio * org_image_w) / 2                      #pixel position recalculation
-    dh = (input_size - resize_ratio * org_image_h) / 2
+    resize_ratio = min(input_size[0] / org_image_w, input_size[1] / org_image_h)
+    dw = (input_size[0] - resize_ratio * org_image_w) / 2                      #pixel position recalculation
+    dh = (input_size[1] - resize_ratio * org_image_h) / 2
     pred_coor[:, 0::2] = 1.0 * (pred_coor[:, 0::2] - dw) / resize_ratio     #(pixel_pos - dw)/resize_ratio
     pred_coor[:, 1::2] = 1.0 * (pred_coor[:, 1::2] - dh) / resize_ratio
     # constrain the bbox inside image and set invalid box to 0
@@ -176,7 +171,7 @@ def postprocess_boxes(pred_bbox, original_image, input_size, score_threshold):
     mask = np.logical_and(scale_mask, score_mask)
     coors, scores, classes = pred_coor[mask], scores[mask], classes[mask]   #length = num_True_box
     #output shape [num_True_box, 6]
-    return np.concatenate([coors, scores[:, np.newaxis], classes[:, np.newaxis]], axis=-1)  
+    return np.concatenate([coors, scores[:, np.newaxis], classes[:, np.newaxis]], axis=-1) 
 
 
 '''###############################################################################
@@ -289,7 +284,7 @@ def nms(bboxes, iou_threshold, sigma=0.3, method='nms'):
             weight = np.ones(len(iou), dtype=np.float32)                    
             assert method in ['nms', 'soft-nms']
             if method == 'nms':
-                iou_mask = iou > iou_threshold
+                iou_mask = np.array(iou > iou_threshold)
                 weight[iou_mask] = 0.0                      #mask to detele bboxes predicting same objects          
             if method == 'soft-nms':
                 weight = np.exp(-(1.0 * iou**2 / sigma))    #bigger iou -> smaller weight
@@ -379,8 +374,8 @@ input: (10) YOLO model, image path, input size, class file path
 output: image with predicted bboxes
 obj:    detect objects in one image using YOLOv3 model
 ##################################'''
-def detect_image(Yolo, image_path, output_path='', input_size=416, show=False, save=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH,
-                 score_threshold=0.35, iou_threshold=0.5, rectangle_colors=''):
+def detect_image(Yolo, image_path, output_path='', input_size=YOLO_INPUT_SIZE, show=False, save=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH,
+                 score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, rectangle_colors=''):
     original_image      = cv2.imread(image_path)
     original_image      = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
     image_data = image_preprocess(np.copy(original_image), input_size)                  #scale to size 416
