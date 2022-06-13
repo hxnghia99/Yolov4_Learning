@@ -9,8 +9,7 @@
 #===============================================================#
 
 
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input
 from tensorflow.keras.regularizers import L2

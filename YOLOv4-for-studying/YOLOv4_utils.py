@@ -12,7 +12,6 @@
 import tensorflow as tf
 import numpy as np
 import cv2
-
 from YOLOv4_config import *
 from YOLOv4_model import *
 import colorsys
