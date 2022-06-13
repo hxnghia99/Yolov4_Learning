@@ -24,7 +24,7 @@ EVALUATE_TRANSFER               = TRAIN_TRANSFER
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
 YOLO_V4_COCO_WEIGHTS            = "YOLOv4-for-studying/model_data/yolov4.weights"
-YOLO_INPUT_SIZE                 = [416, 416]
+YOLO_INPUT_SIZE                 = [416, 256]
 USE_LOADED_WEIGHT               = True
 
 #Dataset configurations

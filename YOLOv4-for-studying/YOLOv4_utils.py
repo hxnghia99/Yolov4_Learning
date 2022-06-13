@@ -260,6 +260,53 @@ def bboxes_giou_from_xywh(boxes1, boxes2):
 
 
 
+
+def bboxes_ciou_from_xywh(boxes1, boxes2):
+    #convert xywh to minmax
+    boxes1 = tf.concat([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
+                        boxes1[..., :2] + boxes1[..., 2:] * 0.5], axis=-1)
+    boxes2 = tf.concat([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
+                        boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
+    #calculate gious from minmax
+    cious = bboxes_ciou_from_minmax(boxes1, boxes2)
+    return cious
+
+def bboxes_ciou_from_minmax(boxes1, boxes2):
+    #iou
+    ious = bboxes_iou_from_minmax(boxes1, boxes2)
+    #center
+    xy1 = (boxes1[...,0:2] + boxes1[...,2:])/2
+    xy2 = (boxes2[...,0:2] + boxes2[...,2:])/2
+    d_center = tf.reduce_sum(tf.square(xy1 - xy2), axis=-1)
+    #enclose area
+    enclose_top_left    = tf.minimum(boxes1[..., :2], boxes2[..., :2])
+    enclose_bottom_right= tf.maximum(boxes1[..., 2:], boxes2[..., 2:])
+    d_enclose = tf.reduce_sum(tf.square(enclose_bottom_right - enclose_top_left), axis=-1)
+    #wh
+    wh1 = boxes1[...,2:] - boxes1[...,0:2]
+    wh2 = boxes2[...,2:] - boxes2[...,0:2]
+    
+    w1_mask = tf.cast(tf.zeros(tf.shape(wh1[...,0:1])), tf.bool)
+    h1_mask = (wh1[...,1:] == 0.0) 
+    wh1_mask = tf.cast(tf.concat([w1_mask, h1_mask], axis=-1), tf.float32) * tf.constant(1e-10)
+    wh1 = wh1 + wh1_mask
+
+    w2_mask = tf.cast(tf.zeros(tf.shape(wh2[...,0:1])), tf.bool)
+    h2_mask = (wh2[...,1:] == 0) 
+    wh2_mask = tf.cast(tf.concat([w2_mask, h2_mask], axis=-1), tf.float32) * tf.constant(1e-10)
+    wh2 = wh2 + wh2_mask
+
+    v = 4 * (tf.math.atan(wh1[...,0] / wh1[...,1]) - tf.math.atan(wh2[...,0] / wh2[...,1]))**2 / (np.pi ** 2)
+    alpha = v / (1 - ious + v)
+    #ciou    
+    cious = ious - d_center / d_enclose - alpha * v
+    return cious
+
+
+
+
+
+
 '''##################################
 input:  bboxes as (xmin, ymin, xmax, ymax, score, class), Iou threshold, sigma, method
 output: list of best bboxes for each object
