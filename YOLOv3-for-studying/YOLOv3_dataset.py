@@ -19,14 +19,14 @@ import random
 
 
 class Dataset(object):
-    def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE, VALIDATE=None):    #train and test data use only one size 416x416
+    def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE):    #train and test data use only one size 416x416
         #settings of annotation path, input size, batch size
         self.annotation_path        = TRAIN_ANNOTATION_PATH if dataset_type == 'train' else TEST_ANNOTATION_PATH
         self.input_size             = TRAIN_INPUT_SIZE if dataset_type == 'train' else TEST_INPUT_SIZE
         self.batch_size             = TRAIN_BATCH_SIZE if dataset_type == 'train' else TEST_BATCH_SIZE
         self.data_aug               = TRAIN_DATA_AUG if dataset_type == 'train' else TEST_DATA_AUG
         #settings of classes
-        self.class_names            = read_class_names(LG_CLASS_NAMES_PATH)
+        self.class_names            = read_class_names(YOLO_CLASS_PATH)
         self.num_classes            = len(self.class_names)
         #settings of anchors in different scales
         self.strides                = np.array(YOLO_SCALE_OFFSET)
@@ -40,7 +40,8 @@ class Dataset(object):
         self.max_bbox_per_scale     = YOLO_MAX_BBOX_PER_SCALE
         #settings of output sizes, output levels
         self.num_output_levels      = len(self.strides)
-        self.output_gcell_sizes = self.input_size // self.strides   #number of gridcells each scale
+        self.output_gcell_sizes_w   = self.input_size[0] // self.strides   #number of gridcells each scale
+        self.output_gcell_sizes_h   = self.input_size[1] // self.strides
 
     #special method to give number of batchs in dataset
     def __len__(self):
@@ -83,6 +84,7 @@ class Dataset(object):
             #Get data inside annotation
             image_path, bboxes_annotations = annotation
             image = cv2.imread(image_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations])
         """
         DATA AUGMENTATION if needed
@@ -102,7 +104,7 @@ class Dataset(object):
     def preprocess_true_bboxes(self, bboxes):
         #create label from true bboxes
         #shape [3, gcell, gcell, anchors, 5 + num_classes]
-        label = [np.zeros((self.output_gcell_sizes[i], self.output_gcell_sizes[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float)
+        label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float)
                             for i in range(self.num_output_levels)]
         bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(self.num_output_levels)]
         bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)
@@ -166,12 +168,12 @@ class Dataset(object):
     def __next__(self):
         with tf.device('/cpu:0'):
             #Generate initial variables for batch: image, label small+medium+large bboxes
-            batch_image = np.zeros((self.batch_size, self.input_size, self.input_size, 3), dtype=np.float32)
-            batch_label_sbboxes = np.zeros((self.batch_size, self.output_gcell_sizes[0], self.output_gcell_sizes[0],
+            batch_image = np.zeros((self.batch_size, self.input_size[1], self.input_size[0], 3), dtype=np.float32)
+            batch_label_sbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[0], self.output_gcell_sizes_w[0],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
-            batch_label_mbboxes = np.zeros((self.batch_size, self.output_gcell_sizes[1], self.output_gcell_sizes[1],
+            batch_label_mbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[1], self.output_gcell_sizes_w[1],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
-            batch_label_lbboxes = np.zeros((self.batch_size, self.output_gcell_sizes[2], self.output_gcell_sizes[2],
+            batch_label_lbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[2], self.output_gcell_sizes_w[2],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
             batch_sbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32)
             batch_mbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32)
@@ -262,11 +264,21 @@ class Dataset(object):
     #Function to test when reading annotation
     def test(self):
         image, bboxes = self.parse_annotation(self.annotations[0])
-        self.preprocess_true_bboxes(bboxes)
+        image = cv2.cvtColor(np.array(image, np.float32), cv2.COLOR_BGR2RGB)
+        image_test = draw_bbox(np.copy(image), np.copy(bboxes), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+        
+        label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes = self.preprocess_true_bboxes(bboxes)
+        bbox_test = np.concatenate([sbboxes[:,:2] - sbboxes[:,2:]*0.5, sbboxes[:,:2]+sbboxes[:,2:]*0.5], axis=-1)
+        bbox_test = np.concatenate([bbox_test, np.ones((YOLO_MAX_BBOX_PER_SCALE,1))], axis=-1)
+
+        image_test2 = draw_bbox(np.copy(image), np.copy(bbox_test), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+        cv2.imshow("Test label", image_test2)
+        cv2.imshow("Test", image_test)
+        if cv2.waitKey() == "q":
+            pass
+        print("Test")
+        
 
 if __name__ == '__main__':
     train_dataset = Dataset('train')
-    i = 0
-    for image, label in train_dataset:
-        print(i)
-        i+=1
+    train_dataset.test() 

@@ -151,21 +151,22 @@ def YOLOv3_detector(input_layer, NUM_CLASS):
 #Define function used to change the output tensor to the information of (bbox, confidence, class)
 # i represents for the grid scales: (0,1,2) <--> (large, medium, small)
 def decode(conv_output, NUM_CLASS, i=0):
-    conv_shape       = tf.shape(conv_output)                # shape [batch_size, output_size, output_size, 255]           
+    conv_shape       = tf.shape(conv_output)                # shape [batch_size, output_size_h, output_size_w, 255]           
     batch_size       = conv_shape[0]
-    output_size      = conv_shape[1]
-    #Change the output_shape of each scale into [batch_size, output_size, output_size, 3, 85]
-    conv_output = tf.reshape(conv_output, (batch_size, output_size, output_size, 3, 5 + NUM_CLASS))
+    output_size_h      = conv_shape[1]
+    output_size_w      = conv_shape[2]
+    #Change the output_shape of each scale into [batch_size, output_size_h, output_size_w, 3, 85]
+    conv_output = tf.reshape(conv_output, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASS))
     
     #Split the final dimension into 4 information (offset xy, offset wh, confidence, class probabilities)
     conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)
-    #shape [batch_size, output_size, output_size, 3, ...]
+    #shape [batch_size, output_size_h, output_size_w, 3, ...]
 
     # Create the matrix of grid cell indexes
-    x_gridcell, y_gridcell = tf.meshgrid(tf.range(output_size), tf.range(output_size))  #create 2 matrices of shape [output_size, output_size]
-    xy_gridcell = tf.stack([x_gridcell, y_gridcell], axis=-1)                           #Stack at final axis to create shape [output_size, output_size, 2]
-    xy_gridcell = tf.expand_dims(tf.expand_dims(xy_gridcell, axis=2), axis=0)           #Prepare shape [1, output_size, output_size, 1, 2]
-    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, 3, 1])                        #Create indexes matrix of shape [batch_size, output_size, output_size, 3, 2]
+    x_gridcell, y_gridcell = tf.meshgrid(tf.range(output_size_w), tf.range(output_size_h))  #create 2 matrices of shape [output_size_h, output_size_w]
+    xy_gridcell = tf.stack([x_gridcell, y_gridcell], axis=-1)                           #Stack at final axis to create shape [output_size_h, output_size_w, 2]
+    xy_gridcell = tf.expand_dims(tf.expand_dims(xy_gridcell, axis=2), axis=0)           #Prepare shape [1, output_size_h, output_size_w, 1, 2]
+    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, 3, 1])                        #Create indexes matrix of shape [batch_size, output_size_h, output_size_w, 3, 2]
     xy_gridcell = tf.cast(xy_gridcell, tf.float32)
 
     # Predicted boxes coordinates
@@ -177,19 +178,19 @@ def decode(conv_output, NUM_CLASS, i=0):
     #Predicted box class probabilities 
     pred_prob = tf.sigmoid(conv_raw_prob)
 
-    #Prediction of shape [batch_size, output_size, output_size, 3, 85]
+    #Prediction of shape [batch_size, output_size_h, output_size_w, 3, 85]
     return tf.concat([pred_xywh, pred_conf, pred_prob], axis=-1)
 
 
-def YOLOv3_Model(input_size=416, input_channel=3, training=False, CLASS_DIR = YOLO_COCO_CLASS_DIR):
+def YOLOv3_Model(input_size=YOLO_INPUT_SIZE, input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH):
     #Read coco class names file
     class_names = {}
-    with open(CLASS_DIR, 'r') as data:
+    with open(CLASSES_PATH, 'r') as data:
         for ID, name in enumerate(data):
             class_names[ID] = name.strip('\n')
     NUM_CLASS = len(class_names)
     #Create input layer
-    input_layer = Input([input_size, input_size, input_channel])
+    input_layer = Input([input_size[1], input_size[0], input_channel])
 
     conv_tensors = YOLOv3_detector(input_layer, NUM_CLASS)
 

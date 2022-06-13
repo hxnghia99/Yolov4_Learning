@@ -10,7 +10,6 @@
 
 
 import os
-from tempfile import tempdir
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import numpy as np
 import tensorflow as tf
@@ -21,13 +20,6 @@ from YOLOv3_config import *
 import shutil
 import json
 import time
-
-
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if len(gpus) > 0:
-    try: tf.config.experimental.set_memory_growth(gpus[0], True)
-    except RuntimeError: 
-        print("RuntimeError in tf.config.experimental.list_physical_devices('GPU')")
 
 
 #Calculate AP using interpolation from all points, refer AP matlab code VOC2012
@@ -57,7 +49,7 @@ def all_points_interpolation_AP(prec, rec):
 
 #Calculate AP for each class, mAP of the model
 def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, TEST_INPUT_SIZE=TEST_INPUT_SIZE, 
-            CLASSES_PATH=LG_CLASS_NAMES_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH):
+            CLASSES_PATH=YOLO_COCO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH):
     MIN_OVERLAP = 0.5   #value to define true/false positive
     
     CLASS_NAMES = read_class_names(CLASSES_PATH)
@@ -243,25 +235,17 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
 
 if __name__ == '__main__':
-    weights_file = YOLO_V3_LG_WEIGHTS
-    if COCO_VALIDATATION:
-        weights_file = YOLO_V3_COCO_WEIGHTS
-    
+    weights_file = EVALUATION_WEIGHT_FILE
+    yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_CLASS_PATH)
+    testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE)
     if USE_CUSTOM_WEIGHTS:
-        if COCO_VALIDATATION:
-            yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASS_DIR=YOLO_COCO_CLASS_DIR)
+        if EVALUATION_DATASET_TYPE == "COCO":
             load_yolov3_weights(yolo, weights_file)
-            testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE)
-            get_mAP(yolo, testset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
-                    CLASSES_PATH=YOLO_COCO_CLASS_DIR, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)
         else:
-            yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASS_DIR=LG_CLASS_NAMES_PATH)
-            yolo.load_weights(weights_file) # use custom weights
-            testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE)
-            get_mAP(yolo, testset, TEST_INPUT_SIZE=YOLO_INPUT_SIZE, CLASSES_PATH=LG_CLASS_NAMES_PATH, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD)
-
-    
-    
+            yolo.load_weights(weights_file) # use custom weights   
+    get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
+            CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)
+  
 
 
 

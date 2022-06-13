@@ -14,16 +14,16 @@
 
 
 # YOLO options
-YOLO_TYPE                   = "yolov3" # yolov4 or yolov3
+YOLO_TYPE                   = "yolov4" # yolov4 or yolov3
 YOLO_FRAMEWORK              = "tf" # "tf" or "trt"
-YOLO_V3_WEIGHTS             = "model_data/yolov3.weights"
-YOLO_V4_WEIGHTS             = "model_data/yolov4.weights"
-YOLO_V3_TINY_WEIGHTS        = "model_data/yolov3-tiny.weights"
-YOLO_V4_TINY_WEIGHTS        = "model_data/yolov4-tiny.weights"
+YOLO_V3_WEIGHTS             = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/model_data/yolov3.weights"
+YOLO_V4_WEIGHTS             = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/model_data/yolov4.weights"
+YOLO_V3_TINY_WEIGHTS        = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/model_data/yolov3-tiny.weights"
+YOLO_V4_TINY_WEIGHTS        = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/model_data/yolov4-tiny.weights"
 YOLO_TRT_QUANTIZE_MODE      = "INT8" # INT8, FP16, FP32
 YOLO_CUSTOM_WEIGHTS         = False # "checkpoints/yolov3_custom" # used in evaluate_mAP.py and custom model detection, if not using leave False
                             # YOLO_CUSTOM_WEIGHTS also used with TensorRT and custom model detection
-YOLO_COCO_CLASSES           = "model_data/coco/coco.names"
+YOLO_COCO_CLASSES           = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/model_data/coco/coco.names"
 YOLO_STRIDES                = [8, 16, 32]
 YOLO_IOU_LOSS_THRESH        = 0.5
 YOLO_ANCHOR_PER_SCALE       = 3
@@ -41,13 +41,13 @@ if YOLO_TYPE                == "yolov3":
 TRAIN_YOLO_TINY             = False
 TRAIN_SAVE_BEST_ONLY        = True # saves only best model according validation loss (True recommended)
 TRAIN_SAVE_CHECKPOINT       = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
-TRAIN_CLASSES               = "mnist/mnist.names"
-TRAIN_ANNOT_PATH            = "mnist/mnist_train.txt"
-TRAIN_LOGDIR                = "log"
-TRAIN_CHECKPOINTS_FOLDER    = "checkpoints"
+TRAIN_CLASSES               = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/mnist/mnist.names"
+TRAIN_ANNOT_PATH            = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/mnist/mnist_train.txt"
+TRAIN_LOGDIR                = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/log"
+TRAIN_CHECKPOINTS_FOLDER    = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/checkpoints"
 TRAIN_MODEL_NAME            = f"{YOLO_TYPE}_custom"
 TRAIN_LOAD_IMAGES_TO_RAM    = False # With True faster training, but need more RAM
-TRAIN_BATCH_SIZE            = 6
+TRAIN_BATCH_SIZE            = 4
 TRAIN_INPUT_SIZE            = 416
 TRAIN_DATA_AUG              = True
 TRAIN_TRANSFER              = True
@@ -58,8 +58,8 @@ TRAIN_WARMUP_EPOCHS         = 2
 TRAIN_EPOCHS                = 50
 
 # TEST options
-TEST_ANNOT_PATH             = "mnist/mnist_test.txt"
-TEST_BATCH_SIZE             = 6
+TEST_ANNOT_PATH             = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/mnist/mnist_test.txt"
+TEST_BATCH_SIZE             = 4
 TEST_INPUT_SIZE             = 416
 TEST_DATA_AUG               = False
 TEST_DECTECTED_IMAGE_PATH   = ""
@@ -73,10 +73,8 @@ if TRAIN_YOLO_TINY:
                                [[81,  82], [135, 169], [344, 319]]]
 
 
-
-
-PREFIX_PATH                 = '.\LG_DATASET'
+PREFIX_PATH                 = './YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/LG_DATASET'
 RELATIVE_PATH               = 'E:/dataset/TOTAL/'
-LG_CLASSES                  = "LG_DATASET/lg_class_names.txt"
-TRAIN_ANNOTATION_PATH       = "LG_DATASET/train.txt"
-TEST_ANNOTATION_PATH        = "LG_DATASET/test.txt"
+LG_CLASSES                  = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/LG_DATASET/lg_class_names.txt"
+TRAIN_ANNOTATION_PATH       = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/LG_DATASET/train.txt"
+TEST_ANNOTATION_PATH        = "YOLOv3-for-studying/TensorFlow-2.x-YOLOv3/LG_DATASET/test.txt"

@@ -9,7 +9,6 @@
 #===============================================================#
 
 
-from base64 import encode
 import tensorflow as tf
 import numpy as np
 import cv2
@@ -90,24 +89,19 @@ output: YOLOv3 model
 obj:    select GPU, create YOLOv3 model and load pretrained weights
 ######################################################################'''
 #Config using GPU and create YOLOv3_Model with loaded parameters
-def Load_YOLOv3_Model(weight_type="LG_WEIGHTS"):
+def Load_YOLOv3_Model():
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if len(gpus) > 0:
         print(f'GPUs {gpus}')
         try: tf.config.experimental.set_memory_growth(gpus[0], True)
         except RuntimeError: pass
-    if  weight_type== "LG_WEIGHTS":
-        yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASS_DIR=LG_CLASS_NAMES_PATH)
-    elif weight_type== "COCO_WEIGHTS":
-        yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASS_DIR=YOLO_COCO_CLASS_DIR)
-        
+    yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_CLASS_PATH)
     if USE_LOADED_WEIGHT:
-        if weight_type== "LG_WEIGHTS":
-            YOLOv3_weights = YOLO_V3_LG_WEIGHTS
-            yolo.load_weights(YOLOv3_weights)
-        elif weight_type== "COCO_WEIGHTS":
-            YOLOv3_weights = YOLO_V3_COCO_WEIGHTS
+        YOLOv3_weights = PREDICTION_WEIGHT_FILE
+        if TRAINING_DATASET_TYPE == "COCO":
             load_yolov3_weights(yolo, YOLOv3_weights)
+        else:
+            yolo.load_weights(YOLOv3_weights)
         print("Loading Darknet_weights from:", YOLOv3_weights)
     return yolo
 
@@ -116,46 +110,26 @@ input: (3) image, target_size, gt_boxes(opt)
 output: new image padded the resized old image 
 obj:    create image to put into YOLO model
 ##################################'''
-# def image_preprocess(image, target_size, gt_boxes=None):
-#     image_h, image_w, _ = image.shape   
-#     resize_ratio = min(target_size/image_w, target_size/image_h)                      #resize ratio of the larger coordinate into 416
-#     new_image_w, new_image_h = int(resize_ratio*image_w), int(resize_ratio*image_h)
-#     image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
-
-#     image_padded = np.full(shape=[target_size, target_size, 3], fill_value=128.0)
-#     dw, dh = (target_size - new_image_w) // 2, (target_size - new_image_h) // 2
-#     image_padded[dh:new_image_h+dh, dw:new_image_w+dw] = image_resized                #pad the resized image into image_padded
-#     image_padded = image_padded/255.0
-    
-#     if gt_boxes is None:
-#         return image_padded
-
-#     else: #gt_boxes have shape of [xmin, ymin, xmax, ymax]
-#         gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * resize_ratio + dw
-#         gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * resize_ratio + dh
-#         return image_padded, gt_boxes
-    
-
 def image_preprocess(image, target_size, gt_boxes=None):
-    ih, iw    = target_size, target_size
-    h,  w, _  = image.shape
+    target_size_w, target_size_h = target_size
+    image_h, image_w, _ = image.shape   
+    resize_ratio = min(target_size_w/image_w, target_size_h/image_h)                      #resize ratio of the larger coordinate into 416
+    new_image_w, new_image_h = int(resize_ratio*image_w), int(resize_ratio*image_h)
+    image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
 
-    scale = min(iw/w, ih/h)
-    nw, nh  = int(scale * w), int(scale * h)
-    image_resized = cv2.resize(image, (nw, nh))
-
-    image_paded = np.full(shape=[ih, iw, 3], fill_value=128.0)
-    dw, dh = (iw - nw) // 2, (ih-nh) // 2
-    image_paded[dh:nh+dh, dw:nw+dw, :] = image_resized
-    image_paded = image_paded / 255.
+    image_padded = np.full(shape=[target_size_h, target_size_w, 3], fill_value=128.0)
+    dw, dh = (target_size_w - new_image_w) // 2, (target_size_h - new_image_h) // 2
+    image_padded[dh:new_image_h+dh, dw:new_image_w+dw] = image_resized                #pad the resized image into image_padded
+    image_padded = image_padded/255.0
 
     if gt_boxes is None:
-        return image_paded
+        return image_padded
 
-    else:
-        gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * scale + dw
-        gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * scale + dh
-        return image_paded, gt_boxes
+    else: #gt_boxes have shape of [xmin, ymin, xmax, ymax]
+        gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * resize_ratio + dw
+        gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * resize_ratio + dh
+        return image_padded, gt_boxes
+    
 
 
 
@@ -178,9 +152,9 @@ def postprocess_boxes(pred_bbox, original_image, input_size, score_threshold):
                                 pred_xywh[:, :2] + pred_xywh[:, 2:] * 0.5], axis=-1)
     # prediction (xmin, ymin, xmax, ymax) -> prediction (xmin_org, ymin_org, xmax_org, ymax_org)
     org_image_h, org_image_w = original_image.shape[:2]
-    resize_ratio = min(input_size / org_image_w, input_size / org_image_h)
-    dw = (input_size - resize_ratio * org_image_w) / 2                      #pixel position recalculation
-    dh = (input_size - resize_ratio * org_image_h) / 2
+    resize_ratio = min(input_size[0] / org_image_w, input_size[1] / org_image_h)
+    dw = (input_size[0] - resize_ratio * org_image_w) / 2                      #pixel position recalculation
+    dh = (input_size[1] - resize_ratio * org_image_h) / 2
     pred_coor[:, 0::2] = 1.0 * (pred_coor[:, 0::2] - dw) / resize_ratio     #(pixel_pos - dw)/resize_ratio
     pred_coor[:, 1::2] = 1.0 * (pred_coor[:, 1::2] - dh) / resize_ratio
     # constrain the bbox inside image and set invalid box to 0
@@ -286,58 +260,6 @@ def bboxes_giou_from_xywh(boxes1, boxes2):
     return gious
 
 
-def bbox_iou(boxes1, boxes2):
-    boxes1_area = boxes1[..., 2] * boxes1[..., 3]
-    boxes2_area = boxes2[..., 2] * boxes2[..., 3]
-
-    boxes1 = tf.concat([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
-                        boxes1[..., :2] + boxes1[..., 2:] * 0.5], axis=-1)
-    boxes2 = tf.concat([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
-                        boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
-
-    left_up = tf.maximum(boxes1[..., :2], boxes2[..., :2])
-    right_down = tf.minimum(boxes1[..., 2:], boxes2[..., 2:])
-
-    inter_section = tf.maximum(right_down - left_up, 0.0)
-    inter_area = inter_section[..., 0] * inter_section[..., 1]
-    union_area = boxes1_area + boxes2_area - inter_area
-
-    return 1.0 * inter_area / union_area
-
-def bbox_giou(boxes1, boxes2):
-    boxes1 = tf.concat([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
-                        boxes1[..., :2] + boxes1[..., 2:] * 0.5], axis=-1)
-    boxes2 = tf.concat([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
-                        boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
-    temp = boxes1
-    temp = temp - boxes1
-
-    boxes1_area = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
-    boxes2_area = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
-
-    left_up = tf.maximum(boxes1[..., :2], boxes2[..., :2])
-    right_down = tf.minimum(boxes1[..., 2:], boxes2[..., 2:])
-
-    inter_section = tf.maximum(right_down - left_up, 0.0)
-    inter_area = inter_section[..., 0] * inter_section[..., 1]
-    union_area = boxes1_area + boxes2_area - inter_area
-
-    # Calculate the iou value between the two bounding boxes
-    iou = inter_area / union_area
-
-    # Calculate the coordinates of the upper left corner and the lower right corner of the smallest closed convex surface
-    enclose_left_up = tf.minimum(boxes1[..., :2], boxes2[..., :2])
-    enclose_right_down = tf.maximum(boxes1[..., 2:], boxes2[..., 2:])
-    enclose = tf.maximum(enclose_right_down - enclose_left_up, 0.0)
-
-    # Calculate the area of the smallest closed convex surface C
-    enclose_area = enclose[..., 0] * enclose[..., 1]
-
-    # Calculate the GIoU value according to the GioU formula  
-    giou = iou - 1.0 * (enclose_area - union_area) / enclose_area
-
-    return giou
-
 '''##################################
 input:  bboxes as (xmin, ymin, xmax, ymax, score, class), Iou threshold, sigma, method
 output: list of best bboxes for each object
@@ -379,9 +301,9 @@ input: (8) image, bboxes as (coordinates, score, class), class name path
 output: image with bboxes and labels
 obj:    add bboxes and labels to original image
 ##################################'''
-def draw_bbox(image, bboxes, CLASS_DIR=YOLO_COCO_CLASS_DIR, show_label=True, show_confidence=True, Text_colors='', rectangle_colors='', tracking=False):
+def draw_bbox(image, bboxes, CLASSES_PATH=YOLO_COCO_CLASS_PATH, show_label=True, show_confidence=True, Text_colors='', rectangle_colors='', tracking=False):
     #Initial readings
-    CLASS_NAMES = read_class_names(CLASS_DIR)
+    CLASS_NAMES = read_class_names(CLASSES_PATH)
     num_classes = len(CLASS_NAMES)
     image_h, image_w, _ = image.shape
     bboxes = np.array(bboxes)
@@ -452,8 +374,8 @@ input: (10) YOLO model, image path, input size, class file path
 output: image with predicted bboxes
 obj:    detect objects in one image using YOLOv3 model
 ##################################'''
-def detect_image(Yolo, image_path, output_path='', input_size=416, show=False, save=False, CLASS_FILE=YOLO_COCO_CLASS_DIR,
-                 score_threshold=0.35, iou_threshold=0.5, rectangle_colors=''):
+def detect_image(Yolo, image_path, output_path='', input_size=YOLO_INPUT_SIZE, show=False, save=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH,
+                 score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, rectangle_colors=''):
     original_image      = cv2.imread(image_path)
     original_image      = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
     image_data = image_preprocess(np.copy(original_image), input_size)    #scale to size 416
@@ -468,7 +390,7 @@ def detect_image(Yolo, image_path, output_path='', input_size=416, show=False, s
     bboxes = nms(bboxes, iou_threshold, method='nms')                                       #Non-maximum suppression
 
     original_image      = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
-    image = draw_bbox(original_image, bboxes, CLASS_DIR=CLASS_FILE, rectangle_colors=rectangle_colors) #draw bboxes
+    image = draw_bbox(original_image, bboxes, CLASSES_PATH=CLASSES_PATH, rectangle_colors=rectangle_colors) #draw bboxes
     
     if save:
         if output_path != '': cv2.imwrite(output_path, image)

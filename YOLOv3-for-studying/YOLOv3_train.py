@@ -11,7 +11,6 @@
 
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 import sys
 from tensorflow.python.client import device_lib
 print(device_lib.list_local_devices())
@@ -35,8 +34,6 @@ def main():
     if len(gpus) > 0:
         try: tf.config.experimental.set_memory_growth(gpus[0], True)
         except RuntimeError: pass
-    #pretrained weights for Darknet53 backbone network
-    Darknet_weights = YOLO_V3_COCO_WEIGHTS
     #create training and testing dataset
     trainset = Dataset('train')
     testset = Dataset('test')
@@ -45,13 +42,14 @@ def main():
     global_steps = tf.Variable(1, trainable=False, dtype=tf.int64)  #start 1
     warmup_steps = TRAIN_WARMUP_EPOCHS * steps_per_epoch
     total_steps = TRAIN_EPOCHS * steps_per_epoch
-    
+    #pretrained weights for Darknet53 backbone network
+    Darknet_weights = YOLO_V3_COCO_WEIGHTS
     #Create Darkent53 model and load pretrained weights
     if TRAIN_TRANSFER:
-        Darknet = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASS_DIR=YOLO_COCO_CLASS_DIR)
+        Darknet = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_COCO_CLASS_PATH)
         load_yolov3_weights(Darknet, Darknet_weights) # use darknet weights
     #Create YOLO model
-    yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, training=True, CLASS_DIR=LG_CLASS_NAMES_PATH)
+    yolo = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, training=True, CLASSES_PATH=YOLO_CLASS_PATH)
     if TRAIN_TRANSFER:
         for i, l in enumerate(Darknet.layers):
             layer_weights = l.get_weights()
@@ -72,7 +70,7 @@ def main():
             #calculate loss at each scale  
             for i in range(num_scales):
                 conv, pred = pred_result[i*2], pred_result[i*2+1]
-                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=LG_CLASS_NAMES_PATH)
+                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
@@ -111,7 +109,7 @@ def main():
             #calculate loss at each each
             for i in range(grid):
                 conv, pred = pred_result[i*2], pred_result[i*2+1]
-                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=LG_CLASS_NAMES_PATH)
+                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
@@ -123,7 +121,7 @@ def main():
     training_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'training/')
     validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
 
-    best_val_loss = 1000 # should be large at start
+    best_val_loss = 20000 # should be large at start
     #For each epoch, do training and validating
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
@@ -183,19 +181,10 @@ def main():
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(total_val/num_testset))
             yolo.save_weights(save_directory)
-        if TRAIN_SAVE_BEST_ONLY and best_val_loss>total_val/num_testset:
+        if TRAIN_SAVE_BEST_ONLY and best_val_loss > total_val/num_testset:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = total_val/num_testset
-
-    # # create second model to measure mAP
-    # mAP_model = YOLOv3_Model(input_size=YOLO_INPUT_SIZE, CLASSES=LG_CLASS_NAMES_PATH) 
-    # # measure mAP of trained custom model
-    # try:
-    #     mAP_model.load_weights(save_directory) # use keras weights
-    #     get_mAP(mAP_model, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD)
-    # except UnboundLocalError:
-    #     print("You don't have saved model weights to measure mAP, check TRAIN_SAVE_BEST_ONLY and TRAIN_SAVE_CHECKPOINT lines in configs.py")
         
 if __name__ == '__main__':
     main()
