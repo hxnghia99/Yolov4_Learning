@@ -12,6 +12,7 @@
 import os
 import cv2
 import numpy as np
+from sympy import im
 import tensorflow as tf
 from YOLOv4_utils import *
 from YOLOv4_config import *
@@ -87,6 +88,7 @@ class Dataset(object):
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations])
+        
         """
         DATA AUGMENTATION if needed
         """
@@ -99,17 +101,17 @@ class Dataset(object):
             return image, bboxes
         #preprocess, bboxes as (xmin, ymin, xmax, ymax)
         image, bboxes = image_preprocess(np.copy(image), self.input_size, np.copy(bboxes))
-        
-        """
-        VISDRONE ignored region and class "other" preprocessing
-        """
-        bbox_mask = np.logical_and(bboxes[:,4]>0.0, bboxes[:,4]<11.0)
-        for bbox in bboxes:
-            if bbox[4] == 0:     #class 0 : ignored region
-                x_tl, y_tl, x_br, y_br = bbox[:4]
-                image[y_tl:y_br, x_tl:x_br] = 128/255.0 #make ignored region into gray
-        bboxes = bboxes[bbox_mask]
-
+    
+        if TRAINING_DATASET_TYPE == "VISDRONE":
+            """
+            VISDRONE ignored region and class "other" preprocessing
+            """
+            bbox_mask = np.logical_and(bboxes[:,4]>0.0, bboxes[:,4]<11.0)
+            for bbox in bboxes:
+                if bbox[4] == 0:     #class 0 : ignored region
+                    x_tl, y_tl, x_br, y_br = bbox[:4]
+                    image[y_tl:y_br, x_tl:x_br] = 128/255.0 #make ignored region into gray
+            bboxes = bboxes[bbox_mask]
         return image, bboxes
         
     #Find the best anchors for each bbox at each scale

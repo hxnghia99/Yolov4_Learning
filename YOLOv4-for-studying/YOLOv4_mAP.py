@@ -10,6 +10,8 @@
 
 
 import os
+
+from regex import D
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import numpy as np
 import tensorflow as tf
@@ -62,8 +64,8 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     CLASS_NAMES = read_class_names(CLASSES_PATH)
     #Check and create folder to store ground truth and mAP result
     ground_truth_dir_path = GT_DIR
-    if not os.path.exists("YOLOv3-for-studying/mAP"):
-        os.mkdir("YOLOv3-for-studying/mAP")
+    if not os.path.exists("YOLOv4-for-studying/mAP"):
+        os.mkdir("YOLOv4-for-studying/mAP")
     if os.path.exists(ground_truth_dir_path):
         shutil.rmtree(ground_truth_dir_path)
     os.mkdir(ground_truth_dir_path)
@@ -75,6 +77,12 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
         _, gt_bboxes = dataset.parse_annotation(annotation, True)
+
+        #eliminate ignored region class and "other" class
+        if EVALUATION_DATASET_TYPE == "VISDRONE":
+            bbox_mask = np.logical_and(gt_bboxes[:,4]>0.0, gt_bboxes[:,4]<11.0)
+            gt_bboxes = gt_bboxes[bbox_mask]
+
         num_gt_bboxes = len(gt_bboxes)
         if len(gt_bboxes) == 0:
             gt_coordinates  = []
@@ -109,7 +117,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     json_pred = [[] for _ in range(num_gt_classes)]
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
-        original_image, _ = dataset.parse_annotation(annotation, True)
+        original_image, bboxes = dataset.parse_annotation(annotation, True)
         image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
         image_data = image[np.newaxis, ...].astype(np.float32)
 
@@ -122,8 +130,39 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         #post process for prediction bboxes
         pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
         pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
-        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
-        pred_bboxes = nms(pred_bboxes, iou_threshold, method='nms')                 #remove bboxes for same object in specific class
+        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, 0.35)  #remove invalid and low score bboxes
+        pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, iou_threshold, method='nms'))                 #remove bboxes for same object in specific class 
+
+        if EVALUATION_DATASET_TYPE == "VISDRONE":
+            bboxes = tf.cast(bboxes, dtype=tf.float64)
+            ignored_bbox_mask   = bboxes[:,4]>0.5
+            ignored_bboxes      = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(ignored_bbox_mask), axis=0)]
+            other_bbox_mask     = bboxes[:,4]<10.5
+            other_bboxes        = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(other_bbox_mask), axis=0)]
+
+            #getting mask of bboxes in ignored region
+            removed_ignored_mask   = np.zeros(np.array(tf.shape(pred_bboxes)[0], dtype=np.int32))    #shape [total_bboxes]
+            for ignored_bbox in np.array(ignored_bboxes):
+                for i, pred_bbox in enumerate(np.array(pred_bboxes)):
+                    pred_center = (pred_bbox[2:4] + pred_bbox[:2]) * 0.5
+                    ignored_tl  = ignored_bbox[:2]
+                    ignored_br  = ignored_bbox[:2] + ignored_bbox[2:4]
+                    removed_ignored_mask[i] = np.multiply.reduce(np.logical_and(pred_center>=ignored_tl, pred_center<=ignored_br))
+            removed_ignored_mask = tf.convert_to_tensor(removed_ignored_mask, dtype=tf.bool)
+            #getting mask of bboxes that overlap "other" class
+            removed_other_mask = tf.convert_to_tensor(np.zeros(np.array(tf.shape(pred_bboxes)[0])), dtype=tf.bool)
+            if tf.shape(other_bboxes)[0] != 0:
+                pred_bboxes_temp = tf.expand_dims(pred_bboxes[:, :4], axis=1)      #shape [total_bboxes, 1, 4]
+                other_bboxes = tf.expand_dims(other_bboxes[:, :4], axis=0)         #shape [1, num_bboxes, 4]
+                ious = bboxes_iou_from_minmax(pred_bboxes_temp, other_bboxes)   #shape [total_bboxes, num_bboxes]
+                max_ious = tf.reduce_max(ious, axis=-1)
+                removed_other_mask = max_ious > VALIDATE_IOU_THRESHOLD
+            #getting mask of removed bboxes
+            removed_bbox_mask = tf.math.logical_or(removed_ignored_mask, removed_other_mask)
+            pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
+
+       
+       
         #Save each prediction bbox to list for specific class
         for pred_bbox in pred_bboxes:
             pred_coordinates    = np.array(pred_bbox[:4], dtype=np.int32)
@@ -134,6 +173,9 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             xmin, ymin, xmax, ymax = list(map(str, pred_coordinates))
             bbox = xmin + " " + ymin + " " + xmax + " " + ymax
             json_pred[gt_class_names.index(pred_class_name)].append({"confidence": str(pred_conf), "file_id": str(index), "bbox": str(bbox)})
+    
+    
+    
     times_ms = sum(times)/len(times) * 1000
     fps = 1000 / times_ms
     print("\nFinished extracting ground truth bboxes from dataset... \n")

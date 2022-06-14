@@ -15,16 +15,18 @@ TRAINING_DATASET_TYPE           = "VISDRONE"
 TRAIN_TRANSFER                  = True
 
 # ["COCO", "LG", "VISDRONE"]
-MAKE_EVALUATION                 = False
+MAKE_EVALUATION                 = True
 EVALUATION_DATASET_TYPE         = "VISDRONE"
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
 """ ---------------------------------"""
 
+#Important initial settings
+USE_CIOU_LOSS                   = False
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
 YOLO_V4_COCO_WEIGHTS            = "YOLOv4-for-studying/model_data/yolov4.weights"
-YOLO_INPUT_SIZE                 = [416, 256]
+YOLO_INPUT_SIZE                 = [992, 992]
 USE_LOADED_WEIGHT               = True
 
 #Dataset configurations
@@ -148,7 +150,7 @@ if MAKE_EVALUATION:
         RELATIVE_PATH               = ""
         PREFIX_PATH                 = ""
         YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
         if EVALUATE_TRANSFER:
             EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
         else:
@@ -157,6 +159,6 @@ if MAKE_EVALUATION:
         VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-visdrone'
         VALIDATE_MAP_RESULT_PATH    = "YOLOv4-for-studying/mAP/results-visdrone.txt"    
 
-EVALUATION_WEIGHT_FILE = "YOLOv4-for-studying/yolov4_992x992_origin/YOLOv4_custom"
+# EVALUATION_WEIGHT_FILE = "YOLOv4-for-studying/yolov4_992x992_origin/YOLOv4_custom"
 # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test.txt"  
 # PREDICTION_WEIGHT_FILE      = "YOLOv4-for-studying/yolov4_992x992_origin/YOLOv4_custom"
