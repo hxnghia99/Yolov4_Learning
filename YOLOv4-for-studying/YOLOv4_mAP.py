@@ -130,7 +130,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         #post process for prediction bboxes
         pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
         pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
-        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, 0.35)  #remove invalid and low score bboxes
+        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
         pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, iou_threshold, method='nms'))                 #remove bboxes for same object in specific class 
 
         if EVALUATION_DATASET_TYPE == "VISDRONE":
