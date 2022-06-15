@@ -88,13 +88,13 @@ output: YOLOv4 model
 obj:    select GPU, create YOLOv3 model and load pretrained weights
 ######################################################################'''
 #Config using GPU and create YOLOv3_Model with loaded parameters
-def Load_YOLOv4_Model():
+def Load_YOLOv4_Model(input_size=YOLO_INPUT_SIZE):
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if len(gpus) > 0:
         print(f'GPUs {gpus}')
         try: tf.config.experimental.set_memory_growth(gpus[0], True)
         except RuntimeError: pass
-    yolo = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_CLASS_PATH)
+    yolo = YOLOv4_Model(input_size=input_size, CLASSES_PATH=YOLO_CLASS_PATH)
     if USE_LOADED_WEIGHT:
         YOLOv4_weights = PREDICTION_WEIGHT_FILE
         if TRAINING_DATASET_TYPE == "COCO":
@@ -304,7 +304,11 @@ def bboxes_ciou_from_minmax(boxes1, boxes2):
 
 
 
-
+def nms_center_d(boxes1, boxes2):
+    boxes1_center = (boxes1[...,:2] + boxes1[...,2:])*0.5
+    boxes2_center = (boxes2[...,:2] + boxes2[...,2:])*0.5
+    center_d = np.sqrt(np.sum(np.square(boxes1_center - boxes2_center), axis=-1))
+    return center_d
 
 '''##################################
 input:  bboxes as (xmin, ymin, xmax, ymax, score, class), Iou threshold, sigma, method
@@ -327,10 +331,19 @@ def nms(bboxes, iou_threshold, sigma=0.3, method='nms'):
             best_bboxes.append(best_bbox)
             cls_bboxes = np.delete(cls_bboxes, max_conf_bbox_idx, axis=0)   #remove best bbox from list of bboxes
             iou = bboxes_iou_from_minmax(best_bbox[np.newaxis, :4], cls_bboxes[:, :4])  #calculate list of iou between best bbox and other bboxes
+            
+            if USE_NMS_CENTER_D:
+                """ TESTING """
+                center_d = nms_center_d(best_bbox[np.newaxis, :4], cls_bboxes[:, :4])
+                """#########"""
+
             weight = np.ones(len(iou), dtype=np.float32)                    
             assert method in ['nms', 'soft-nms']
             if method == 'nms':
                 iou_mask = np.array(iou > iou_threshold)
+                if USE_NMS_CENTER_D:
+                    center_d_mask = np.array(center_d < 5)
+                    iou_mask = np.logical_or(iou_mask, center_d_mask)
                 weight[iou_mask] = 0.0                      #mask to detele bboxes predicting same objects          
             if method == 'soft-nms':
                 weight = np.exp(-(1.0 * iou**2 / sigma))    #bigger iou -> smaller weight
@@ -421,7 +434,7 @@ output: image with predicted bboxes
 obj:    detect objects in one image using YOLOv3 model
 ##################################'''
 def detect_image(Yolo, image_path, output_path='', input_size=YOLO_INPUT_SIZE, show=False, save=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH,
-                 score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, rectangle_colors=''):
+                 score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, rectangle_colors='', show_label=True):
     original_image      = cv2.imread(image_path)
     original_image      = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
     image_data = image_preprocess(np.copy(original_image), input_size)                  #scale to size 416
@@ -436,7 +449,7 @@ def detect_image(Yolo, image_path, output_path='', input_size=YOLO_INPUT_SIZE, s
     bboxes = nms(bboxes, iou_threshold, method='nms')                                       #Non-maximum suppression
 
     original_image      = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
-    image = draw_bbox(original_image, bboxes, CLASSES_PATH=CLASSES_PATH, rectangle_colors=rectangle_colors) #draw bboxes
+    image = draw_bbox(original_image, bboxes, CLASSES_PATH=CLASSES_PATH, rectangle_colors=rectangle_colors, show_label=show_label) #draw bboxes
     
     if save:
         if output_path != '': cv2.imwrite(output_path, image)

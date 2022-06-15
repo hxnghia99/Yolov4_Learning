@@ -22,6 +22,8 @@ EVALUATE_TRANSFER               = TRAIN_TRANSFER
 
 #Important initial settings
 USE_CIOU_LOSS                   = False
+EVALUATE_ORIGINAL_SIZE          = False
+USE_NMS_CENTER_D                = False
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
@@ -68,7 +70,7 @@ YOLO_LOSS_IOU_THRESHOLD         = 0.5
 
 
 VALIDATE_SCORE_THRESHOLD        = 0.35
-VALIDATE_IOU_THRESHOLD          = 0.5
+VALIDATE_IOU_THRESHOLD          = 0.3
 
 
 # COCO DATASET has only evaluation dataset
@@ -99,7 +101,7 @@ elif TRAINING_DATASET_TYPE == "LG":
 elif TRAINING_DATASET_TYPE == "VISDRONE":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
     TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"
     RELATIVE_PATH               = ""
     PREFIX_PATH                 = ""
     
@@ -150,7 +152,7 @@ if MAKE_EVALUATION:
         RELATIVE_PATH               = ""
         PREFIX_PATH                 = ""
         YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/evaluation2.txt"
         if EVALUATE_TRANSFER:
             EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
         else:

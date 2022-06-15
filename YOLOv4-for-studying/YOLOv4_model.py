@@ -11,7 +11,7 @@
 
 
 import tensorflow as tf
-from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input
+from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input, UpSampling2D
 from tensorflow.keras.regularizers import L2
 from YOLOv4_config import *
 from YOLOv4_utils import *
@@ -182,7 +182,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     #upsampling 1
     PAN_route_1 = conv                                                              #output: 13 x 13 x 512
     conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 13 x 13 x 256
-    conv = upsample(conv)                                                           #output: 26 x 26 x 256
+    conv = UpSampling2D()(conv)                                                     #output: 26 x 26 x 256                                       
     fmap_backbone_medium = convolutional(fmap_backbone_medium, (1, 1, 512, 256))    #output: 26 x 26 x 256
     conv = tf.concat([fmap_backbone_medium, conv], axis=-1)                         #output: 26 x 26 x 512
     
@@ -196,7 +196,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     #upsampling 2
     PAN_route_2 = conv                                                              #output: 26 x 26 x 256
     conv = conv = convolutional(conv, (1, 1, 256, 128))                             #output: 26 x 26 x 128
-    conv = upsample(conv)                                                           #output: 52 x 52 x 128
+    conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                     
     fmap_backbone_large = convolutional(fmap_backbone_large, (1, 1, 256, 128))      #output: 52 x 52 x 128
     conv = tf.concat([fmap_backbone_large, conv], axis=-1)                          #output: 52 x 52 x 256
 
@@ -289,7 +289,7 @@ def YOLOv4_Model(input_size=YOLO_INPUT_SIZE, input_channel=3, training=False, CL
             class_names[ID] = name.strip('\n')
     NUM_CLASS = len(class_names)
     #Create input layer
-    input_layer = Input([input_size[1], input_size[0], input_channel])
+    input_layer = Input([None, None, input_channel])
 
     conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS)
 

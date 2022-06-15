@@ -12,7 +12,6 @@
 import os
 import cv2
 import numpy as np
-from sympy import im
 import tensorflow as tf
 from YOLOv4_utils import *
 from YOLOv4_config import *

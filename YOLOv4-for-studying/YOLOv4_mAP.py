@@ -11,7 +11,6 @@
 
 import os
 
-from regex import D
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import numpy as np
 import tensorflow as tf
@@ -118,6 +117,12 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
         original_image, bboxes = dataset.parse_annotation(annotation, True)
+        
+        #Create a new model using image original size scaling to 32
+        if EVALUATION_DATASET_TYPE == "VISDRONE" and EVALUATE_ORIGINAL_SIZE:
+            original_h, original_w, _ = original_image.shape
+            TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
+        
         image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
         image_data = image[np.newaxis, ...].astype(np.float32)
 
@@ -156,7 +161,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                 other_bboxes = tf.expand_dims(other_bboxes[:, :4], axis=0)         #shape [1, num_bboxes, 4]
                 ious = bboxes_iou_from_minmax(pred_bboxes_temp, other_bboxes)   #shape [total_bboxes, num_bboxes]
                 max_ious = tf.reduce_max(ious, axis=-1)
-                removed_other_mask = max_ious > VALIDATE_IOU_THRESHOLD
+                removed_other_mask = max_ious > TEST_IOU_THRESHOLD
             #getting mask of removed bboxes
             removed_bbox_mask = tf.math.logical_or(removed_ignored_mask, removed_other_mask)
             pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
