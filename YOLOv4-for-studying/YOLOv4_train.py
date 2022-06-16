@@ -45,10 +45,10 @@ def main():
     
     #Create Darkent53 model and load pretrained weights
     if TRAIN_TRANSFER:
-        Darknet = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, CLASSES_PATH=YOLO_COCO_CLASS_PATH)
+        Darknet = YOLOv4_Model(CLASSES_PATH=YOLO_COCO_CLASS_PATH)
         load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
     #Create YOLO model
-    yolo = YOLOv4_Model(input_size=YOLO_INPUT_SIZE, training=True, CLASSES_PATH=YOLO_CLASS_PATH)
+    yolo = YOLOv4_Model(training=True, CLASSES_PATH=YOLO_CLASS_PATH)
     if TRAIN_TRANSFER:
         for i, l in enumerate(Darknet.layers):
             layer_weights = l.get_weights()

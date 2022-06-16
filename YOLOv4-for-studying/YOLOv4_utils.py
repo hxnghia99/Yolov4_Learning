@@ -88,13 +88,13 @@ output: YOLOv4 model
 obj:    select GPU, create YOLOv3 model and load pretrained weights
 ######################################################################'''
 #Config using GPU and create YOLOv3_Model with loaded parameters
-def Load_YOLOv4_Model(input_size=YOLO_INPUT_SIZE):
+def Load_YOLOv4_Model():
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if len(gpus) > 0:
         print(f'GPUs {gpus}')
         try: tf.config.experimental.set_memory_growth(gpus[0], True)
         except RuntimeError: pass
-    yolo = YOLOv4_Model(input_size=input_size, CLASSES_PATH=YOLO_CLASS_PATH)
+    yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH)
     if USE_LOADED_WEIGHT:
         YOLOv4_weights = PREDICTION_WEIGHT_FILE
         if TRAINING_DATASET_TYPE == "COCO":

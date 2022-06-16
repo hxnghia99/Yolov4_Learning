@@ -281,7 +281,7 @@ def decode(conv_output, NUM_CLASS, i=0):
     return tf.concat([pred_xywh, pred_conf, pred_prob], axis=-1)
 
 
-def YOLOv4_Model(input_size=YOLO_INPUT_SIZE, input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH):
+def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH):
     #Read coco class names file
     class_names = {}
     with open(CLASSES_PATH, 'r') as data:
