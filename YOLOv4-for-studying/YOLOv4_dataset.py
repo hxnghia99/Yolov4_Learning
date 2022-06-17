@@ -104,17 +104,17 @@ class Dataset(object):
             DATA AUGMENTATION if needed
             """
             if self.data_aug:
-                image, bboxes = self.random_horizontal_flip(np.copy(image), np.copy(bboxes))
-                image, bboxes = self.random_crop(np.copy(image), np.copy(bboxes))
-                image, bboxes = self.random_translate(np.copy(image), np.copy(bboxes))
+                image, bboxes = self.random_horizontal_flip(np.array(image), np.array(bboxes))
+                image, bboxes = self.random_crop(image, bboxes)
+                image, bboxes = self.random_translate(image, bboxes)
             if mAP:
                 return image, bboxes
             #preprocess, bboxes as (xmin, ymin, xmax, ymax)
-            image, bboxes = image_preprocess(np.copy(image), self.input_size, np.copy(bboxes))
+            image, bboxes = image_preprocess(image, self.input_size, bboxes)
             return image, bboxes
         
         else:
-            sliced_image_object = Original_Image_Into_Sliced_Images(np.copy(image), np.copy(bboxes))
+            sliced_image_object = Original_Image_Into_Sliced_Images(image, bboxes)
             [sliced_and_origin_images, sliced_and_origin_image_gt_bboxes] = sliced_image_object.load_sliced_images()
             sliced_and_origin_images.append(image)
             sliced_and_origin_image_gt_bboxes.append(bboxes)
@@ -122,10 +122,10 @@ class Dataset(object):
                 return sliced_and_origin_images, sliced_and_origin_image_gt_bboxes
             for i in range(len(sliced_and_origin_images)):
                 if self.data_aug:
-                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_horizontal_flip(np.copy(sliced_and_origin_images[i]), np.copy(sliced_and_origin_image_gt_bboxes[i]))
-                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_crop(np.copy(sliced_and_origin_images[i]), np.copy(sliced_and_origin_image_gt_bboxes[i]))
-                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_translate(np.copy(sliced_and_origin_images[i]), np.copy(sliced_and_origin_image_gt_bboxes[i]))
-                sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = image_preprocess(np.copy(sliced_and_origin_images[i]), self.input_size, np.copy(sliced_and_origin_image_gt_bboxes[i]))
+                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_horizontal_flip(np.array(sliced_and_origin_images[i]), np.array(sliced_and_origin_image_gt_bboxes[i]))
+                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_crop(np.copy(sliced_and_origin_images[i]), sliced_and_origin_image_gt_bboxes[i])
+                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_translate(sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i])
+                sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = image_preprocess(sliced_and_origin_images[i], self.input_size, sliced_and_origin_image_gt_bboxes[i])
             del sliced_image_object
             return sliced_and_origin_images, sliced_and_origin_image_gt_bboxes
         
