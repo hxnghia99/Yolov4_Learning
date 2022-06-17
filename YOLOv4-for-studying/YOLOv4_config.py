@@ -15,7 +15,7 @@ TRAINING_DATASET_TYPE           = "VISDRONE"
 TRAIN_TRANSFER                  = True
 
 # ["COCO", "LG", "VISDRONE"]
-MAKE_EVALUATION                 = True
+MAKE_EVALUATION                 = False
 EVALUATION_DATASET_TYPE         = "VISDRONE"
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
 """ ---------------------------------"""
@@ -31,7 +31,7 @@ USE_SLICING_PATCH_TECHNIQUE     = True
 SLICED_IMAGE_SIZE               = [560, 352]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
-SLICE_BATCH_SIZE                = 4
+SLICE_BATCH_SIZE                = 2
 
 
 if USE_SLICING_PATCH_TECHNIQUE:
@@ -45,7 +45,7 @@ else:
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
 YOLO_V4_COCO_WEIGHTS            = "YOLOv4-for-studying/model_data/yolov4.weights"
-YOLO_INPUT_SIZE                 = [224, 224]
+YOLO_INPUT_SIZE                 = [96, 96]
 USE_LOADED_WEIGHT               = True
 
 #Dataset configurations
@@ -116,7 +116,7 @@ elif TRAINING_DATASET_TYPE == "LG":
 elif TRAINING_DATASET_TYPE == "VISDRONE":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
     TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
     RELATIVE_PATH               = ""
     PREFIX_PATH                 = ""
     

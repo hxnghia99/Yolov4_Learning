@@ -36,7 +36,7 @@ class Dataset(object):
         #settings of datasets
         self.annotations            = self.load_annotations()
         self.num_samples            = len(self.annotations)
-        self.num_batchs             = int(np.ceil(self.num_samples / self.batch_size))
+        self.num_batchs             = int(np.ceil(self.num_samples / NUM_INPUT_IMAGES))
         self.batchs_count           = 0
         self.max_bbox_per_scale     = YOLO_MAX_BBOX_PER_SCALE
         #settings of output sizes, output levels
@@ -213,7 +213,7 @@ class Dataset(object):
             num_images = 0
             if self.batchs_count < self.num_batchs:
                 while(num_annotations < NUM_INPUT_IMAGES):
-                    annotation_idx = self.batchs_count * self.batch_size + num_annotations
+                    annotation_idx = self.batchs_count * NUM_INPUT_IMAGES + num_annotations
                     #There is a posibility that number_samples is not completely divided by batch_size
                     if annotation_idx >= self.num_samples:
                         annotation_idx -= self.num_samples

@@ -63,7 +63,6 @@ def main():
 
     #Create training function for each batch
     def train_step(image_data, target):
-        global sliced_image_batch_num
         with tf.GradientTape() as tape:
             pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
             giou_loss=conf_loss=prob_loss=0
@@ -112,7 +111,7 @@ def main():
     validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
 
 
-    best_val_loss = 1000 # should be large at start
+    best_val_loss = 10000 # should be large at start
     #For each epoch, do training and validating
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
@@ -120,13 +119,13 @@ def main():
         for image_data, target in trainset:
             giou_training, conf_training, prob_training, total_training = 0, 0, 0, 0
             """Testing using slicing techniques"""
-            sliced_image_batch_num = int(len(image_data)/SLICE_BATCH_SIZE)            # 2 as small batch size of all sliced images
+            sliced_image_batch_num = int(len(image_data)/SLICE_BATCH_SIZE)            
             for i in range(sliced_image_batch_num):
-                input_image_data = image_data[i:i+SLICE_BATCH_SIZE,...]
+                input_image_data = image_data[i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
                 input_target_data = []
                 for scale_index in range(num_scales):
-                    label   = target[scale_index][0][i:i+SLICE_BATCH_SIZE,...]
-                    gt_box  = target[scale_index][1][i:i+SLICE_BATCH_SIZE,...]
+                    label   = target[scale_index][0][i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
+                    gt_box  = target[scale_index][1][i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
                     input_target_data.append([label, gt_box])
                 results = train_step(input_image_data, input_target_data)
                 giou_train += results[2]
@@ -169,11 +168,7 @@ def main():
             # results = train_step(image_data, target)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
             current_step = results[0] % steps_per_epoch
             print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.6f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f}"
-                  .format(epoch+1, current_step, steps_per_epoch, results[1], giou_training, conf_training, prob_training, total_training))
-            # giou_train += results[2]
-            # conf_train += results[3]
-            # prob_train += results[4]
-            # total_train += results[5]    
+                  .format(epoch+1, current_step, steps_per_epoch, results[1], giou_training, conf_training, prob_training, total_training)) 
         
         # writing training summary data
         with training_writer.as_default():
@@ -194,11 +189,37 @@ def main():
             print("configure TEST options to validate model")
             yolo.save_weights(os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME))
             continue
+        
+        
+        
+        
         #Validating the model with testing dataset
         num_testset = len(testset)
         giou_val, conf_val, prob_val, total_val = 0, 0, 0, 0
         for image_data, target in testset:
-            results = validate_step(image_data, target)
+            
+            """Testing using slicing techniques"""
+            sliced_image_batch_num = int(len(image_data)/SLICE_BATCH_SIZE)            
+            for i in range(sliced_image_batch_num):
+                input_image_data = image_data[i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
+                input_target_data = []
+                for scale_index in range(num_scales):
+                    label   = target[scale_index][0][i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
+                    gt_box  = target[scale_index][1][i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
+                    input_target_data.append([label, gt_box])
+                results = validate_step(input_image_data, input_target_data)
+                giou_val += results[0]
+                conf_val += results[1]
+                prob_val += results[2]
+                total_val += results[3]
+
+            input_image_data = image_data[i:len(image_data),...]
+            input_target_data = []
+            for scale_index in range(num_scales):
+                label   = target[scale_index][0][i:len(image_data),...]
+                gt_box  = target[scale_index][1][i:len(image_data),...]
+                input_target_data.append([label, gt_box])
+            results = validate_step(input_image_data, input_target_data)
             giou_val += results[0]
             conf_val += results[1]
             prob_val += results[2]
@@ -211,6 +232,10 @@ def main():
             tf.summary.scalar("loss/conf_val", conf_val/num_testset, step=epoch)
             tf.summary.scalar("loss/prob_val", prob_val/num_testset, step=epoch)
         validate_writer.flush()
+
+
+
+
 
         # print validate summary data 
         print("\n\nepoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}\n\n".
