@@ -64,9 +64,9 @@ def load_bbox(annotation, WIDTH, HEIGHT):
 
 def IoU_Estimate():
     annot_path = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
-    INPUT_SIZE = 992
-    WIDTH = INPUT_SIZE
-    HEIGHT = 640
+    INPUT_SIZE = [416, 416]
+    WIDTH = INPUT_SIZE[0]
+    HEIGHT = INPUT_SIZE[1]
     annotation = load_annotations(annot_path)       #List of [ [image_path, bboxes text], ...]
     data = load_bbox(annotation, WIDTH, HEIGHT)     #List of all gt_bboxes including (width, height)
     cnt = 0

@@ -22,21 +22,36 @@ EVALUATE_TRANSFER               = TRAIN_TRANSFER
 
 #Important initial settings
 USE_CIOU_LOSS                   = False
-EVALUATE_ORIGINAL_SIZE          = False
+EVALUATE_ORIGINAL_SIZE          = True
 USE_NMS_CENTER_D                = False
+USE_PRIMARY_EVALUATION_METRIC   = True         #calculate mAP0.5:0.95
+
+#Slicing patch techniques setting
+USE_SLICING_PATCH_TECHNIQUE     = True
+SLICED_IMAGE_SIZE               = [560, 352]
+OVERLAP_RATIO                   = [0.2, 0.2]
+MIN_AREA_RATIO                  = 0.2
+SLICE_BATCH_SIZE                = 4
+
+
+if USE_SLICING_PATCH_TECHNIQUE:
+    NUM_INPUT_IMAGES                = 2
+    TRAIN_BATCH_SIZE                = 21*NUM_INPUT_IMAGES
+    TEST_BATCH_SIZE                 = 21
+else:
+    TRAIN_BATCH_SIZE                = 2
+    TEST_BATCH_SIZE                 = 2
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
 YOLO_V4_COCO_WEIGHTS            = "YOLOv4-for-studying/model_data/yolov4.weights"
-YOLO_INPUT_SIZE                 = [992, 992]
+YOLO_INPUT_SIZE                 = [224, 224]
 USE_LOADED_WEIGHT               = True
 
 #Dataset configurations
 TRAIN_INPUT_SIZE                = YOLO_INPUT_SIZE
-TRAIN_BATCH_SIZE                = 4
 TRAIN_DATA_AUG                  = True
 TEST_INPUT_SIZE                 = YOLO_INPUT_SIZE
-TEST_BATCH_SIZE                 = 4
 TEST_DATA_AUG                   = False
 
 #Anchor box settings
@@ -152,7 +167,7 @@ if MAKE_EVALUATION:
         RELATIVE_PATH               = ""
         PREFIX_PATH                 = ""
         YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/evaluation2.txt"
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"
         if EVALUATE_TRANSFER:
             EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
         else:

@@ -33,10 +33,10 @@ for idx, _ in enumerate(DATASET_TYPE):
             bbox_annotations = [bbox[:len(bbox)-1] if bbox[-1] == ',' else bbox for bbox in bbox_annotations]
 
             bbox_annotations = [list(map(int, x.split(","))) for x in bbox_annotations]                 #split each line of annotation file by "," and cast those values into int32
-            bbox_annotations = [np.concatenate([bbox[:2],
+            bbox_annotations = [np.concatenate([np.array(bbox[:2]),
                                                 np.add(bbox[0:1],bbox[2:3]) - 1,
                                                 np.add(bbox[1:2],bbox[3:4]) - 1, 
-                                                bbox[5:6]], axis=-1) for bbox in bbox_annotations]    #Select bbox with confidence score == 1 and store bbox coordinates with class
+                                                np.array(bbox[5:6]) - 1], axis=-1) for bbox in bbox_annotations]    #Select bbox with confidence score == 1 and store bbox coordinates with class
             if max < len(bbox_annotations):
                 max = len(bbox_annotations)
                 name_image = image_path

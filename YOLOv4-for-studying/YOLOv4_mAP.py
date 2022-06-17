@@ -10,6 +10,7 @@
 
 
 import os
+from unittest import result
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import numpy as np
@@ -58,8 +59,13 @@ def all_points_interpolation_AP(prec, rec):
 #Calculate AP for each class, mAP of the model
 def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, TEST_INPUT_SIZE=TEST_INPUT_SIZE, 
             CLASSES_PATH=YOLO_COCO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH):
-    MIN_OVERLAP = 0.5   #value to define true/false positive
-    
+    if USE_PRIMARY_EVALUATION_METRIC:
+        MIN_OVERLAP_RANGE = np.arange(0.5, 1., 0.05)
+        print(f"\n Calculating primary mAP (0.5:0.95)... \n")
+    else:
+        MIN_OVERLAP_RANGE = np.array([0.5])   #value to define true/false positive
+        print(f"\n Calculating mAP50... \n")
+
     CLASS_NAMES = read_class_names(CLASSES_PATH)
     #Check and create folder to store ground truth and mAP result
     ground_truth_dir_path = GT_DIR
@@ -69,17 +75,15 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         shutil.rmtree(ground_truth_dir_path)
     os.mkdir(ground_truth_dir_path)
 
-    print(f"\n Calculating mAP{int(iou_threshold*100)}... \n")
-
     #Count the total of ground truth objects for each class
     gt_counter_per_class = {}
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
-        _, gt_bboxes = dataset.parse_annotation(annotation, True)
+        _, gt_bboxes = dataset.parse_annotation(annotation, mAP=True)
 
         #eliminate ignored region class and "other" class
         if EVALUATION_DATASET_TYPE == "VISDRONE":
-            bbox_mask = np.logical_and(gt_bboxes[:,4]>0.0, gt_bboxes[:,4]<11.0)
+            bbox_mask = np.logical_and(gt_bboxes[:,4]>-0.5, gt_bboxes[:,4]<9.5)
             gt_bboxes = gt_bboxes[bbox_mask]
 
         num_gt_bboxes = len(gt_bboxes)
@@ -96,7 +100,8 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             class_name = CLASS_NAMES[gt_classes[i]]
             xmin, ymin, xmax, ymax = list(map(str, gt_coordinates[i]))
             bbox = xmin + " " + ymin + " " + xmax + " " + ymax
-            gt_bboxes_json_data.append({"class_name": class_name, "bbox": bbox, "used": False})
+            used_list = [False] * 10
+            gt_bboxes_json_data.append({"class_name": class_name, "bbox": bbox, "used": used_list})
 
             #increase count for specific class
             if class_name in gt_counter_per_class:
@@ -140,9 +145,9 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
         if EVALUATION_DATASET_TYPE == "VISDRONE":
             bboxes = tf.cast(bboxes, dtype=tf.float64)
-            ignored_bbox_mask   = bboxes[:,4]>0.5
+            ignored_bbox_mask   = bboxes[:,4]>-0.5
             ignored_bboxes      = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(ignored_bbox_mask), axis=0)]
-            other_bbox_mask     = bboxes[:,4]<10.5
+            other_bbox_mask     = bboxes[:,4]<9.5
             other_bboxes        = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(other_bbox_mask), axis=0)]
 
             #getting mask of bboxes in ignored region
@@ -166,7 +171,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             removed_bbox_mask = tf.math.logical_or(removed_ignored_mask, removed_other_mask)
             pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
 
-       
+        print("Loaded image ", index)
        
         #Save each prediction bbox to list for specific class
         for pred_bbox in pred_bboxes:
@@ -192,96 +197,107 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             json.dump(json_pred[gt_class_names.index(class_name)], outfile)
 
     #Calculate each AP and mAP of the model, then print out result
-    sum_AP = 0.0
-    AP_dictionary = {}
+    # AP_dictionary = {}
     with open(mAP_PATH, 'w') as results_file:
-        results_file.write("# AP and precision/recall per class \n")
-        count_true_positives = {}
-        #Calculate AP of specific class and print out result
-        for class_name in gt_class_names:
-            count_true_positives[class_name] = 0
-            #Load predictions
-            predictions_file = f'{ground_truth_dir_path}/{class_name}_predictions.json'
-            predictions_data = json.load(open(predictions_file))
-            num_predictions = len(predictions_data)
-            true_positive = [0] * num_predictions
-            false_positive = [0] * num_predictions
-            #With each prediction, read all gt_bboxes in prediction's image and select the object with maximum overlap
-            for idx, prediction in enumerate(predictions_data):
-                pred_coordinates = np.array([float(x) for x in prediction['bbox'].split()])
-                overlap_max = -1
-                gt_match    = -1
-                #Load ground truth file of the prediction
-                file_id = prediction['file_id']
-                gt_file = f'{ground_truth_dir_path}/{str(file_id)}_ground_truth.json'
-                ground_truth_data = json.load(open(gt_file))                            #all gt_bboxes in an image
-                #Go through all gt_bboxes and select the best overlap with prediction regarding to same class
-                for obj in ground_truth_data:
-                    if obj['class_name'] == class_name:
-                        gt_coordinates = np.array([float(x) for x in obj['bbox'].split()])
-                        intersection = np.array([np.max((gt_coordinates[0], pred_coordinates[0])),
-                                                 np.max((gt_coordinates[1], pred_coordinates[1])),
-                                                 np.min((gt_coordinates[2], pred_coordinates[2])),
-                                                 np.min((gt_coordinates[3], pred_coordinates[3]))])
-                        intersect_w, intersect_h = intersection[2:] - intersection[:2]
-                        if intersect_w > 0 and intersect_h > 0:
-                            overlap = bboxes_iou_from_minmax(gt_coordinates[np.newaxis,:], pred_coordinates[np.newaxis,:])
-                            if overlap > overlap_max:
-                                overlap_max = overlap
-                                gt_match = obj
-                #assign prediction as true positive/false positive
-                if overlap_max > MIN_OVERLAP:
-                    #true positive
-                    if not bool(gt_match['used']):
-                        true_positive[idx] = 1
-                        gt_match['used'] = True
-                        count_true_positives[class_name] += 1
-                        #update the 'used' state for the gt bbox
-                        with open(gt_file, 'w') as f:
-                            f.write(json.dumps(ground_truth_data))
+        results_file.write("#   EVALUATION RESULTS   # \n\n")
+        sum_mAP = 0.0
+        for index, MIN_OVERLAP in enumerate(MIN_OVERLAP_RANGE):
+            sum_AP = 0.0
+            results_file.write("# AP and precision/recall per class: IoU threshold = {:.2f} \n".format(MIN_OVERLAP))
+            # count_true_positives = {}
+            #Calculate AP of specific class and print out result
+            for class_name in gt_class_names:
+                # count_true_positives[class_name] = 0
+                #Load predictions
+                predictions_file = f'{ground_truth_dir_path}/{class_name}_predictions.json'
+                predictions_data = json.load(open(predictions_file))
+                num_predictions = len(predictions_data)
+                true_positive = [0] * num_predictions
+                false_positive = [0] * num_predictions
+                #With each prediction, read all gt_bboxes in prediction's image and select the object with maximum overlap
+                for idx, prediction in enumerate(predictions_data):
+                    pred_coordinates = np.array([float(x) for x in prediction['bbox'].split()])
+                    overlap_max = -1
+                    gt_match    = -1
+                    #Load ground truth file of the prediction
+                    file_id = prediction['file_id']
+                    gt_file = f'{ground_truth_dir_path}/{str(file_id)}_ground_truth.json'
+                    ground_truth_data = json.load(open(gt_file))                            #all gt_bboxes in an image
+                    #Go through all gt_bboxes and select the best overlap with prediction regarding to same class
+                    for obj in ground_truth_data:
+                        if obj['class_name'] == class_name:
+                            gt_coordinates = np.array([float(x) for x in obj['bbox'].split()])
+                            intersection = np.array([np.max((gt_coordinates[0], pred_coordinates[0])),
+                                                    np.max((gt_coordinates[1], pred_coordinates[1])),
+                                                    np.min((gt_coordinates[2], pred_coordinates[2])),
+                                                    np.min((gt_coordinates[3], pred_coordinates[3]))])
+                            intersect_w, intersect_h = intersection[2:] - intersection[:2]
+                            if intersect_w > 0 and intersect_h > 0:
+                                overlap = bboxes_iou_from_minmax(gt_coordinates[np.newaxis,:], pred_coordinates[np.newaxis,:])
+                                if overlap > overlap_max:
+                                    overlap_max = overlap
+                                    gt_match = obj
+                    #assign prediction as true positive/false positive
+                    if overlap_max > MIN_OVERLAP:
+                        #true positive
+                        if not bool(gt_match['used'][index]):
+                            true_positive[idx] = 1
+                            gt_match['used'][index] = True
+                            # count_true_positives[class_name] += 1
+                            #update the 'used' state for the gt bbox
+                            with open(gt_file, 'w') as f:
+                                f.write(json.dumps(ground_truth_data))
+                        #false positive
+                        else:
+                            false_positive[idx] = 1
                     #false positive
                     else:
                         false_positive[idx] = 1
-                #false positive
-                else:
-                    false_positive[idx] = 1
+                
+                #Calculate accumulated TP and FP for each class
+                accumulated_value = 0
+                for idx, value in enumerate(true_positive):
+                    true_positive[idx] += accumulated_value
+                    accumulated_value += value
+                accumulated_value = 0
+                for idx, value in enumerate(false_positive):
+                    false_positive[idx] += accumulated_value
+                    accumulated_value += value
+                #Calculate precision and precall for each class
+                prec = [0] * num_predictions
+                for idx in range(len(prec)):
+                    prec[idx] = float(true_positive[idx]) / (false_positive[idx] + true_positive[idx])
+                rec = [0] * num_predictions
+                for idx in range(len(rec)):
+                    rec[idx] = float(true_positive[idx]) / gt_counter_per_class[class_name]
+                
+                #calculate AP
+                ap = all_points_interpolation_AP(prec, rec)
+                sum_AP += ap
+                
+                # print("'{}' AP = {:0.4f}\n".format(class_name, ap))
+                #print result of class AP into result file
+                text = "{0:.3f}%".format(ap * 100) + " = " + class_name + " AP \n" 
+                # rounded_prec = ['%.3f' % x for x in prec]
+                # rounded_rec = ['%.3f' % x for x in rec]
+                # results_file.write(text + "\n Precision: " + str(rounded_prec)
+                #                         + "\n Recall   : " + str(rounded_rec) + "\n\n")
+                results_file.write(text)
+                # AP_dictionary[class_name] = ap
             
-            #Calculate accumulated TP and FP for each class
-            accumulated_value = 0
-            for idx, value in enumerate(true_positive):
-                true_positive[idx] += accumulated_value
-                accumulated_value += value
-            accumulated_value = 0
-            for idx, value in enumerate(false_positive):
-                false_positive[idx] += accumulated_value
-                accumulated_value += value
-            #Calculate precision and precall for each class
-            prec = [0] * num_predictions
-            for idx in range(len(prec)):
-                prec[idx] = float(true_positive[idx]) / (false_positive[idx] + true_positive[idx])
-            rec = [0] * num_predictions
-            for idx in range(len(rec)):
-                rec[idx] = float(true_positive[idx]) / gt_counter_per_class[class_name]
-
-            #calculate AP
-            ap = all_points_interpolation_AP(prec, rec)
-            sum_AP += ap
-            print("'{}' AP = {:0.4f}\n".format(class_name, ap))
-
-            #print result of class AP into result file
-            text = "{0:.3f}%".format(ap * 100) + " = " + class_name + " AP "
-            rounded_prec = ['%.3f' % x for x in prec]
-            rounded_rec = ['%.3f' % x for x in rec]
-            results_file.write(text + "\n Precision: " + str(rounded_prec)
-                                    + "\n Recall   : " + str(rounded_rec) + "\n\n")
-            AP_dictionary[class_name] = ap
-        
-        #Calculate mAP and print result
-        results_file.write('\n# mAP of all classes\n')
-        mAP = sum_AP / num_gt_classes
-        text = "mAP = {:.3f}% , {:.2f} FPS".format(mAP*100, fps)
-        results_file.write(text + "\n")
-        print(text)
+            #Calculate mAP and print result
+            results_file.write(f'\n# mAP{int(MIN_OVERLAP*100)} of all classes\n')
+            mAP = sum_AP / num_gt_classes
+            text = "mAP{} = {:.2f}%  \n".format(int(MIN_OVERLAP*100), mAP*100)
+            results_file.write(text + "\n")
+            print(text)
+            sum_mAP += mAP
+        if USE_PRIMARY_EVALUATION_METRIC:
+            results_file.write(f'\n#  mAP50:95 of all classes\n')    
+            mAP = sum_mAP / len(MIN_OVERLAP_RANGE)
+            text = "mAP50:95 = {:.3f}% , {:.2f} FPS \n".format(mAP*100, fps)
+            results_file.write(text + "\n")
+            print(text)
 
         return mAP*100
 
@@ -299,8 +315,5 @@ if __name__ == '__main__':
             yolo.load_weights(weights_file) # use custom weights   
     get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
             CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)
-  
-    
-
 
 

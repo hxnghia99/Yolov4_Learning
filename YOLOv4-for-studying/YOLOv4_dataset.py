@@ -16,7 +16,7 @@ import tensorflow as tf
 from YOLOv4_utils import *
 from YOLOv4_config import *
 import random
-
+from YOLOv4_slicing import Original_Image_Into_Sliced_Images
 
 
 class Dataset(object):
@@ -62,7 +62,7 @@ class Dataset(object):
             bboxes_annotations = []
             #At each annotations, divide into [image_path, [list of bboxes] ]
             for text in text_by_line:
-                if not text.replace(',','').isnumeric():
+                if not text.replace(',','').replace('-','').isnumeric():
                     temp_path   = os.path.relpath(text, RELATIVE_PATH)
                     temp_path   = os.path.join(PREFIX_PATH, temp_path)
                     image_path  = temp_path.replace('\\','/')
@@ -88,31 +88,48 @@ class Dataset(object):
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations])
         
-        """
-        DATA AUGMENTATION if needed
-        """
-        if self.data_aug:
-            image, bboxes = self.random_horizontal_flip(np.copy(image), np.copy(bboxes))
-            image, bboxes = self.random_crop(np.copy(image), np.copy(bboxes))
-            image, bboxes = self.random_translate(np.copy(image), np.copy(bboxes))
-
-        if mAP:
-            return image, bboxes
-        #preprocess, bboxes as (xmin, ymin, xmax, ymax)
-        image, bboxes = image_preprocess(np.copy(image), self.input_size, np.copy(bboxes))
-    
         if TRAINING_DATASET_TYPE == "VISDRONE":
             """
             VISDRONE ignored region and class "other" preprocessing
             """
-            bbox_mask = np.logical_and(bboxes[:,4]>0.0, bboxes[:,4]<11.0)
+            bbox_mask = np.logical_and(bboxes[:,4]>-0.5, bboxes[:,4]<9.5)
             for bbox in bboxes:
-                if bbox[4] == 0:     #class 0 : ignored region
+                if bbox[4] == -1:     #class 0 (-1 after transforming to coco format) : ignored region
                     x_tl, y_tl, x_br, y_br = bbox[:4]
-                    image[y_tl:y_br, x_tl:x_br] = 128/255.0 #make ignored region into gray
+                    image[y_tl:y_br, x_tl:x_br] = 128.0 #make ignored region into gray
             bboxes = bboxes[bbox_mask]
-        return image, bboxes
+
+        if not USE_SLICING_PATCH_TECHNIQUE:
+            """
+            DATA AUGMENTATION if needed
+            """
+            if self.data_aug:
+                image, bboxes = self.random_horizontal_flip(np.copy(image), np.copy(bboxes))
+                image, bboxes = self.random_crop(np.copy(image), np.copy(bboxes))
+                image, bboxes = self.random_translate(np.copy(image), np.copy(bboxes))
+            if mAP:
+                return image, bboxes
+            #preprocess, bboxes as (xmin, ymin, xmax, ymax)
+            image, bboxes = image_preprocess(np.copy(image), self.input_size, np.copy(bboxes))
+            return image, bboxes
         
+        else:
+            sliced_image_object = Original_Image_Into_Sliced_Images(np.copy(image), np.copy(bboxes))
+            [sliced_and_origin_images, sliced_and_origin_image_gt_bboxes] = sliced_image_object.load_sliced_images()
+            sliced_and_origin_images.append(image)
+            sliced_and_origin_image_gt_bboxes.append(bboxes)
+            if mAP:
+                return sliced_and_origin_images, sliced_and_origin_image_gt_bboxes
+            for i in range(len(sliced_and_origin_images)):
+                if self.data_aug:
+                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_horizontal_flip(np.copy(sliced_and_origin_images[i]), np.copy(sliced_and_origin_image_gt_bboxes[i]))
+                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_crop(np.copy(sliced_and_origin_images[i]), np.copy(sliced_and_origin_image_gt_bboxes[i]))
+                    sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = self.random_translate(np.copy(sliced_and_origin_images[i]), np.copy(sliced_and_origin_image_gt_bboxes[i]))
+                sliced_and_origin_images[i], sliced_and_origin_image_gt_bboxes[i] = image_preprocess(np.copy(sliced_and_origin_images[i]), self.input_size, np.copy(sliced_and_origin_image_gt_bboxes[i]))
+            del sliced_image_object
+            return sliced_and_origin_images, sliced_and_origin_image_gt_bboxes
+        
+
     #Find the best anchors for each bbox at each scale
     def preprocess_true_bboxes(self, bboxes):
         #create label from true bboxes
@@ -193,8 +210,9 @@ class Dataset(object):
             batch_lbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32)
             #Read annotations, then read image and label, finally store them
             num_annotations = 0
+            num_images = 0
             if self.batchs_count < self.num_batchs:
-                while(num_annotations < self.batch_size):
+                while(num_annotations < NUM_INPUT_IMAGES):
                     annotation_idx = self.batchs_count * self.batch_size + num_annotations
                     #There is a posibility that number_samples is not completely divided by batch_size
                     if annotation_idx >= self.num_samples:
@@ -202,24 +220,46 @@ class Dataset(object):
                     annotation = self.annotations[annotation_idx]
                     #Read image and bboxes from annotation, then extract labels of 3 scales
                     image, bboxes = self.parse_annotation(annotation)
-                    label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes = self.preprocess_true_bboxes(bboxes)   
-                    #shape [output size, output size, 3, 85]
-                    #Add image, labels to batchs
-                    batch_image[num_annotations,:,:,:] = image
-                    batch_label_sbboxes[num_annotations,:,:,:,:]    = label_sbboxes         #shape [batch, output size, output size, 3, 85]
-                    batch_label_mbboxes[num_annotations,:,:,:,:]    = label_mbboxes
-                    batch_label_lbboxes[num_annotations,:,:,:,:]    = label_lbboxes 
-                    batch_sbboxes[num_annotations,:,:]              = sbboxes
-                    batch_mbboxes[num_annotations,:,:]              = mbboxes
-                    batch_lbboxes[num_annotations,:,:]              = lbboxes
-                    #end while -> increase num_annotations by 1
+                    for i in range(len(image)):
+                        label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes = self.preprocess_true_bboxes(bboxes[i])   
+                        #shape [output size, output size, 3, 85]
+                        #Add image, labels to batchs
+                        batch_image[num_images,:,:,:] = image[i]
+                        batch_label_sbboxes[num_images,:,:,:,:]    = label_sbboxes         #shape [batch, output size, output size, 3, 85]
+                        batch_label_mbboxes[num_images,:,:,:,:]    = label_mbboxes
+                        batch_label_lbboxes[num_images,:,:,:,:]    = label_lbboxes 
+                        batch_sbboxes[num_images,:,:]              = sbboxes
+                        batch_mbboxes[num_images,:,:]              = mbboxes
+                        batch_lbboxes[num_images,:,:]              = lbboxes
+                        num_images += 1
+
+
+                        # image_test2 = draw_bbox(np.copy(image[i]), np.copy(bboxes[i]), CLASSES_PATH=YOLO_CLASS_PATH, show_label=True)
+                        # cv2.imshow("Test label", image_test2)
+                        # if cv2.waitKey() == "q":
+                        #     pass
+                        # cv2.destroyAllWindows()
+                        # print("Test")
+                        
+                        #end while -> increase num_annotations by 1
                     num_annotations += 1
                 #end if -> increase batchs_count by 1
                 self.batchs_count += 1
+
+                #Remove the block of all 0
+                batch_image         = batch_image[:num_images,...]
+                batch_label_sbboxes = batch_label_sbboxes[:num_images,...]      #shape [batch, output size, output size, 3, 85]
+                batch_label_mbboxes = batch_label_mbboxes[:num_images,...]
+                batch_label_lbboxes = batch_label_lbboxes[:num_images,...]
+                batch_sbboxes       = batch_sbboxes[:num_images,...]
+                batch_mbboxes       = batch_mbboxes[:num_images,...]
+                batch_lbboxes       = batch_lbboxes[:num_images,...]    
+
                 #concatenate output label
                 batch_small_target = batch_label_sbboxes, batch_sbboxes
                 batch_medium_target  = batch_label_mbboxes, batch_mbboxes
                 batch_large_target  = batch_label_lbboxes, batch_lbboxes
+
                 return batch_image, (batch_small_target, batch_medium_target, batch_large_target)
             else:
                 self.batchs_count = 0
@@ -276,22 +316,50 @@ class Dataset(object):
 
     #Function to test when reading annotation
     def test(self):
-        image, bboxes = self.parse_annotation(self.annotations[0])
-        image = cv2.cvtColor(np.array(image, np.float32), cv2.COLOR_BGR2RGB)
-        image_test = draw_bbox(np.copy(image), np.copy(bboxes), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
-        
-        label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes = self.preprocess_true_bboxes(bboxes)
-        bbox_test = np.concatenate([sbboxes[:,:2] - sbboxes[:,2:]*0.5, sbboxes[:,:2]+sbboxes[:,2:]*0.5], axis=-1)
-        bbox_test = np.concatenate([bbox_test, np.ones((YOLO_MAX_BBOX_PER_SCALE,1))], axis=-1)
+        self.data_aug = False
+        image, bboxes = self.parse_annotation(['YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/0000293_01001_d_0000927.jpg', ['393,133,503,173,-1', '500,154,626,172,-1', '459,184,492,224,-1','422,214,456,234,-1', '774,234,864,292,-1', '712,203,739,240,-1','698,192,716,214,-1', '798,269,868,313,-1', '356,202,388,223,-1','895,368,947,409,-1', '609,176,632,197,8', '659,224,673,235,3','615,309,643,333,3', '724,241,729,255,0', '746,234,780,257,-1','672,200,684,210,3', '677,207,689,217,3', '684,208,711,245,8','720,275,742,291,3', '741,283,770,309,3', '864,349,875,371,2','852,351,864,368,2', '804,355,850,389,3', '829,384,880,422,3','869,376,881,409,0', '874,383,881,414,0', '879,386,890,414,0','949,370,961,391,2', '1049,279,1060,299,0', '965,337,974,363,0','1076,297,1083,319,0', '1063,296,1071,318,0','1064,293,1072,315,0', '1034,318,1044,345,0','1018,318,1027,341,0', '995,316,1003,338,0', '1009,317,1017,341,0','1004,315,1012,339,0', '1057,323,1065,347,0','1056,320,1068,345,0', '980,354,993,386,0', '1074,346,1085,377,0','1063,348,1074,378,0', '1067,372,1078,408,0','1019,367,1030,393,0', '1040,361,1051,395,0','1034,354,1043,382,0', '1041,352,1052,381,0','1021,392,1036,430,0', '1065,405,1077,440,0', '959,387,973,423,0','974,388,988,420,0', '927,411,939,445,0', '913,406,926,434,2','1308,388,1333,461,0', '1205,414,1219,461,0','1222,400,1239,451,0', '1235,408,1248,458,0','1208,435,1238,510,0', '1223,434,1258,520,0','1132,478,1164,561,0', '1130,619,1166,679,0','1056,602,1081,671,0', '1106,592,1118,659,0','1193,694,1255,740,2', '1194,670,1234,721,2', '853,416,901,461,3','735,464,766,557,0', '911,482,962,561,0', '1020,444,1056,524,0','992,433,1029,512,0', '946,442,983,525,0', '882,421,916,498,0','868,421,907,492,0', '821,566,904,663,3', '539,450,564,540,0','554,441,577,530,0', '475,463,499,552,0', '481,462,506,546,0','424,442,463,535,0', '430,422,480,517,0', '330,414,378,508,0','109,416,148,510,0', '206,395,234,479,0', '221,438,255,519,0','44,389,104,476,0', '7,393,41,479,0', '273,600,370,708,3','76,650,218,764,3', '201,720,310,764,3', '0,562,157,763,8','234,354,259,402,-1', '391,257,416,271,-1', '157,381,169,419,0','223,324,232,353,0', '173,361,191,397,0', '125,370,137,406,0','33,382,46,423,0', '133,333,149,358,2', '137,324,148,352,1','102,339,112,358,1', '171,323,183,352,0', '183,319,193,351,0','183,304,194,332,0', '179,278,187,306,0', '144,263,159,276,2','100,269,109,285,0', '107,263,112,281,0', '111,271,117,281,0','70,295,84,316,1', '76,291,85,316,0', '90,289,97,315,0','95,294,103,323,0', '101,298,111,324,0', '190,264,198,285,0','197,275,204,295,0', '203,272,211,294,0', '209,265,215,285,0','202,267,209,287,0', '299,288,308,310,0', '326,286,334,304,0','511,390,553,436,3', '566,223,583,239,3', '577,215,591,228,3','572,206,588,220,3', '576,201,588,213,3', '573,198,585,209,3','572,193,584,203,3', '568,190,579,200,3', '540,189,551,197,3','553,195,564,204,3', '553,199,565,207,3', '551,203,565,213,3','552,209,565,221,3', '546,212,561,224,3', '543,220,560,234,3','537,223,553,241,4', '534,234,553,251,3', '528,242,548,258,3','527,251,546,267,3', '521,257,543,276,3', '527,269,550,288,3','518,278,543,300,3', '491,303,522,330,3', '479,317,514,348,3','500,279,527,313,4', '467,334,505,368,3', '455,355,493,391,3','442,382,488,422,3', '519,187,530,195,3', '518,192,528,200,3','496,195,519,221,8', '533,193,543,202,3', '533,199,545,209,3','531,203,546,215,3', '525,209,538,223,3', '522,215,536,229,3','518,221,534,235,3', '513,226,531,242,3', '502,235,521,249,3','492,225,509,238,3', '498,218,513,229,3', '472,221,490,236,3','471,231,493,245,3', '466,242,486,257,3', '497,244,517,259,3','487,252,510,272,3', '475,260,502,283,3', '448,254,472,275,3','477,278,502,298,3', '465,287,498,312,3', '447,274,475,297,3','432,285,465,311,3', '443,299,474,327,3', '427,316,464,346,3','410,337,452,372,3', '386,368,434,409,3', '357,400,410,440,3','371,325,409,358,3', '374,304,408,333,3', '390,290,423,321,3','403,280,430,303,3', '415,270,443,291,3', '261,298,377,426,8','423,240,430,259,0', '345,254,351,273,0', '339,254,344,271,0','314,244,321,261,0', '304,242,310,260,0', '309,238,315,254,0','295,225,298,242,0', '300,225,304,241,0', '305,226,310,244,0','375,235,381,253,0', '347,231,351,248,0', '350,231,356,247,0','410,237,414,252,0', '413,235,418,250,0', '419,235,426,252,0','398,237,401,253,0', '390,236,395,253,0', '375,226,379,242,0','379,228,384,243,0', '384,229,388,245,0', '393,196,413,214,4']])
+        if not USE_SLICING_PATCH_TECHNIQUE:
+            image = cv2.cvtColor(np.array(image, np.float32), cv2.COLOR_BGR2RGB)
+            image_test = draw_bbox(np.copy(image), np.copy(bboxes), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+            
+            label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes = self.preprocess_true_bboxes(bboxes)
+            bbox_test = np.concatenate([sbboxes[:,:2] - sbboxes[:,2:]*0.5, sbboxes[:,:2]+sbboxes[:,2:]*0.5], axis=-1)
+            bbox_test = np.concatenate([bbox_test, np.ones((YOLO_MAX_BBOX_PER_SCALE,1))], axis=-1)
 
-        image_test2 = draw_bbox(np.copy(image), np.copy(bbox_test), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
-        cv2.imshow("Test label", image_test2)
-        cv2.imshow("Test", image_test)
-        if cv2.waitKey() == "q":
-            pass
-        print("Test")
-        
+            image_test2 = draw_bbox(np.copy(image), np.copy(bbox_test), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+            cv2.imshow("Test label for small bboxes", image_test2)
+            cv2.imshow("Test after parse_annotation()", image_test)
+            if cv2.waitKey() == "q":
+                pass
+            cv2.destroyAllWindows()
+            print("Test")
+        else:
+            for i in range(len(image)):
+                image_temp = cv2.cvtColor(np.array(image[i], np.float32), cv2.COLOR_BGR2RGB)
+                image_test = draw_bbox(np.copy(image_temp), np.copy(bboxes[i]), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+                
+                label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes = self.preprocess_true_bboxes(bboxes[i])
+                bbox_test = np.concatenate([sbboxes[:,:2] - sbboxes[:,2:]*0.5, sbboxes[:,:2]+sbboxes[:,2:]*0.5], axis=-1)
+                bbox_test = np.concatenate([bbox_test, np.ones((YOLO_MAX_BBOX_PER_SCALE,1))], axis=-1)
+
+                # image_test2 = draw_bbox(np.copy(image_temp), np.copy(bbox_test), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+                # cv2.imshow("Test label for small bboxes", image_test2)
+                cv2.imshow("Test after parse_annotation()", image_test)
+                if cv2.waitKey() == "q":
+                    pass
+                cv2.destroyAllWindows()
+                print("Test")
 
 if __name__ == '__main__':
     train_dataset = Dataset('train')
-    train_dataset.test() 
+    test_way = 1
+    if test_way:
+        i = 0
+        for image, data in train_dataset:
+            print(i)
+            i+=1
+    else:
+        train_dataset.test()
+    
+
+
