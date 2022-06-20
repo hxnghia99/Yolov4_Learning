@@ -43,7 +43,7 @@ class Original_Image_Into_Sliced_Images:
         #List of sliced images
         self.sliced_image_list = []
 
-
+        
 
         self.testing = TESTING
         if self.testing:
