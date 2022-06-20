@@ -105,7 +105,7 @@ class Dataset(object):
         DATA AUGMENTATION if needed
         """
         if self.data_aug:
-            image, bboxes = self.random_horizontal_flip(np.array(image), np.array(bboxes))
+            image, bboxes = self.random_horizontal_flip(image, bboxes)
             image, bboxes = self.random_crop(image, bboxes)
             image, bboxes = self.random_translate(image, bboxes)
         if mAP:
@@ -241,12 +241,16 @@ class Dataset(object):
 
     #Data augmentation with 3 methods
     def random_horizontal_flip(self, image, bboxes):
+        image = np.array(image)
+        bboxes = np.array(bboxes)
         if random.random() < 0.5:
             _, w, _ = image.shape
             image = image[:, ::-1, :]
             bboxes[:, [0,2]] = w - bboxes[:, [2,0]]         #change xmin, xmax after flip
         return image, bboxes
     def random_crop(self, image, bboxes):
+        image = np.array(image)
+        bboxes = np.array(bboxes)
         if random.random() < 0.5:
             h, w, _ = image.shape
             max_bbox = np.concatenate([np.min(bboxes[:, 0:2], axis=0), np.max(bboxes[:, 2:4], axis=0)], axis=-1)
@@ -267,6 +271,8 @@ class Dataset(object):
             bboxes[:, [1, 3]] = bboxes[:, [1, 3]] - crop_ymin
         return image, bboxes
     def random_translate(self, image, bboxes):
+        image = np.array(image)
+        bboxes = np.array(bboxes)
         if random.random() < 0.5:
             h, w, _ = image.shape
             max_bbox = np.concatenate([np.min(bboxes[:, 0:2], axis=0), np.max(bboxes[:, 2:4], axis=0)], axis=-1)

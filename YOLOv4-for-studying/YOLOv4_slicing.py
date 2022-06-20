@@ -113,7 +113,7 @@ class Original_Image_Into_Sliced_Images:
                 bottom_right    = np.minimum(original_gt_bbox[2:4], sliced_image_coordinates[2:])
                 gt_bbox_area = np.multiply.reduce(original_gt_bbox[2:4] - original_gt_bbox[:2])
                 intersection_area = np.multiply.reduce(bottom_right - top_left)
-                if intersection_area/gt_bbox_area >=min_area_ratio:
+                if intersection_area/gt_bbox_area >= min_area_ratio:
                     sliced_image_gt_bbox = np.concatenate([top_left - sliced_image_coordinates[:2], bottom_right - sliced_image_coordinates[:2], np.array([original_gt_bbox[4]])])  #minus starting point
                     sliced_image_gt_bboxes.append(sliced_image_gt_bbox)
         return sliced_image_gt_bboxes
@@ -148,8 +148,14 @@ class Original_Image_Into_Sliced_Images:
             sliced_image = np.copy(original_image[tl_y:br_y, tl_x:br_x])
             # Extract gt bboxes
             sliced_image_gt_bboxes = self.process_gt_bboxes_to_sliced_image(np.copy(original_gt_bboxes), sliced_image_coordinates, min_area_ratio)
+            
+            #Make sure to contain class 0-9 bboxes
+            check = 0
+            for sliced_image_gt_bbox in sliced_image_gt_bboxes:
+                if sliced_image_gt_bbox[4] > -0.5 and sliced_image_gt_bbox[4] < 9.5:
+                    check += 1
 
-            if len(sliced_image_gt_bboxes) != 0:
+            if len(sliced_image_gt_bboxes) != 0 and bool(check):
                 number_images += 1
                 sliced_image_obj = SlicedImage(sliced_image, sliced_image_gt_bboxes, starting_point)
                 self.sliced_image_list.append(sliced_image_obj)

@@ -31,11 +31,9 @@ USE_SLICING_PATCH_TECHNIQUE     = True
 SLICED_IMAGE_SIZE               = [416, 416]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
-SLICE_BATCH_SIZE                = 2
 
-
-TRAIN_BATCH_SIZE                = 2
-TEST_BATCH_SIZE                 = 2
+TRAIN_BATCH_SIZE                = 4
+TEST_BATCH_SIZE                 = 4
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
