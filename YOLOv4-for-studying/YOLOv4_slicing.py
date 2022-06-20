@@ -25,7 +25,7 @@ class SlicedImage:
                     predictions = None):                   #List of [4 coordinates, score, classs_idx]
         self.image = image
         self.bboxes = bboxes
-        self. starting_point = starting_point
+        self.starting_point = starting_point
         self.predictions = predictions
 
 #Create format of object processed for each original image
@@ -42,8 +42,6 @@ class Original_Image_Into_Sliced_Images:
         
         #List of sliced images
         self.sliced_image_list = []
-
-
 
         self.testing = TESTING
         if self.testing:
@@ -157,8 +155,8 @@ class Original_Image_Into_Sliced_Images:
                 self.sliced_image_list.append(sliced_image_obj)
                 
                     
-                
-                sliced_image = draw_bbox(sliced_image, sliced_image_gt_bboxes, YOLO_CLASS_PATH, show_label=False)
+                if self.testing:
+                    sliced_image = draw_bbox(sliced_image, sliced_image_gt_bboxes, YOLO_CLASS_PATH, show_label=False)
             if self.testing:
                 cv2.imshow("test", sliced_image)
                 if cv2.waitKey() == 'q':
@@ -180,23 +178,106 @@ class Original_Image_Into_Sliced_Images:
             sliced_images_gt_bboxes.append(self.sliced_image_list[i].bboxes)
         return [sliced_images, sliced_images_gt_bboxes]
 
+    def load_sliced_images_for_export(self):
+        #Load sliced images into sliced_image_list
+        self.slice_image(self.original_image, self.original_bboxes, *self.sliced_image_size, *self.overlap_ratio, self.min_area_ratio)
+        return self.sliced_image_list
+
+
+
+class Generate_sliced_images_and_annotations:
+    def __init__(self, IMAGE_FOLDER, READ_ANNOTATION_PATH):
+        self.image_folder = IMAGE_FOLDER
+        self.read_annotation_path = READ_ANNOTATION_PATH
+        self.save_annotation_path = self.read_annotation_path.split(".txt")[0] + "_slice.txt"
+        self.prefix_image_path = "./"
+
+
+    #Get the list of annotations for each line
+    def load_annotations(self, annotation_path):
+        with open(annotation_path, 'r') as f:
+            all_texts_by_line = f.read().splitlines()
+            #Ensure that image has objects
+            annotations = [text_by_line.strip() for text_by_line in all_texts_by_line if len(text_by_line.strip().split()[1:]) != 0]
+        #Go through each annotation to process
+        final_annotations = []
+        for annotation in annotations:
+            text_by_line = annotation.split()
+            bboxes_annotations = []
+            #At each annotations, divide into [image_path, [list of bboxes] ]
+            for text in text_by_line:
+                if not text.replace(',','').replace('-','').isnumeric():
+                    temp_path   = os.path.relpath(text, RELATIVE_PATH)
+                    temp_path   = os.path.join(PREFIX_PATH, temp_path)
+                    image_path  = temp_path.replace('\\','/')
+                else:
+                    bboxes_annotations.append(text)
+            if not os.path.exists(image_path):
+                raise KeyError("%s does not exit !" %image_path)
+            else:
+                final_annotations.append([image_path, bboxes_annotations])
+        return final_annotations        
+
+
+    
+    def slice_images_and_save(self):
+        read_annotation_path = self.read_annotation_path
+        save_annotation_path = self.save_annotation_path
+        prefix_image_path = self.prefix_image_path
+
+        if os.path.exists(save_annotation_path):
+            os.remove(save_annotation_path)
+        
+        annotations_list = self.load_annotations(read_annotation_path)
+        for annotation in annotations_list:
+            #Get data inside annotation
+            image_path, bboxes_annotations = annotation
+            bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations])
+            image = cv2.imread(image_path)
+            image_name = image_path.split("/")[-1].split(".")[0]
+            sliced_images_obj = Original_Image_Into_Sliced_Images(image, bboxes)
+            sliced_image_obj_list = sliced_images_obj.load_sliced_images_for_export()
+            
+            with open(save_annotation_path, "a") as f:
+                bboxes_annotation = [",".join(list(map(str, bbox))) for bbox in bboxes]
+                all_info_annotation = prefix_image_path + image_path + " " + " ".join(bboxes_annotation)
+                f.write(all_info_annotation + "\n")
+
+            for sliced_image_obj in sliced_image_obj_list:
+                self.export_sliced_image_and_annotation(sliced_image_obj, image_name, self.image_folder, self.save_annotation_path)
+        print(f"\n Finished slicing and saving for {self.save_annotation_path}! \n")
+
+    def export_sliced_image_and_annotation(self, sliced_image, image_name, image_folder, save_annotation_path):
+        prefix_image_path = self.prefix_image_path
+        x_tf, y_tf = sliced_image.starting_point
+        saved_image_path = prefix_image_path + image_folder + "/" + image_name + "_sp_" + str(x_tf) + "_" + str(y_tf) + ".png"
+        cv2.imwrite(saved_image_path, sliced_image.image)
+        bbox_annotation = [",".join(list(map(str, bbox))) for bbox in sliced_image.bboxes]
+        all_info_annotation = saved_image_path + " " + " ".join(bbox_annotation)
+        with open(save_annotation_path, "a") as f:
+            f.write(all_info_annotation + "\n")
         
 
 
-
 if __name__=="__main__":
-    # Testing
-    text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999965_00000_d_0000023.jpg 682,661,765,695,3 904,567,934,644,3 958,484,1023,558,3 979,286,1013,359,3 818,554,890,584,3 799,494,891,531,3 821,455,890,484,3 813,402,890,432,3 816,358,893,388,3 817,309,892,338,3 825,267,896,299,3 815,227,885,259,3 697,152,773,193,3 810,49,890,86,3 805,10,885,42,3 988,83,1019,156,4 824,190,896,219,4 331,25,369,103,4 800,138,898,183,5 689,287,774,326,3 700,344,777,379,3 697,402,777,432,3 697,502,774,537,3 701,550,765,579,4 544,389,598,586,8 314,625,346,702,3 318,535,351,609,3 321,438,357,515,3 329,333,363,405,3 329,227,356,302,3 317,119,364,213,5 308,733,346,786,3 633,77,647,117,9 633,87,648,106,1 954,69,969,86,0 1003,462,1018,474,0 1041,445,1055,456,0 917,133,928,146,0 740,740,753,761,0 1016,681,1028,695,0 1053,471,1062,483,0'
-    text = text_by_line.split()
-    bboxes = []
-    for t in text:
-        if not t.replace(',', '').isnumeric():
-            temp_path   = os.path.relpath(t, RELATIVE_PATH)
-            temp_path   = os.path.join(PREFIX_PATH, temp_path)
-            image_path  = temp_path.replace('\\','/')
-        else:
-            t = list(map(int, t.split(',')))
-            bboxes.append(t)
-    image = cv2.imread(image_path)
-    bboxes = np.array(bboxes)
-    test = Original_Image_Into_Sliced_Images(image, bboxes)
+    # # Testing
+    # text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999965_00000_d_0000023.jpg 682,661,765,695,3 904,567,934,644,3 958,484,1023,558,3 979,286,1013,359,3 818,554,890,584,3 799,494,891,531,3 821,455,890,484,3 813,402,890,432,3 816,358,893,388,3 817,309,892,338,3 825,267,896,299,3 815,227,885,259,3 697,152,773,193,3 810,49,890,86,3 805,10,885,42,3 988,83,1019,156,4 824,190,896,219,4 331,25,369,103,4 800,138,898,183,5 689,287,774,326,3 700,344,777,379,3 697,402,777,432,3 697,502,774,537,3 701,550,765,579,4 544,389,598,586,8 314,625,346,702,3 318,535,351,609,3 321,438,357,515,3 329,333,363,405,3 329,227,356,302,3 317,119,364,213,5 308,733,346,786,3 633,77,647,117,9 633,87,648,106,1 954,69,969,86,0 1003,462,1018,474,0 1041,445,1055,456,0 917,133,928,146,0 740,740,753,761,0 1016,681,1028,695,0 1053,471,1062,483,0'
+    # text = text_by_line.split()
+    # bboxes = []
+    # for t in text:
+    #     if not t.replace(',', '').isnumeric():
+    #         temp_path   = os.path.relpath(t, RELATIVE_PATH)
+    #         temp_path   = os.path.join(PREFIX_PATH, temp_path)
+    #         image_path  = temp_path.replace('\\','/')
+    #     else:
+    #         t = list(map(int, t.split(',')))
+    #         bboxes.append(t)
+    # image = cv2.imread(image_path)
+    # bboxes = np.array(bboxes)
+    # test = Original_Image_Into_Sliced_Images(image, bboxes)
+    
+    IMAGE_FOLDER = ["YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images", "YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-val/images", "YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-test-dev/images"]
+    READ_ANNOTATION_FILE =["./YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt", "./YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt", "./YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"]
+    for i, _ in enumerate(IMAGE_FOLDER):
+        Generate_sliced_images_and_annotations(IMAGE_FOLDER[i], READ_ANNOTATION_FILE[i]).slice_images_and_save()
+

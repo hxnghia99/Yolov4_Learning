@@ -42,7 +42,6 @@ def main():
     global_steps = tf.Variable(1, trainable=False, dtype=tf.int64)  #start 1
     warmup_steps = TRAIN_WARMUP_EPOCHS * steps_per_epoch
     total_steps = TRAIN_EPOCHS * steps_per_epoch
-    num_scales = len(YOLO_SCALE_OFFSET)
     
     #Create Darkent53 model and load pretrained weights
     if TRAIN_TRANSFER:
@@ -60,7 +59,7 @@ def main():
                     print("skipping", yolo.layers[i].name)
     #Create Adam optimizers
     optimizer = tf.keras.optimizers.Adam()
-
+    
     #Create training function for each batch
     def train_step(image_data, target):
         with tf.GradientTape() as tape:
@@ -86,6 +85,17 @@ def main():
                 lr = TRAIN_LR_END + 0.5 * (TRAIN_LR_INIT - TRAIN_LR_END)*(
                     (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))    
             optimizer.lr.assign(lr.numpy())
+            #increase global steps 
+            global_steps.assign_add(1)
+
+             # writing summary data
+            with training_writer.as_default():
+                tf.summary.scalar("lr", optimizer.lr, step=global_steps)
+                tf.summary.scalar("training_loss/total_loss", total_loss, step=global_steps)
+                tf.summary.scalar("training_loss/giou_loss", giou_loss, step=global_steps)
+                tf.summary.scalar("training_loss/conf_loss", conf_loss, step=global_steps)
+                tf.summary.scalar("training_loss/prob_loss", prob_loss, step=global_steps)
+            training_writer.flush()     
 
         return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
@@ -111,64 +121,20 @@ def main():
     validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
 
 
-    best_val_loss = 10000 # should be large at start
+    best_val_loss = 1000 # should be large at start
     #For each epoch, do training and validating
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
         giou_train, conf_train, prob_train, total_train = 0, 0, 0, 0
         for image_data, target in trainset:
-            giou_training, conf_training, prob_training, total_training = 0, 0, 0, 0
-            """Testing using slicing techniques"""
-            sliced_image_batch_num = int(len(image_data)/SLICE_BATCH_SIZE)            
-            for i in range(sliced_image_batch_num):
-                input_image_data = image_data[i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
-                input_target_data = []
-                for scale_index in range(num_scales):
-                    label   = target[scale_index][0][i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
-                    gt_box  = target[scale_index][1][i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
-                    input_target_data.append([label, gt_box])
-                results = train_step(input_image_data, input_target_data)
-                giou_train += results[2]
-                conf_train += results[3]
-                prob_train += results[4]
-                total_train += results[5]
-                giou_training += results[2]
-                conf_training += results[3]
-                prob_training += results[4]
-                total_training += results[5]
-
-            input_image_data = image_data[i:len(image_data),...]
-            input_target_data = []
-            for scale_index in range(num_scales):
-                label   = target[scale_index][0][i:len(image_data),...]
-                gt_box  = target[scale_index][1][i:len(image_data),...]
-                input_target_data.append([label, gt_box])
-            results = train_step(input_image_data, input_target_data)
+            results = train_step(image_data, target)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
+            current_step = results[0] % steps_per_epoch
+            print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.6f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f}"
+                  .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5]))
             giou_train += results[2]
             conf_train += results[3]
             prob_train += results[4]
-            total_train += results[5]
-            giou_training += results[2]
-            conf_training += results[3]
-            prob_training += results[4]
-            total_training += results[5]
-
-            #increase global steps 
-            global_steps.assign_add(1)
-
-            # writing summary data
-            with training_writer.as_default():
-                tf.summary.scalar("lr", optimizer.lr, step=global_steps)
-                tf.summary.scalar("training_loss/total_loss", total_training, step=global_steps)
-                tf.summary.scalar("training_loss/giou_loss", giou_training, step=global_steps)
-                tf.summary.scalar("training_loss/conf_loss", conf_training, step=global_steps)
-                tf.summary.scalar("training_loss/prob_loss", prob_training, step=global_steps)
-            training_writer.flush()
-            
-            # results = train_step(image_data, target)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
-            current_step = results[0] % steps_per_epoch
-            print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.6f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f}"
-                  .format(epoch+1, current_step, steps_per_epoch, results[1], giou_training, conf_training, prob_training, total_training)) 
+            total_train += results[5]    
         
         # writing training summary data
         with training_writer.as_default():
@@ -189,37 +155,11 @@ def main():
             print("configure TEST options to validate model")
             yolo.save_weights(os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME))
             continue
-        
-        
-        
-        
         #Validating the model with testing dataset
         num_testset = len(testset)
         giou_val, conf_val, prob_val, total_val = 0, 0, 0, 0
         for image_data, target in testset:
-            
-            """Testing using slicing techniques"""
-            sliced_image_batch_num = int(len(image_data)/SLICE_BATCH_SIZE)            
-            for i in range(sliced_image_batch_num):
-                input_image_data = image_data[i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
-                input_target_data = []
-                for scale_index in range(num_scales):
-                    label   = target[scale_index][0][i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
-                    gt_box  = target[scale_index][1][i*SLICE_BATCH_SIZE:(i+1)*SLICE_BATCH_SIZE,...]
-                    input_target_data.append([label, gt_box])
-                results = validate_step(input_image_data, input_target_data)
-                giou_val += results[0]
-                conf_val += results[1]
-                prob_val += results[2]
-                total_val += results[3]
-
-            input_image_data = image_data[i:len(image_data),...]
-            input_target_data = []
-            for scale_index in range(num_scales):
-                label   = target[scale_index][0][i:len(image_data),...]
-                gt_box  = target[scale_index][1][i:len(image_data),...]
-                input_target_data.append([label, gt_box])
-            results = validate_step(input_image_data, input_target_data)
+            results = validate_step(image_data, target)
             giou_val += results[0]
             conf_val += results[1]
             prob_val += results[2]
@@ -232,10 +172,6 @@ def main():
             tf.summary.scalar("loss/conf_val", conf_val/num_testset, step=epoch)
             tf.summary.scalar("loss/prob_val", prob_val/num_testset, step=epoch)
         validate_writer.flush()
-
-
-
-
 
         # print validate summary data 
         print("\n\nepoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}\n\n".

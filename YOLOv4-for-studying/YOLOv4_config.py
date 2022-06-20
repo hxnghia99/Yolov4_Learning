@@ -28,24 +28,19 @@ USE_PRIMARY_EVALUATION_METRIC   = True         #calculate mAP0.5:0.95
 
 #Slicing patch techniques setting
 USE_SLICING_PATCH_TECHNIQUE     = True
-SLICED_IMAGE_SIZE               = [560, 352]
+SLICED_IMAGE_SIZE               = [416, 416]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 SLICE_BATCH_SIZE                = 2
 
 
-if USE_SLICING_PATCH_TECHNIQUE:
-    NUM_INPUT_IMAGES                = 2
-    TRAIN_BATCH_SIZE                = 21*NUM_INPUT_IMAGES
-    TEST_BATCH_SIZE                 = 21
-else:
-    TRAIN_BATCH_SIZE                = 2
-    TEST_BATCH_SIZE                 = 2
+TRAIN_BATCH_SIZE                = 2
+TEST_BATCH_SIZE                 = 2
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
 YOLO_V4_COCO_WEIGHTS            = "YOLOv4-for-studying/model_data/yolov4.weights"
-YOLO_INPUT_SIZE                 = [96, 96]
+YOLO_INPUT_SIZE                 = [416, 416]
 USE_LOADED_WEIGHT               = True
 
 #Dataset configurations
@@ -115,8 +110,12 @@ elif TRAINING_DATASET_TYPE == "LG":
 # VISDRONE DATASET has trainset, validationset, testset
 elif TRAINING_DATASET_TYPE == "VISDRONE":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
-    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
+    if not USE_SLICING_PATCH_TECHNIQUE:
+        TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
+    else:
+        TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train_slice.txt"
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice.txt"
     RELATIVE_PATH               = ""
     PREFIX_PATH                 = ""
     
