@@ -418,7 +418,7 @@ def draw_bbox(image, bboxes, CLASSES_PATH=YOLO_COCO_CLASS_PATH, show_label=True,
             #draw label to image
             if show_label:
                 try:
-                    label = "{}".format(CLASS_NAMES[class_id])
+                    label = "{}".format(CLASS_NAMES[class_id if class_id !=-1 else class_id+12])
                 except KeyError:
                     print("You received KeyError")
                 #draw filled rectangle and add text to this
@@ -441,7 +441,7 @@ def detect_image(Yolo, image_path, output_path='', input_size=YOLO_INPUT_SIZE, s
     image_data = image_data[np.newaxis, ...].astype(np.float32)                         #reshape [1, 416, 416, 3]
     if np.isnan(image_data).any() or not (np.isfinite(image_data).all()):
         print("\n there is Nan number in image \n")
-    pred_bbox = Yolo.predict(image_data)                                                 #shape [3, batch_size, output_size, output_size, 3, 85]
+    pred_bbox = Yolo(image_data, training=False)                                                 #shape [3, batch_size, output_size, output_size, 3, 85]
     
     pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]               #reshape to [3, bbox_num, 85]
     pred_bbox = tf.concat(pred_bbox, axis=0)                                            #concatenate to [bbox_num, 85]

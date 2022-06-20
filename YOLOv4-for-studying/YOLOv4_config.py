@@ -52,7 +52,7 @@ YOLO_MAX_BBOX_PER_SCALE         = 1000
 ANCHORS_PER_GRID_CELL           = 3
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
 YOLO_SCALE_OFFSET               = [8, 16, 32]
-## COCO anchors
+# # COCO anchors
 # YOLO_ANCHORS                    = [[[12,  16], [19,   36], [40,   28]],
 #                                    [[36,  75], [76,   55], [72,  146]],
 #                                    [[142,110], [192, 243], [459, 401]]]
@@ -60,10 +60,16 @@ YOLO_SCALE_OFFSET               = [8, 16, 32]
 # YOLO_ANCHORS                    = [[[6, 8], [10, 17], [18, 12]],
 #                                    [[16, 27], [31, 19], [27, 39]],
 #                                    [[54, 30], [47, 57], [96, 77]]]
-# Visdrone anchors 992x640
-YOLO_ANCHORS                    = [[[6, 8], [16, 11], [10, 18]],
-                                   [[17, 27], [28, 17], [28, 40]],
-                                   [[47, 27], [52, 52], [96, 75]]]
+# # Visdrone anchors 992x640
+# YOLO_ANCHORS                    = [[[6, 8], [16, 11], [10, 18]],
+#                                    [[17, 27], [28, 17], [28, 40]],
+#                                    [[47, 27], [52, 52], [96, 75]]]
+# Visdrone anchors 544x352 only for sliced images
+YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
+                                   [[16, 28], [29, 18], [27, 43]],
+                                   [[53, 29], [60, 60], [123, 97]]]
+
+
 
 
 #Training settings
@@ -112,8 +118,8 @@ elif TRAINING_DATASET_TYPE == "VISDRONE":
         TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
         TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
     else:
-        TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train_slice.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice.txt"
+        TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train_slice2.txt"
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice2.txt"
     RELATIVE_PATH               = ""
     PREFIX_PATH                 = ""
     

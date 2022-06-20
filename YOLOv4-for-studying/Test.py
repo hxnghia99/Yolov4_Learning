@@ -79,63 +79,78 @@
 
 
 
-import os
-from YOLOv4_config import *
-from YOLOv4_utils import *
+# import os
+# from YOLOv4_config import *
+# from YOLOv4_utils import *
+# from YOLOv4_slicing import *
 
 
+# # text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999982_00000_d_0000034.jpg 1168,406,1193,435,5 590,330,657,352,0'
+# # text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999999_00650_d_0000295.jpg 147,344,173,359,4 177,326,213,344,4 188,303,221,323,4 202,245,232,258,4 283,232,308,243,4 236,207,248,228,5 204,203,227,217,4 273,195,294,205,4 265,178,286,188,5 209,162,229,170,4 199,151,214,159,5 200,146,219,152,4 258,206,260,213,1 298,89,304,95,4 200,93,214,98,4 204,87,215,92,4 237,50,245,53,4 233,45,242,49,4 231,37,239,39,4 230,27,237,30,4 424,91,436,98,4 383,58,393,63,4 342,25,351,32,6 382,48,395,58,6 197,64,207,68,4 198,47,205,59,9 227,49,234,60,9'
+# # text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999965_00000_d_0000023.jpg 682,661,765,695,3 904,567,934,644,3 958,484,1023,558,3 979,286,1013,359,3 818,554,890,584,3 799,494,891,531,3 821,455,890,484,3 813,402,890,432,3 816,358,893,388,3 817,309,892,338,3 825,267,896,299,3 815,227,885,259,3 697,152,773,193,3 810,49,890,86,3 805,10,885,42,3 988,83,1019,156,4 824,190,896,219,4 331,25,369,103,4 800,138,898,183,5 689,287,774,326,3 700,344,777,379,3 697,402,777,432,3 697,502,774,537,3 701,550,765,579,4 544,389,598,586,8 314,625,346,702,3 318,535,351,609,3 321,438,357,515,3 329,333,363,405,3 329,227,356,302,3 317,119,364,213,5 308,733,346,786,3 633,77,647,117,9 633,87,648,106,1 954,69,969,86,0 1003,462,1018,474,0 1041,445,1055,456,0 917,133,928,146,0 740,740,753,761,0 1016,681,1028,695,0 1053,471,1062,483,0'
+# text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999998_00038_d_0000030.jpg 900,957,1001,1034,3 939,915,1033,982,3 1307,1073,1430,1156,3 1200,996,1303,1086,3 1267,1106,1375,1184,3 1163,1038,1264,1119,3 1138,1087,1231,1160,3 1247,1157,1360,1239,3 1246,1220,1317,1272,3 787,1002,909,1089,3 311,624,392,671,3 358,639,504,721,-1 265,588,345,638,3 86,723,170,797,-1 6,754,92,825,-1 95,796,197,868,3 136,844,244,917,3 170,874,282,955,3 197,916,301,992,3 234,997,331,1075,3 270,1009,378,1102,3 318,1051,419,1138,3 348,1079,454,1164,3 393,1124,488,1214,3 1566,1013,1583,1046,0 1516,737,1552,766,2 1362,643,1388,665,2 1309,568,1384,636,-1 1388,597,1509,683,-1 1486,640,1571,721,-1 1567,709,1596,740,2 1682,729,1712,747,2 1677,742,1709,759,2 1673,755,1706,776,2 1624,803,1661,832,2 1643,760,1699,811,-1 1605,512,1657,561,3 1693,556,1741,616,3 1747,581,1802,642,3 1793,594,1852,645,3 1857,616,1913,668,3 1247,887,1324,976,3 1675,1358,1780,1435,3 1768,1434,1890,1499,3 1899,638,1957,695,3'
 
-# text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999982_00000_d_0000034.jpg 1168,406,1193,435,5 590,330,657,352,0'
-# text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999999_00650_d_0000295.jpg 147,344,173,359,4 177,326,213,344,4 188,303,221,323,4 202,245,232,258,4 283,232,308,243,4 236,207,248,228,5 204,203,227,217,4 273,195,294,205,4 265,178,286,188,5 209,162,229,170,4 199,151,214,159,5 200,146,219,152,4 258,206,260,213,1 298,89,304,95,4 200,93,214,98,4 204,87,215,92,4 237,50,245,53,4 233,45,242,49,4 231,37,239,39,4 230,27,237,30,4 424,91,436,98,4 383,58,393,63,4 342,25,351,32,6 382,48,395,58,6 197,64,207,68,4 198,47,205,59,9 227,49,234,60,9'
-text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999965_00000_d_0000023.jpg 682,661,765,695,3 904,567,934,644,3 958,484,1023,558,3 979,286,1013,359,3 818,554,890,584,3 799,494,891,531,3 821,455,890,484,3 813,402,890,432,3 816,358,893,388,3 817,309,892,338,3 825,267,896,299,3 815,227,885,259,3 697,152,773,193,3 810,49,890,86,3 805,10,885,42,3 988,83,1019,156,4 824,190,896,219,4 331,25,369,103,4 800,138,898,183,5 689,287,774,326,3 700,344,777,379,3 697,402,777,432,3 697,502,774,537,3 701,550,765,579,4 544,389,598,586,8 314,625,346,702,3 318,535,351,609,3 321,438,357,515,3 329,333,363,405,3 329,227,356,302,3 317,119,364,213,5 308,733,346,786,3 633,77,647,117,9 633,87,648,106,1 954,69,969,86,0 1003,462,1018,474,0 1041,445,1055,456,0 917,133,928,146,0 740,740,753,761,0 1016,681,1028,695,0 1053,471,1062,483,0'
+# text = text_by_line.split()
+# bboxes = []
+# for t in text:
+#     if not t.replace(',', '').replace('-1','').isnumeric():
+#         temp_path   = os.path.relpath(t, RELATIVE_PATH)
+#         temp_path   = os.path.join(PREFIX_PATH, temp_path)
+#         image_path  = temp_path.replace('\\','/')
+#     else:
+#         t = list(map(int, t.split(',')))
+#         bboxes.append(t)
+# image = cv2.imread(image_path)
+# bboxes = np.array(bboxes)
+
+# yolo = Load_YOLOv4_Model()
+
+# sliced_images_obj = Original_Image_Into_Sliced_Images(image, bboxes)
+# sliced_images = sliced_images_obj.load_sliced_images_for_export()
+
+# for sliced_image in sliced_images:
+#     pred_image = detect_image(yolo, image_path, show=False, show_label=True, save=False, CLASSES_PATH=YOLO_CLASS_PATH, score_threshold=0.16)
+#     gt_image = draw_bbox(sliced_image.image, sliced_image.bboxes, "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=True)
+#     cv2.imshow('truth', cv2.resize(gt_image,(1280, 720)))
+#     cv2.imshow("prediction", cv2.resize(pred_image,(1280, 720)))
+#     if cv2.waitKey() == 'q':
+#         pass
+#     cv2.destroyAllWindows()
 
 
-text = text_by_line.split()
-bboxes = []
-for t in text:
-    if not t.replace(',', '').isnumeric():
-        temp_path   = os.path.relpath(t, RELATIVE_PATH)
-        temp_path   = os.path.join(PREFIX_PATH, temp_path)
-        image_path  = temp_path.replace('\\','/')
-    else:
-        t = list(map(int, t.split(',')))
-        bboxes.append(t)
-image = cv2.imread(image_path)
-bboxes = np.array(bboxes)
-
-# image = draw_bbox(image, bboxes, YOLO_CLASS_PATH, show_label=False)
+# image = draw_bbox(image, bboxes, "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=True)
 # cv2.imshow('truth', cv2.resize(image,(1280, 720)))
 # if cv2.waitKey() == 'q':
 #     pass
 
 
 
-#Create format of each sliced_image object including 4 attributes
-class SlicedImage:
-    def __init__(   self,                           
-                    image: np.ndarray,              #cv2 image in Numpy array
-                    bboxes,                         #List of [4 coordinates, class_idx]
-                    starting_point,                 #[xmin, ymin]
-                    predictions = None):                   #List of [4 coordinates, score, classs_idx]
-        self.image = image
-        self.bboxes = bboxes
-        self. starting_point = starting_point
-        self.predictions = predictions
+# #Create format of each sliced_image object including 4 attributes
+# class SlicedImage:
+#     def __init__(   self,                           
+#                     image: np.ndarray,              #cv2 image in Numpy array
+#                     bboxes,                         #List of [4 coordinates, class_idx]
+#                     starting_point,                 #[xmin, ymin]
+#                     predictions = None):                   #List of [4 coordinates, score, classs_idx]
+#         self.image = image
+#         self.bboxes = bboxes
+#         self. starting_point = starting_point
+#         self.predictions = predictions
 
-#Create format of object processed for each original image
-class Original_Image_Into_Sliced_Images:
-    def __init__(self, original_image=None, original_bboxes=None):              #inputs as original image and all gt bboxes inside that image
-        #Setting for slicing original image into set of sliced images
-        self.original_image = original_image
-        self.original_bboxes = original_bboxes
-        self.original_image_height = self.original_image.shape[0]
-        self.original_image_width = self.original_image.shape[1]
-        self.sliced_image_size = SLICED_IMAGE_SIZE
-        self.overlap_ratio = OVERLAP_RATIO
-        self.min_area_ratio = MIN_AREA_RATIO
+# #Create format of object processed for each original image
+# class Original_Image_Into_Sliced_Images:
+#     def __init__(self, original_image=None, original_bboxes=None):              #inputs as original image and all gt bboxes inside that image
+#         #Setting for slicing original image into set of sliced images
+#         self.original_image = original_image
+#         self.original_bboxes = original_bboxes
+#         self.original_image_height = self.original_image.shape[0]
+#         self.original_image_width = self.original_image.shape[1]
+#         self.sliced_image_size = SLICED_IMAGE_SIZE
+#         self.overlap_ratio = OVERLAP_RATIO
+#         self.min_area_ratio = MIN_AREA_RATIO
         
-        #List of sliced images
-        self.sliced_image_list = []
+#         #List of sliced images
+#         self.sliced_image_list = []
 
 
 
@@ -143,114 +158,114 @@ class Original_Image_Into_Sliced_Images:
 
 
 
-        """ Test """
-        self.slice_image(self.original_image, self.original_bboxes, *self.sliced_image_size, *self.overlap_ratio, self.min_area_ratio)
+#         """ Test """
+#         self.slice_image(self.original_image, self.original_bboxes, *self.sliced_image_size, *self.overlap_ratio, self.min_area_ratio)
 
 
-    #Get the bbox coordinate of sliced images in origional image
-    def get_sliced_image_coordinates(   self,
-                                        image_width: int,                   
-                                        image_height: int,
-                                        slice_width: int,
-                                        slice_height: int,
-                                        overlap_width_ratio: float,
-                                        overlap_height_ratio: float):  
-        sliced_image_coordinates = []
-        x_overlap = int(overlap_width_ratio * slice_width)
-        y_overlap = int(overlap_height_ratio * slice_height)
-        #Run in y-axis, at each value y, calculate x
-        y_max = y_min = 0
-        while y_max < image_height:    
-            #update new ymax for this iterative
-            y_max = y_min + slice_height
-            #run in x-axis, at each value (xmin,xmax), save the patch coordinates
-            x_min = x_max = 0
-            while x_max < image_width:
-                #update new xmax for this iterative
-                x_max = x_min + slice_width
-                #if the patch coordinates is outside original image, cut at the borders to inside area inversely
-                if y_max > image_height or x_max > image_width:
-                    xmax = min(image_width, x_max)
-                    ymax = min(image_height, y_max)
-                    xmin = max(0, xmax - slice_width)   
-                    ymin = max(0, ymax - slice_height)
-                    sliced_image_coordinates.append([xmin, ymin, xmax, ymax])
-                else:
-                    sliced_image_coordinates.append([x_min, y_min, x_max, y_max])
-                #update new xmin for next iterative
-                x_min = x_max - x_overlap
-            #update new ymin for next iterative
-            y_min = y_max - y_overlap
-        return sliced_image_coordinates
+#     #Get the bbox coordinate of sliced images in origional image
+#     def get_sliced_image_coordinates(   self,
+#                                         image_width: int,                   
+#                                         image_height: int,
+#                                         slice_width: int,
+#                                         slice_height: int,
+#                                         overlap_width_ratio: float,
+#                                         overlap_height_ratio: float):  
+#         sliced_image_coordinates = []
+#         x_overlap = int(overlap_width_ratio * slice_width)
+#         y_overlap = int(overlap_height_ratio * slice_height)
+#         #Run in y-axis, at each value y, calculate x
+#         y_max = y_min = 0
+#         while y_max < image_height:    
+#             #update new ymax for this iterative
+#             y_max = y_min + slice_height
+#             #run in x-axis, at each value (xmin,xmax), save the patch coordinates
+#             x_min = x_max = 0
+#             while x_max < image_width:
+#                 #update new xmax for this iterative
+#                 x_max = x_min + slice_width
+#                 #if the patch coordinates is outside original image, cut at the borders to inside area inversely
+#                 if y_max > image_height or x_max > image_width:
+#                     xmax = min(image_width, x_max)
+#                     ymax = min(image_height, y_max)
+#                     xmin = max(0, xmax - slice_width)   
+#                     ymin = max(0, ymax - slice_height)
+#                     sliced_image_coordinates.append([xmin, ymin, xmax, ymax])
+#                 else:
+#                     sliced_image_coordinates.append([x_min, y_min, x_max, y_max])
+#                 #update new xmin for next iterative
+#                 x_min = x_max - x_overlap
+#             #update new ymin for next iterative
+#             y_min = y_max - y_overlap
+#         return sliced_image_coordinates
 
 
-    #check if gt_coordinates is inside the sliced image
-    def check_gt_coordinates_inside_slice(  self, 
-                                            gt_coordinates,                 #format [xmin, ymin, xmax, ymax]                   
-                                            sliced_image_coordinates):      #format [xmin, ymin, xmax, ymax]                   
-        if gt_coordinates[0] >= sliced_image_coordinates[2]:    #if gt is left to sliced_image
-            return False    
-        if gt_coordinates[1] >= sliced_image_coordinates[3]:    #if gt is below sliced_image
-            return False
-        if gt_coordinates[2] <= sliced_image_coordinates[0]:    #if gt is right to sliced_image
-            return False        
-        if gt_coordinates[3] <= sliced_image_coordinates[1]:    #if gt is above sliced_image
-            return False
-        return True
+#     #check if gt_coordinates is inside the sliced image
+#     def check_gt_coordinates_inside_slice(  self, 
+#                                             gt_coordinates,                 #format [xmin, ymin, xmax, ymax]                   
+#                                             sliced_image_coordinates):      #format [xmin, ymin, xmax, ymax]                   
+#         if gt_coordinates[0] >= sliced_image_coordinates[2]:    #if gt is left to sliced_image
+#             return False    
+#         if gt_coordinates[1] >= sliced_image_coordinates[3]:    #if gt is below sliced_image
+#             return False
+#         if gt_coordinates[2] <= sliced_image_coordinates[0]:    #if gt is right to sliced_image
+#             return False        
+#         if gt_coordinates[3] <= sliced_image_coordinates[1]:    #if gt is above sliced_image
+#             return False
+#         return True
 
-    #Tranform gt_bboxes in original image into those in sliced images
-    def process_gt_bboxes_to_sliced_image(  self, 
-                                            original_gt_bboxes,                         #List of gt bboxes with format [4 coordinates, class_idx]
-                                            sliced_image_coordinates,                   #format [xmin, ymin, xmax, ymax]
-                                            min_area_ratio):                            #area ratio to remove gt bbox from sliced image
-        #Each ground truth bbox is compared to sliced_image_coordinates to create bbox_coordinates inside sliced_image
-        sliced_image_gt_bboxes = []
-        for original_gt_bbox in original_gt_bboxes:
-            if self.check_gt_coordinates_inside_slice(original_gt_bbox[:4], sliced_image_coordinates):
-                #Calculate intersection area
-                top_left        = np.maximum(original_gt_bbox[:2], sliced_image_coordinates[:2])
-                bottom_right    = np.minimum(original_gt_bbox[2:4], sliced_image_coordinates[2:])
-                gt_bbox_area = np.multiply.reduce(original_gt_bbox[2:4] - original_gt_bbox[:2])
-                intersection_area = np.multiply.reduce(bottom_right - top_left)
-                if intersection_area/gt_bbox_area >=min_area_ratio:
-                    sliced_image_gt_bbox = np.concatenate([top_left - sliced_image_coordinates[:2], bottom_right - sliced_image_coordinates[:2], np.array([original_gt_bbox[4]])])  #minus starting point
-                    sliced_image_gt_bboxes.append(sliced_image_gt_bbox)
-        return sliced_image_gt_bboxes
+#     #Tranform gt_bboxes in original image into those in sliced images
+#     def process_gt_bboxes_to_sliced_image(  self, 
+#                                             original_gt_bboxes,                         #List of gt bboxes with format [4 coordinates, class_idx]
+#                                             sliced_image_coordinates,                   #format [xmin, ymin, xmax, ymax]
+#                                             min_area_ratio):                            #area ratio to remove gt bbox from sliced image
+#         #Each ground truth bbox is compared to sliced_image_coordinates to create bbox_coordinates inside sliced_image
+#         sliced_image_gt_bboxes = []
+#         for original_gt_bbox in original_gt_bboxes:
+#             if self.check_gt_coordinates_inside_slice(original_gt_bbox[:4], sliced_image_coordinates):
+#                 #Calculate intersection area
+#                 top_left        = np.maximum(original_gt_bbox[:2], sliced_image_coordinates[:2])
+#                 bottom_right    = np.minimum(original_gt_bbox[2:4], sliced_image_coordinates[2:])
+#                 gt_bbox_area = np.multiply.reduce(original_gt_bbox[2:4] - original_gt_bbox[:2])
+#                 intersection_area = np.multiply.reduce(bottom_right - top_left)
+#                 if intersection_area/gt_bbox_area >=min_area_ratio:
+#                     sliced_image_gt_bbox = np.concatenate([top_left - sliced_image_coordinates[:2], bottom_right - sliced_image_coordinates[:2], np.array([original_gt_bbox[4]])])  #minus starting point
+#                     sliced_image_gt_bboxes.append(sliced_image_gt_bbox)
+#         return sliced_image_gt_bboxes
 
 
-    #slice the original image into objects of class SliceImage
-    def slice_image(self, 
-                    original_image,                 #original image
-                    original_gt_bboxes,             #list of original bboxes with shape [4 coordinates, class_idx]
-                    slice_width,                
-                    slice_height,
-                    overlap_width_ratio,
-                    overlap_height_ratio,
-                    min_area_ratio):
+#     #slice the original image into objects of class SliceImage
+#     def slice_image(self, 
+#                     original_image,                 #original image
+#                     original_gt_bboxes,             #list of original bboxes with shape [4 coordinates, class_idx]
+#                     slice_width,                
+#                     slice_height,
+#                     overlap_width_ratio,
+#                     overlap_height_ratio,
+#                     min_area_ratio):
 
-        original_image_height, original_image_width, _ = original_image.shape
-        if not (original_image_width != 0 and original_image_height != 0):
-            raise RuntimeError(f"Error from invalid image size: {original_image.shape}")
+#         original_image_height, original_image_width, _ = original_image.shape
+#         if not (original_image_width != 0 and original_image_height != 0):
+#             raise RuntimeError(f"Error from invalid image size: {original_image.shape}")
        
-        sliced_image_coordinates_list = self.get_sliced_image_coordinates(*[original_image_width, original_image_height], *[slice_width, slice_height], *[overlap_width_ratio, overlap_height_ratio])
+#         sliced_image_coordinates_list = self.get_sliced_image_coordinates(*[original_image_width, original_image_height], *[slice_width, slice_height], *[overlap_width_ratio, overlap_height_ratio])
         
         
-        number_images = 0
-        # iterate over slices
-        for sliced_image_coordinates in sliced_image_coordinates_list:
-            # count number of sliced images
-            number_images += 1
-            # Extract starting point of the sliced image
-            starting_point = [sliced_image_coordinates[0], sliced_image_coordinates[1]]
-            # Extract sliced image
-            tl_x, tl_y, br_x, br_y = sliced_image_coordinates
-            sliced_image = np.copy(original_image[tl_y:br_y, tl_x:br_x])
-            # Extract gt bboxes
-            sliced_image_gt_bboxes = self.process_gt_bboxes_to_sliced_image(np.copy(original_gt_bboxes), sliced_image_coordinates, min_area_ratio)
+#         number_images = 0
+#         # iterate over slices
+#         for sliced_image_coordinates in sliced_image_coordinates_list:
+#             # count number of sliced images
+#             number_images += 1
+#             # Extract starting point of the sliced image
+#             starting_point = [sliced_image_coordinates[0], sliced_image_coordinates[1]]
+#             # Extract sliced image
+#             tl_x, tl_y, br_x, br_y = sliced_image_coordinates
+#             sliced_image = np.copy(original_image[tl_y:br_y, tl_x:br_x])
+#             # Extract gt bboxes
+#             sliced_image_gt_bboxes = self.process_gt_bboxes_to_sliced_image(np.copy(original_gt_bboxes), sliced_image_coordinates, min_area_ratio)
 
-            if len(sliced_image_gt_bboxes) != 0:
-                sliced_image_obj = SlicedImage(sliced_image, sliced_image_gt_bboxes, starting_point)
-                self.sliced_image_list.append(sliced_image_obj)
+#             if len(sliced_image_gt_bboxes) != 0:
+#                 sliced_image_obj = SlicedImage(sliced_image, sliced_image_gt_bboxes, starting_point)
+#                 self.sliced_image_list.append(sliced_image_obj)
                 
                 
                 
@@ -281,100 +296,98 @@ class Original_Image_Into_Sliced_Images:
 
 
 
-#Get the bbox coordinate of slicing patches in origional image
-def get_slicing_patch_coordinates(  image_width: int,
-                                    image_height: int,
-                                    slice_width: int = 512,
-                                    slice_height: int = 512,
-                                    overlap_width_ratio: int = 0.2,
-                                    overlap_height_ratio: int = 0.2):
-    slicing_patch_coordinates = []
-    x_overlap = int(overlap_width_ratio * slice_width)
-    y_overlap = int(overlap_height_ratio * slice_height)
-    #Run in y-axis, at each value y, calculate x
-    y_max = y_min = 0
-    while y_max < image_height:    
-        #update new ymax for this iterative
-        y_max = y_min + slice_height
-        #run in x-axis, at each value (xmin,xmax), save the patch coordinates
-        x_min = x_max = 0
-        while x_max < image_width:
-            #update new xmax for this iterative
-            x_max = x_min + slice_width
-            #if the patch coordinates is outside original image, cut at the borders to inside area inversely
-            if y_max > image_height or x_max > image_width:
-                xmax = min(image_width, x_max)
-                ymax = min(image_height, y_max)
-                xmin = max(0, xmax - slice_width)   
-                ymin = max(0, ymax - slice_height)
-                slicing_patch_coordinates.append([xmin, ymin, xmax, ymax])
-            else:
-                slicing_patch_coordinates.append([x_min, y_min, x_max, y_max])
+# #Get the bbox coordinate of slicing patches in origional image
+# def get_slicing_patch_coordinates(  image_width: int,
+#                                     image_height: int,
+#                                     slice_width: int = 512,
+#                                     slice_height: int = 512,
+#                                     overlap_width_ratio: int = 0.2,
+#                                     overlap_height_ratio: int = 0.2):
+#     slicing_patch_coordinates = []
+#     x_overlap = int(overlap_width_ratio * slice_width)
+#     y_overlap = int(overlap_height_ratio * slice_height)
+#     #Run in y-axis, at each value y, calculate x
+#     y_max = y_min = 0
+#     while y_max < image_height:    
+#         #update new ymax for this iterative
+#         y_max = y_min + slice_height
+#         #run in x-axis, at each value (xmin,xmax), save the patch coordinates
+#         x_min = x_max = 0
+#         while x_max < image_width:
+#             #update new xmax for this iterative
+#             x_max = x_min + slice_width
+#             #if the patch coordinates is outside original image, cut at the borders to inside area inversely
+#             if y_max > image_height or x_max > image_width:
+#                 xmax = min(image_width, x_max)
+#                 ymax = min(image_height, y_max)
+#                 xmin = max(0, xmax - slice_width)   
+#                 ymin = max(0, ymax - slice_height)
+#                 slicing_patch_coordinates.append([xmin, ymin, xmax, ymax])
+#             else:
+#                 slicing_patch_coordinates.append([x_min, y_min, x_max, y_max])
             
-            #update new xmin for next iterative
-            x_min = x_max - x_overlap
-        #update new ymin for next iterative
-        y_min = y_max - y_overlap
-    return slicing_patch_coordinates
+#             #update new xmin for next iterative
+#             x_min = x_max - x_overlap
+#         #update new ymin for next iterative
+#         y_min = y_max - y_overlap
+#     return slicing_patch_coordinates
 
 
-def slice_image(original_image: np.ndarray,
-                slice_width: int = 512,
-                slice_height: int = 512,
-                overlap_width_ratio: float = 0.2,
-                overlap_height_ratio: float = 0.2,
-                min_area_ratio: float = 0.1,):
+# def slice_image(original_image: np.ndarray,
+#                 slice_width: int = 512,
+#                 slice_height: int = 512,
+#                 overlap_width_ratio: float = 0.2,
+#                 overlap_height_ratio: float = 0.2,
+#                 min_area_ratio: float = 0.1,):
 
-    image_height, image_width, _ = original_image.shape
-    if not (image_width != 0 and image_height != 0):
-        raise RuntimeError(f"Error from invalid image size: {image.shape}")
-    slicing_patch_coordinates = get_slicing_patch_coordinates(*[image_width, image_height], *[slice_width,slice_height], *[overlap_width_ratio,overlap_height_ratio])
+#     image_height, image_width, _ = original_image.shape
+#     if not (image_width != 0 and image_height != 0):
+#         raise RuntimeError(f"Error from invalid image size: {image.shape}")
+#     slicing_patch_coordinates = get_slicing_patch_coordinates(*[image_width, image_height], *[slice_width,slice_height], *[overlap_width_ratio,overlap_height_ratio])
 
     
 
-    # # init images and annotations lists
-    # sliced_image_result = SliceImageResult(original_image_size=[image_height, image_width])
+#     # # init images and annotations lists
+#     # sliced_image_result = SliceImageResult(original_image_size=[image_height, image_width])
 
-    sliced_image_list = [] #List of SlicedImage
-    number_images = 0
-    # iterate over slices
-    for slice_bbox in slicing_patch_coordinates:
-        number_images += 1
+#     sliced_image_list = [] #List of SlicedImage
+#     number_images = 0
+#     # iterate over slices
+#     for slice_bbox in slicing_patch_coordinates:
+#         number_images += 1
 
-        # extract image
-        tl_x, tl_y, br_x, br_y = slice_bbox
-        sliced_image = image[tl_y:br_y, tl_x:br_x]
+#         # extract image
+#         tl_x, tl_y, br_x, br_y = slice_bbox
+#         sliced_image = image[tl_y:br_y, tl_x:br_x]
 
 
         
 
 
-        """ANNOTATION PROCESSING"""
-        # # process annotations if coco_annotations is given
-        # if coco_annotation_list is not None:
-        #     sliced_coco_annotation_list = process_coco_annotations(coco_annotation_list, slice_bbox, min_area_ratio)
-        #  # append coco annotations (if present) to coco image
-        # if coco_annotation_list:
-        #     for coco_annotation in sliced_coco_annotation_list:
-        #         coco_image.add_annotation(coco_annotation)
+#         """ANNOTATION PROCESSING"""
+#         # # process annotations if coco_annotations is given
+#         # if coco_annotation_list is not None:
+#         #     sliced_coco_annotation_list = process_coco_annotations(coco_annotation_list, slice_bbox, min_area_ratio)
+#         #  # append coco annotations (if present) to coco image
+#         # if coco_annotation_list:
+#         #     for coco_annotation in sliced_coco_annotation_list:
+#         #         coco_image.add_annotation(coco_annotation)
 
        
 
-        # create sliced image and append to sliced_image_result
-        sliced_image = SlicedImage(
-            image=sliced_image,
-            bboxes=[],
-            starting_point=[slice_bbox[0], slice_bbox[1]],
-            predictions=[],
-        )
-        # sliced_image_result.add_sliced_image(sliced_image)
+#         # create sliced image and append to sliced_image_result
+#         sliced_image = SlicedImage(
+#             image=sliced_image,
+#             bboxes=[],
+#             starting_point=[slice_bbox[0], slice_bbox[1]],
+#             predictions=[],
+#         )
+#         # sliced_image_result.add_sliced_image(sliced_image)
 
-        sliced_image_list.append(slice_image)
-
-
-    return sliced_image_list
+#         sliced_image_list.append(slice_image)
 
 
+#     return sliced_image_list
 
 
 
@@ -383,30 +396,32 @@ def slice_image(original_image: np.ndarray,
 
 
 
-# import numpy as np
 
 
-# anchor =    np.array([[52, 52],
-#                         [28, 17],
-#                         [16, 11],
-#                         [17, 27],
-#                         [ 6,  8],
-#                         [10, 18],
-#                         [28, 40],
-#                         [47, 27],
-#                         [96, 75]])
+import numpy as np
+
+
+anchor =    np.array([[ 16 , 28],
+                        [ 14 , 12],
+                        [ 29 , 18],
+                        [123 , 97],
+                        [  8 , 18],
+                        [ 53 , 29],
+                        [ 60 , 60],
+                        [  5 ,  8],
+                        [ 27 , 43]])
 # print(anchor)
 
-# anchor_area = np.multiply.reduce(anchor, axis=-1)
+anchor_area = np.multiply.reduce(anchor, axis=-1)
 # print(anchor_area)
 
-# anchor_n = []
-# while len(anchor):
-#     i = np.argmin(anchor_area)
-#     anchor_n.append(anchor[i])
+anchor_n = []
+while len(anchor):
+    i = np.argmin(anchor_area)
+    anchor_n.append(anchor[i])
 
-#     anchor = np.delete(anchor, i, axis=0)
-#     anchor_area = np.delete(anchor_area, i, axis=0)
+    anchor = np.delete(anchor, i, axis=0)
+    anchor_area = np.delete(anchor_area, i, axis=0)
 
-# anchor_n = np.array(anchor_n)  
-# print(anchor_n)
+anchor_n = np.array(anchor_n)  
+print(anchor_n)
