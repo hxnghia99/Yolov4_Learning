@@ -12,10 +12,10 @@
 """ ------ IMPORTANT SETTING ------ """
 # ["COCO", "LG", "VISDRONE"]
 TRAINING_DATASET_TYPE           = "VISDRONE"
-TRAIN_TRANSFER                  = True
+TRAIN_TRANSFER                  = False
 
 # ["COCO", "LG", "VISDRONE"]
-MAKE_EVALUATION                 = True
+MAKE_EVALUATION                 = False
 EVALUATION_DATASET_TYPE         = "VISDRONE"
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
 """ ---------------------------------"""
@@ -32,13 +32,13 @@ SLICED_IMAGE_SIZE               = [416, 416]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
-TRAIN_BATCH_SIZE                = 4
-TEST_BATCH_SIZE                 = 4
+TRAIN_BATCH_SIZE                = 1
+TEST_BATCH_SIZE                 = 1
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
 YOLO_V4_COCO_WEIGHTS            = "YOLOv4-for-studying/model_data/yolov4.weights"
-YOLO_INPUT_SIZE                 = [416, 416]
+YOLO_INPUT_SIZE                 = [224, 224]
 USE_LOADED_WEIGHT               = True
 
 #Dataset configurations
@@ -51,7 +51,7 @@ TEST_DATA_AUG                   = False
 YOLO_MAX_BBOX_PER_SCALE         = 1000
 ANCHORS_PER_GRID_CELL           = 3
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
-YOLO_SCALE_OFFSET               = [8, 16, 32]
+YOLO_SCALE_OFFSET               = [2, 4, 8]
 # COCO anchors
 YOLO_ANCHORS                    = [[[12,  16], [19,   36], [40,   28]],
                                    [[36,  75], [76,   55], [72,  146]],
