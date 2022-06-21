@@ -136,7 +136,7 @@ input: (4)  predictions, original image, input size, confidence score threshold
 output: list of valid bboxes, each contains 6 elements: 4 coordinates, score, class
 obj:    rescale predictions into size of original image and remove invalid bboxes
 ##################################################################################'''
-def postprocess_boxes(pred_bbox, original_image, input_size, score_threshold):
+def postprocess_boxes(pred_bbox, original_image, input_size, score_threshold, use_sliced_image=None):
     original_scale = np.sqrt(original_image.shape[0]*original_image.shape[1])
     valid_scale =   [0, original_scale]
     pred_bbox   =   np.array(pred_bbox)

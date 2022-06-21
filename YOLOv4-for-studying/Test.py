@@ -79,43 +79,257 @@
 
 
 
-# import os
-# from YOLOv4_config import *
-# from YOLOv4_utils import *
-# from YOLOv4_slicing import *
+# class PostprocessPredictions:
+#     """Utilities for calculating IOU/IOS based match for given ObjectPredictions"""
+#     def __init__(   self,
+#                     match_metric: str = "IOS",
+#                     match_threshold: float = 0.5):
+#         self.match_threshold = match_threshold
+#         self.match_metric = match_metric
+
+#     def __call__(self, bboxes):
+#         #First settings
+#         bboxes = np.array(bboxes)
+#         diff_classes_in_pred = list(set(bboxes[:, 5]))
+#         best_bboxes = []
+#         #Do GREEDY-NMM for each specific class
+#         for cls in diff_classes_in_pred:
+#             cls_mask = np.array(bboxes[:, 5] == cls)
+#             cls_bboxes = bboxes[cls_mask]
+#             #Select best bbox of same class for each object in image
+#             while len(cls_bboxes) > 0:
+#                 max_conf_bbox_idx = np.argmax(cls_bboxes[:, 4])                 #index of best bbox : highest confidence score
+#                 best_bbox = cls_bboxes[max_conf_bbox_idx]
+#                 best_bboxes.append(best_bbox)
+#                 cls_bboxes = np.delete(cls_bboxes, max_conf_bbox_idx, axis=0)   #remove best bbox from list of bboxes
+
+#                 assert self.match_metric in ['IOU', 'IOS']
+#                 if self.match_metric == "IOU":
+#                     iou = bboxes_iou_from_minmax(best_bbox[np.newaxis, :4], cls_bboxes[:, :4])  #calculate list of iou between best bbox and other bboxes
+#                     weight = np.ones(len(iou), dtype=np.float32)   
+#                     iou_mask = np.array(iou > self.match_threshold)
+#                     weight[iou_mask] = 0.0 
+#                 if self.match_metric == "IOS":
+#                     best_bbox[np.newaxis, :4]
+#                     cls_bboxes[:, :4]
+#                     intersect_tf = np.maximum(best_bbox[np.newaxis, :2], cls_bboxes[:, :2])
+#                     intersect_br = np.minimum(best_bbox[np.newaxis, 2:4], cls_bboxes[:, 2:4])
+#                     intersect_area = np.multiply.reduce(np.maximum(intersect_br - intersect_tf, 0.0), axis=-1)
+                    
+#                     best_bbox_area =  np.multiply.reduce(np.maximum(best_bbox[np.newaxis, 2:4] - best_bbox[np.newaxis, :2], 0.0), axis=-1)
+#                     cls_bboxes_area = np.multiply.reduce(np.maximum(cls_bboxes[:, 2:4] - cls_bboxes[:, :2], 0.0), axis=-1)
+#                     bboxes_smaller_area = np.minimum(cls_bboxes_area, best_bbox_area)
+
+#                     ios = intersect_area / bboxes_smaller_area
+#                     weight = np.ones(len(ios), dtype=np.float32)   
+#                     ios_mask = np.array(ios > self.match_threshold)
+#                     weight[ios_mask] = 0.0 
+
+#                 cls_bboxes[:, 4] = cls_bboxes[:, 4] * weight    #detele bboxes predicting same objects
+#                 score_mask = cls_bboxes[:, 4] > 0.
+#                 cls_bboxes = cls_bboxes[score_mask]
+#         return best_bboxes
 
 
-# # text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999982_00000_d_0000034.jpg 1168,406,1193,435,5 590,330,657,352,0'
-# # text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999999_00650_d_0000295.jpg 147,344,173,359,4 177,326,213,344,4 188,303,221,323,4 202,245,232,258,4 283,232,308,243,4 236,207,248,228,5 204,203,227,217,4 273,195,294,205,4 265,178,286,188,5 209,162,229,170,4 199,151,214,159,5 200,146,219,152,4 258,206,260,213,1 298,89,304,95,4 200,93,214,98,4 204,87,215,92,4 237,50,245,53,4 233,45,242,49,4 231,37,239,39,4 230,27,237,30,4 424,91,436,98,4 383,58,393,63,4 342,25,351,32,6 382,48,395,58,6 197,64,207,68,4 198,47,205,59,9 227,49,234,60,9'
-# # text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999965_00000_d_0000023.jpg 682,661,765,695,3 904,567,934,644,3 958,484,1023,558,3 979,286,1013,359,3 818,554,890,584,3 799,494,891,531,3 821,455,890,484,3 813,402,890,432,3 816,358,893,388,3 817,309,892,338,3 825,267,896,299,3 815,227,885,259,3 697,152,773,193,3 810,49,890,86,3 805,10,885,42,3 988,83,1019,156,4 824,190,896,219,4 331,25,369,103,4 800,138,898,183,5 689,287,774,326,3 700,344,777,379,3 697,402,777,432,3 697,502,774,537,3 701,550,765,579,4 544,389,598,586,8 314,625,346,702,3 318,535,351,609,3 321,438,357,515,3 329,333,363,405,3 329,227,356,302,3 317,119,364,213,5 308,733,346,786,3 633,77,647,117,9 633,87,648,106,1 954,69,969,86,0 1003,462,1018,474,0 1041,445,1055,456,0 917,133,928,146,0 740,740,753,761,0 1016,681,1028,695,0 1053,471,1062,483,0'
-# text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999998_00038_d_0000030.jpg 900,957,1001,1034,3 939,915,1033,982,3 1307,1073,1430,1156,3 1200,996,1303,1086,3 1267,1106,1375,1184,3 1163,1038,1264,1119,3 1138,1087,1231,1160,3 1247,1157,1360,1239,3 1246,1220,1317,1272,3 787,1002,909,1089,3 311,624,392,671,3 358,639,504,721,-1 265,588,345,638,3 86,723,170,797,-1 6,754,92,825,-1 95,796,197,868,3 136,844,244,917,3 170,874,282,955,3 197,916,301,992,3 234,997,331,1075,3 270,1009,378,1102,3 318,1051,419,1138,3 348,1079,454,1164,3 393,1124,488,1214,3 1566,1013,1583,1046,0 1516,737,1552,766,2 1362,643,1388,665,2 1309,568,1384,636,-1 1388,597,1509,683,-1 1486,640,1571,721,-1 1567,709,1596,740,2 1682,729,1712,747,2 1677,742,1709,759,2 1673,755,1706,776,2 1624,803,1661,832,2 1643,760,1699,811,-1 1605,512,1657,561,3 1693,556,1741,616,3 1747,581,1802,642,3 1793,594,1852,645,3 1857,616,1913,668,3 1247,887,1324,976,3 1675,1358,1780,1435,3 1768,1434,1890,1499,3 1899,638,1957,695,3'
 
-# text = text_by_line.split()
-# bboxes = []
-# for t in text:
-#     if not t.replace(',', '').replace('-1','').isnumeric():
-#         temp_path   = os.path.relpath(t, RELATIVE_PATH)
-#         temp_path   = os.path.join(PREFIX_PATH, temp_path)
-#         image_path  = temp_path.replace('\\','/')
-#     else:
-#         t = list(map(int, t.split(',')))
-#         bboxes.append(t)
-# image = cv2.imread(image_path)
-# bboxes = np.array(bboxes)
+# #Get image, slice image, make predictions, merge predictions
+# class PredictionResult:
+#     def __init__(self, model, image, input_size, score_threshold, iou_threshold):
+#         self.model = model
+#         self.image = image
+#         self.input_size = input_size
+#         self.score_threshold = score_threshold
+#         self.iou_threshold = iou_threshold
+        
+#         self.postprocess_slicing_predictions_into_original_image = PostprocessPredictions(match_metric="IOS", match_threshold=0.5)
 
-# yolo = Load_YOLOv4_Model()
 
-# sliced_images_obj = Original_Image_Into_Sliced_Images(image, bboxes)
-# sliced_images = sliced_images_obj.load_sliced_images_for_export()
+#         # self.make_prediciton()
+
+#     #get sliced images, make each prediction, scale prediction to original image
+#     def make_sliced_predictions(self):
+#         sliced_images_obj = Original_Image_Into_Sliced_Images(np.copy(self.image))
+#         sliced_images = sliced_images_obj.load_sliced_images_for_export()
+#         sliced_image_with_prediction_list = []
+#         for sliced_image in sliced_images:
+#             image_data = cv2.cvtColor(np.copy(sliced_image.image), cv2.COLOR_BGR2RGB)
+#             image_data = image_preprocess(image_data, self.input_size)                  #scale to size 416
+#             image_data = image_data[np.newaxis, ...].astype(np.float32)                         #reshape [1, 416, 416, 3]
+#             pred_bbox = self.model(image_data, training=False)
+#             pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]               #reshape to [3, bbox_num, 85]
+#             pred_bbox = tf.concat(pred_bbox, axis=0)                                            #concatenate to [bbox_num, 85]
+#             pred_bboxes = postprocess_boxes(pred_bbox, np.copy(sliced_image.image), self.input_size, self.score_threshold)      #scale to origional and select valid bboxes
+#             if len(pred_bboxes) == 0:
+#                 continue
+#             pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, self.iou_threshold, method='nms'))                                       #Non-maximum suppression: xymin, xymax        
+#             sliced_image.predictions = pred_bboxes
+#             sliced_image_with_prediction_list.append(sliced_image)
+#         return sliced_image_with_prediction_list
+
+#     #make prediction in original image, make prediciton in sliced images and merge into original image
+#     def make_prediciton(self):
+#         image_data = cv2.cvtColor(np.copy(self.image), cv2.COLOR_BGR2RGB)
+#         image_data = image_preprocess(image_data, self.input_size)                  #scale to size 416
+#         image_data = image_data[np.newaxis, ...].astype(np.float32)                         #reshape [1, 416, 416, 3]
+#         pred_bbox = self.model(image_data, training=False)
+#         pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]               #reshape to [3, bbox_num, 85]
+#         pred_bbox = tf.concat(pred_bbox, axis=0)                                            #concatenate to [bbox_num, 85]
+#         pred_bboxes = postprocess_boxes(pred_bbox, np.copy(self.image), self.input_size, self.score_threshold)      #scale to origional and select valid bboxes
+#         pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, self.iou_threshold, method='nms'))                                       #Non-maximum suppression: xymin, xymax              
+
+#         # image_test = draw_bbox(np.copy(self.image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
+#         # cv2.imshow("Test before slicing prediciton", cv2.resize(image_test, [1280, 720]))
+
+#         sliced_image_with_prediction_list = self.make_sliced_predictions()
+#         for sliced_image_with_prediction in sliced_image_with_prediction_list:
+#             pred_offset = np.concatenate([sliced_image_with_prediction.starting_point, sliced_image_with_prediction.starting_point, [0], [0]], axis=-1)[np.newaxis, :]
+#             sliced_image_with_prediction.predictions = sliced_image_with_prediction.predictions + pred_offset
+#             pred_bboxes = np.concatenate([pred_bboxes, sliced_image_with_prediction.predictions], axis=0)
+#             pred_bboxes = self.postprocess_slicing_predictions_into_original_image(pred_bboxes)
+
+#         # image_test = draw_bbox(np.copy(self.image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
+#         # cv2.imshow("Test after slicing prediciton", cv2.resize(image_test, [1280, 720]))
+#         # if cv2.waitKey() == "q":
+#         #     pass
+#         # cv2.destroyAllWindows()
+#         return pred_bboxes
+
+
+
+
+import os
+from YOLOv4_config import *
+from YOLOv4_utils import *
+from YOLOv4_slicing import *
+
+
+# text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999982_00000_d_0000034.jpg 1168,406,1193,435,5 590,330,657,352,0'
+# text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999999_00650_d_0000295.jpg 147,344,173,359,4 177,326,213,344,4 188,303,221,323,4 202,245,232,258,4 283,232,308,243,4 236,207,248,228,5 204,203,227,217,4 273,195,294,205,4 265,178,286,188,5 209,162,229,170,4 199,151,214,159,5 200,146,219,152,4 258,206,260,213,1 298,89,304,95,4 200,93,214,98,4 204,87,215,92,4 237,50,245,53,4 233,45,242,49,4 231,37,239,39,4 230,27,237,30,4 424,91,436,98,4 383,58,393,63,4 342,25,351,32,6 382,48,395,58,6 197,64,207,68,4 198,47,205,59,9 227,49,234,60,9'
+# text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999965_00000_d_0000023.jpg 682,661,765,695,3 904,567,934,644,3 958,484,1023,558,3 979,286,1013,359,3 818,554,890,584,3 799,494,891,531,3 821,455,890,484,3 813,402,890,432,3 816,358,893,388,3 817,309,892,338,3 825,267,896,299,3 815,227,885,259,3 697,152,773,193,3 810,49,890,86,3 805,10,885,42,3 988,83,1019,156,4 824,190,896,219,4 331,25,369,103,4 800,138,898,183,5 689,287,774,326,3 700,344,777,379,3 697,402,777,432,3 697,502,774,537,3 701,550,765,579,4 544,389,598,586,8 314,625,346,702,3 318,535,351,609,3 321,438,357,515,3 329,333,363,405,3 329,227,356,302,3 317,119,364,213,5 308,733,346,786,3 633,77,647,117,9 633,87,648,106,1 954,69,969,86,0 1003,462,1018,474,0 1041,445,1055,456,0 917,133,928,146,0 740,740,753,761,0 1016,681,1028,695,0 1053,471,1062,483,0'
+text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999998_00038_d_0000030.jpg 900,957,1001,1034,3 939,915,1033,982,3 1307,1073,1430,1156,3 1200,996,1303,1086,3 1267,1106,1375,1184,3 1163,1038,1264,1119,3 1138,1087,1231,1160,3 1247,1157,1360,1239,3 1246,1220,1317,1272,3 787,1002,909,1089,3 311,624,392,671,3 358,639,504,721,-1 265,588,345,638,3 86,723,170,797,-1 6,754,92,825,-1 95,796,197,868,3 136,844,244,917,3 170,874,282,955,3 197,916,301,992,3 234,997,331,1075,3 270,1009,378,1102,3 318,1051,419,1138,3 348,1079,454,1164,3 393,1124,488,1214,3 1566,1013,1583,1046,0 1516,737,1552,766,2 1362,643,1388,665,2 1309,568,1384,636,-1 1388,597,1509,683,-1 1486,640,1571,721,-1 1567,709,1596,740,2 1682,729,1712,747,2 1677,742,1709,759,2 1673,755,1706,776,2 1624,803,1661,832,2 1643,760,1699,811,-1 1605,512,1657,561,3 1693,556,1741,616,3 1747,581,1802,642,3 1793,594,1852,645,3 1857,616,1913,668,3 1247,887,1324,976,3 1675,1358,1780,1435,3 1768,1434,1890,1499,3 1899,638,1957,695,3'
+
+text = text_by_line.split()
+bboxes = []
+for t in text:
+    if not t.replace(',', '').replace('-1','').isnumeric():
+        temp_path   = os.path.relpath(t, RELATIVE_PATH)
+        temp_path   = os.path.join(PREFIX_PATH, temp_path)
+        image_path  = temp_path.replace('\\','/')
+    else:
+        t = list(map(int, t.split(',')))
+        bboxes.append(t)
+image = cv2.imread(image_path)
+bboxes = np.array(bboxes)
+
+yolo = Load_YOLOv4_Model()
+
+sliced_images_obj = Original_Image_Into_Sliced_Images(image, bboxes)
+sliced_images = sliced_images_obj.load_sliced_images_for_export()
+
+input_size = [416, 416]
+score_threshold = 0.35
+iou_threshold = 0.5
+
+image_test =draw_bbox(np.copy(image), np.copy(bboxes), "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=False)
+cv2.imshow("ground truth", cv2.resize(image_test, [1280, 720]))
+
+prediction_obj = PredictionResult(yolo, image, input_size, SLICED_IMAGE_SIZE, score_threshold, iou_threshold)
+pred_bboxes = tf.convert_to_tensor(prediction_obj.make_prediciton()[0])
+
+if EVALUATION_DATASET_TYPE == "VISDRONE":
+    bboxes = tf.cast(np.copy(bboxes), dtype=tf.float64)
+    ignored_bbox_mask   = bboxes[:,4]>-0.5
+    ignored_bboxes      = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(ignored_bbox_mask), axis=0)]
+    other_bbox_mask     = bboxes[:,4]<9.5
+    other_bboxes        = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(other_bbox_mask), axis=0)]
+
+    
+    removed_ignored_mask = tf.convert_to_tensor(np.zeros(np.array(tf.shape(pred_bboxes)[0])), dtype=tf.bool)
+    if tf.shape(ignored_bboxes)[0] != 0:
+        pred_bboxes_temp = tf.expand_dims(pred_bboxes[:, :4], axis=1)       #shape [total_bboxes, 1, 4]
+        ignored_bboxes = tf.expand_dims(ignored_bboxes[:, :4], axis=0)      #shape [1, num_bboxes, 4]
+        intersect_tf = tf.maximum(pred_bboxes_temp[..., :2], ignored_bboxes[..., :2])
+        intersect_br = tf.minimum(pred_bboxes_temp[..., 2:], ignored_bboxes[..., 2:])
+        intersection = tf.maximum(intersect_br - intersect_tf, 0.0)
+        intersection_area = tf.math.reduce_sum(tf.math.reduce_prod(intersection, axis=-1), axis=-1, keepdims=True)      #shape [num_pred_bboxes, 2]
+        pred_bboxes_area = tf.math.reduce_prod(tf.maximum(pred_bboxes_temp[...,2:] - pred_bboxes_temp[...,:2], 0.0), axis=-1) #shape [num_pred_bboxes, 1]
+        removed_ignored_mask = tf.reduce_max(intersection_area / pred_bboxes_area , axis=-1) > 0.58
+    
+    #getting mask of bboxes that overlap "other" class
+    removed_other_mask = tf.convert_to_tensor(np.zeros(np.array(tf.shape(pred_bboxes)[0])), dtype=tf.bool)
+    if tf.shape(other_bboxes)[0] != 0:
+        pred_bboxes_temp = tf.expand_dims(pred_bboxes[:, :4], axis=1)      #shape [total_bboxes, 1, 4]
+        other_bboxes = tf.expand_dims(other_bboxes[:, :4], axis=0)         #shape [1, num_bboxes, 4]
+        ious = bboxes_iou_from_minmax(pred_bboxes_temp, other_bboxes)   #shape [total_bboxes, num_bboxes]
+        max_ious = tf.reduce_max(ious, axis=-1)
+        removed_other_mask = max_ious > 0.5          #removed_other = True when iou > threshold
+    #getting mask of removed bboxes
+    removed_bbox_mask = tf.math.logical_or(removed_ignored_mask, removed_other_mask)
+    pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
+
+
+image_test = draw_bbox(np.copy(image),pred_bboxes, YOLO_CLASS_PATH, show_label=False)
+cv2.imshow("Test after slicing prediciton", cv2.resize(image_test, [1280, 720]))
+if cv2.waitKey() == "q":
+    pass
+cv2.destroyAllWindows()
+
+
+
 
 # for sliced_image in sliced_images:
-#     pred_image = detect_image(yolo, image_path, show=False, show_label=True, save=False, CLASSES_PATH=YOLO_CLASS_PATH, score_threshold=0.16)
-#     gt_image = draw_bbox(sliced_image.image, sliced_image.bboxes, "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=True)
+#     image_data = cv2.cvtColor(np.copy(sliced_image.image), cv2.COLOR_BGR2RGB)
+#     image_data = image_preprocess(image_data, input_size)                  #scale to size 416
+#     image_data = image_data[np.newaxis, ...].astype(np.float32)                         #reshape [1, 416, 416, 3]
+#     pred_bbox = yolo(image_data, training=False)
+#     pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]               #reshape to [3, bbox_num, 85]
+#     pred_bbox = tf.concat(pred_bbox, axis=0)                                            #concatenate to [bbox_num, 85]
+#     pred_bboxes = postprocess_boxes(pred_bbox, np.copy(sliced_image.image), input_size, score_threshold)      #scale to origional and select valid bboxes
+#     pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, iou_threshold, method='nms'))                                       #Non-maximum suppression
+
+#     if EVALUATION_DATASET_TYPE == "VISDRONE":
+#         bboxes = tf.cast(sliced_image.bboxes, dtype=tf.float64)
+#         ignored_bbox_mask   = bboxes[:,4]>-0.5
+#         ignored_bboxes      = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(ignored_bbox_mask), axis=0)]
+#         other_bbox_mask     = bboxes[:,4]<9.5
+#         other_bboxes        = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(other_bbox_mask), axis=0)]
+
+        
+#         removed_ignored_mask = tf.convert_to_tensor(np.zeros(np.array(tf.shape(pred_bboxes)[0])), dtype=tf.bool)
+#         if tf.shape(ignored_bboxes)[0] != 0:
+#             pred_bboxes_temp = tf.expand_dims(pred_bboxes[:, :4], axis=1)       #shape [total_bboxes, 1, 4]
+#             ignored_bboxes = tf.expand_dims(ignored_bboxes[:, :4], axis=0)      #shape [1, num_bboxes, 4]
+#             intersect_tf = tf.maximum(pred_bboxes_temp[..., :2], ignored_bboxes[..., :2])
+#             intersect_br = tf.minimum(pred_bboxes_temp[..., 2:], ignored_bboxes[..., 2:])
+#             intersection = tf.maximum(intersect_br - intersect_tf, 0.0)
+#             intersection_area = tf.math.reduce_sum(tf.math.reduce_prod(intersection, axis=-1), axis=-1, keepdims=True)      #shape [num_pred_bboxes, 2]
+#             pred_bboxes_area = tf.math.reduce_prod(tf.maximum(pred_bboxes_temp[...,2:] - pred_bboxes_temp[...,:2], 0.0), axis=-1) #shape [num_pred_bboxes, 1]
+#             removed_ignored_mask = tf.reduce_max(intersection_area / pred_bboxes_area , axis=-1) > 0.58
+        
+#         #getting mask of bboxes that overlap "other" class
+#         removed_other_mask = tf.convert_to_tensor(np.zeros(np.array(tf.shape(pred_bboxes)[0])), dtype=tf.bool)
+#         if tf.shape(other_bboxes)[0] != 0:
+#             pred_bboxes_temp = tf.expand_dims(pred_bboxes[:, :4], axis=1)      #shape [total_bboxes, 1, 4]
+#             other_bboxes = tf.expand_dims(other_bboxes[:, :4], axis=0)         #shape [1, num_bboxes, 4]
+#             ious = bboxes_iou_from_minmax(pred_bboxes_temp, other_bboxes)   #shape [total_bboxes, num_bboxes]
+#             max_ious = tf.reduce_max(ious, axis=-1)
+#             removed_other_mask = max_ious > 0.5          #removed_other = True when iou > threshold
+#         #getting mask of removed bboxes
+#         removed_bbox_mask = tf.math.logical_or(removed_ignored_mask, removed_other_mask)
+#         pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
+
+#     gt_image = draw_bbox(np.copy(sliced_image.image), sliced_image.bboxes, "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=False)
+#     pred_image = draw_bbox(gt_image, pred_bboxes, YOLO_CLASS_PATH, show_label=False)
 #     cv2.imshow('truth', cv2.resize(gt_image,(1280, 720)))
 #     cv2.imshow("prediction", cv2.resize(pred_image,(1280, 720)))
 #     if cv2.waitKey() == 'q':
 #         pass
 #     cv2.destroyAllWindows()
+
+
+
+
+
 
 
 # image = draw_bbox(image, bboxes, "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=True)
@@ -398,30 +612,30 @@
 
 
 
-import numpy as np
+# import numpy as np
 
 
-anchor =    np.array([[ 16 , 28],
-                        [ 14 , 12],
-                        [ 29 , 18],
-                        [123 , 97],
-                        [  8 , 18],
-                        [ 53 , 29],
-                        [ 60 , 60],
-                        [  5 ,  8],
-                        [ 27 , 43]])
+# anchor =    np.array([[ 16 , 28],
+#                         [ 14 , 12],
+#                         [ 29 , 18],
+#                         [123 , 97],
+#                         [  8 , 18],
+#                         [ 53 , 29],
+#                         [ 60 , 60],
+#                         [  5 ,  8],
+#                         [ 27 , 43]])
 # print(anchor)
 
-anchor_area = np.multiply.reduce(anchor, axis=-1)
+# anchor_area = np.multiply.reduce(anchor, axis=-1)
 # print(anchor_area)
 
-anchor_n = []
-while len(anchor):
-    i = np.argmin(anchor_area)
-    anchor_n.append(anchor[i])
+# anchor_n = []
+# while len(anchor):
+#     i = np.argmin(anchor_area)
+#     anchor_n.append(anchor[i])
 
-    anchor = np.delete(anchor, i, axis=0)
-    anchor_area = np.delete(anchor_area, i, axis=0)
+#     anchor = np.delete(anchor, i, axis=0)
+#     anchor_area = np.delete(anchor_area, i, axis=0)
 
-anchor_n = np.array(anchor_n)  
-print(anchor_n)
+# anchor_n = np.array(anchor_n)  
+# print(anchor_n)

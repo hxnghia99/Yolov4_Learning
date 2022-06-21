@@ -19,6 +19,7 @@ from YOLOv4_dataset import Dataset
 from YOLOv4_model import YOLOv4_Model
 from YOLOv4_utils import *
 from YOLOv4_config import *
+from YOLOv4_slicing import *
 import shutil
 import json
 import time
@@ -128,20 +129,30 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             original_h, original_w, _ = original_image.shape
             TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
         
-        image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
-        image_data = image[np.newaxis, ...].astype(np.float32)
 
-        #measure time to make prediction
-        t1 = time.time()
-        pred_bboxes = Yolo(image_data, training=False)
-        t2 = time.time()
-        times.append(t2-t1)
+        if not USE_SLICING_PATCH_TECHNIQUE:
+            image = cv2.cvtColor(np.copy(original_image), cv2.COLOR_BGR2RGB)    
+            image = image_preprocess(image, TEST_INPUT_SIZE)
+            image_data = image[np.newaxis, ...].astype(np.float32)
 
-        #post process for prediction bboxes
-        pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
-        pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
-        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
-        pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, iou_threshold, method='nms'))                 #remove bboxes for same object in specific class 
+            #measure time to make prediction
+            t1 = time.time()
+            pred_bboxes = Yolo(image_data, training=False)
+            t2 = time.time()
+            times.append(t2-t1)
+        
+            #post process for prediction bboxes
+            pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
+            pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
+            pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
+            pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, iou_threshold, method='nms'))                 #remove bboxes for same object in specific class 
+        
+        else:
+            prediction_obj = PredictionResult(yolo, np.copy(original_image), TEST_INPUT_SIZE, SLICED_IMAGE_SIZE, 0.35, 0.5)
+            pred_bboxes, time = prediction_obj.make_prediciton()
+            pred_bboxes = tf.convert_to_tensor(pred_bboxes)
+            times.append(time)
+
 
         if EVALUATION_DATASET_TYPE == "VISDRONE":
             bboxes = tf.cast(bboxes, dtype=tf.float64)
@@ -151,14 +162,17 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             other_bboxes        = tf.expand_dims(bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(other_bbox_mask), axis=0)]
 
             #getting mask of bboxes in ignored region
-            removed_ignored_mask   = np.zeros(np.array(tf.shape(pred_bboxes)[0], dtype=np.int32))    #shape [total_bboxes]
-            for ignored_bbox in np.array(ignored_bboxes):
-                for i, pred_bbox in enumerate(np.array(pred_bboxes)):
-                    pred_center = (pred_bbox[2:4] + pred_bbox[:2]) * 0.5
-                    ignored_tl  = ignored_bbox[:2]
-                    ignored_br  = ignored_bbox[:2] + ignored_bbox[2:4]
-                    removed_ignored_mask[i] = np.multiply.reduce(np.logical_and(pred_center>=ignored_tl, pred_center<=ignored_br))
-            removed_ignored_mask = tf.convert_to_tensor(removed_ignored_mask, dtype=tf.bool)
+            removed_ignored_mask = tf.convert_to_tensor(np.zeros(np.array(tf.shape(pred_bboxes)[0])), dtype=tf.bool)
+            if tf.shape(ignored_bboxes)[0] != 0:
+                pred_bboxes_temp = tf.expand_dims(pred_bboxes[:, :4], axis=1)       #shape [total_bboxes, 1, 4]
+                ignored_bboxes = tf.expand_dims(ignored_bboxes[:, :4], axis=0)      #shape [1, num_bboxes, 4]
+                intersect_tf = tf.maximum(pred_bboxes_temp[..., :2], ignored_bboxes[..., :2])
+                intersect_br = tf.minimum(pred_bboxes_temp[..., 2:], ignored_bboxes[..., 2:])
+                intersection = tf.maximum(intersect_br - intersect_tf, 0.0)
+                intersection_area = tf.math.reduce_sum(tf.math.reduce_prod(intersection, axis=-1), axis=-1, keepdims=True)      #shape [num_pred_bboxes, 2]
+                pred_bboxes_area = tf.math.reduce_prod(tf.maximum(pred_bboxes_temp[...,2:] - pred_bboxes_temp[...,:2], 0.0), axis=-1) #shape [num_pred_bboxes, 1]
+                removed_ignored_mask = tf.reduce_max(intersection_area / pred_bboxes_area , axis=-1) > VISDRONE_IGNORED_THRESHOLD
+
             #getting mask of bboxes that overlap "other" class
             removed_other_mask = tf.convert_to_tensor(np.zeros(np.array(tf.shape(pred_bboxes)[0])), dtype=tf.bool)
             if tf.shape(other_bboxes)[0] != 0:
@@ -166,10 +180,19 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                 other_bboxes = tf.expand_dims(other_bboxes[:, :4], axis=0)         #shape [1, num_bboxes, 4]
                 ious = bboxes_iou_from_minmax(pred_bboxes_temp, other_bboxes)   #shape [total_bboxes, num_bboxes]
                 max_ious = tf.reduce_max(ious, axis=-1)
-                removed_other_mask = max_ious > TEST_IOU_THRESHOLD
+                removed_other_mask = max_ious > VISDRONE_OTHER_THRESHOLD
             #getting mask of removed bboxes
             removed_bbox_mask = tf.math.logical_or(removed_ignored_mask, removed_other_mask)
             pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
+
+        # test_image = draw_bbox(np.copy(original_image), np.copy(bboxes), "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=True)
+        # cv2.imshow("Ground truth", test_image)
+        # test_image = draw_bbox(np.copy(original_image), np.copy(pred_bboxes), YOLO_CLASS_PATH, show_label=True)
+        # cv2.imshow("Prediction after slicing", test_image)
+        # if cv2.waitKey() == "q":
+        #     pass
+        # cv2.destroyAllWindows()
+        # continue
 
         print("Loaded image ", index)
        

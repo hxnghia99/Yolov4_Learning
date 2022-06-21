@@ -15,7 +15,7 @@ TRAINING_DATASET_TYPE           = "VISDRONE"
 TRAIN_TRANSFER                  = True
 
 # ["COCO", "LG", "VISDRONE"]
-MAKE_EVALUATION                 = False
+MAKE_EVALUATION                 = True
 EVALUATION_DATASET_TYPE         = "VISDRONE"
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
 """ ---------------------------------"""
@@ -24,7 +24,7 @@ EVALUATE_TRANSFER               = TRAIN_TRANSFER
 USE_CIOU_LOSS                   = False
 EVALUATE_ORIGINAL_SIZE          = True
 USE_NMS_CENTER_D                = False
-USE_PRIMARY_EVALUATION_METRIC   = True         #calculate mAP0.5:0.95
+USE_PRIMARY_EVALUATION_METRIC   = False         #calculate mAP0.5:0.95
 
 #Slicing patch techniques setting
 USE_SLICING_PATCH_TECHNIQUE     = True
@@ -52,10 +52,10 @@ YOLO_MAX_BBOX_PER_SCALE         = 1000
 ANCHORS_PER_GRID_CELL           = 3
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
 YOLO_SCALE_OFFSET               = [8, 16, 32]
-# # COCO anchors
-# YOLO_ANCHORS                    = [[[12,  16], [19,   36], [40,   28]],
-#                                    [[36,  75], [76,   55], [72,  146]],
-#                                    [[142,110], [192, 243], [459, 401]]]
+# COCO anchors
+YOLO_ANCHORS                    = [[[12,  16], [19,   36], [40,   28]],
+                                   [[36,  75], [76,   55], [72,  146]],
+                                   [[142,110], [192, 243], [459, 401]]]
 ## Visdrone anchors 992x992
 # YOLO_ANCHORS                    = [[[6, 8], [10, 17], [18, 12]],
 #                                    [[16, 27], [31, 19], [27, 39]],
@@ -64,10 +64,10 @@ YOLO_SCALE_OFFSET               = [8, 16, 32]
 # YOLO_ANCHORS                    = [[[6, 8], [16, 11], [10, 18]],
 #                                    [[17, 27], [28, 17], [28, 40]],
 #                                    [[47, 27], [52, 52], [96, 75]]]
-# Visdrone anchors 544x352 only for sliced images
-YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
-                                   [[16, 28], [29, 18], [27, 43]],
-                                   [[53, 29], [60, 60], [123, 97]]]
+# # Visdrone anchors 544x352 only for sliced images
+# YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
+#                                    [[16, 28], [29, 18], [27, 43]],
+#                                    [[53, 29], [60, 60], [123, 97]]]
 
 
 
@@ -138,6 +138,8 @@ elif TRAINING_DATASET_TYPE == "VISDRONE":
 
 
 #Evaluation settings
+VISDRONE_IGNORED_THRESHOLD      = 0.58
+VISDRONE_OTHER_THRESHOLD        = 0.5
 TEST_SCORE_THRESHOLD            = 0.05
 TEST_IOU_THRESHOLD              = 0.5
 USE_CUSTOM_WEIGHTS              = True
