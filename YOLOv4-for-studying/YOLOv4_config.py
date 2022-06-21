@@ -24,7 +24,7 @@ EVALUATE_TRANSFER               = TRAIN_TRANSFER
 USE_CIOU_LOSS                   = False
 EVALUATE_ORIGINAL_SIZE          = True
 USE_NMS_CENTER_D                = False
-USE_PRIMARY_EVALUATION_METRIC   = False         #calculate mAP0.5:0.95
+USE_PRIMARY_EVALUATION_METRIC   = True         #calculate mAP0.5:0.95
 
 #Slicing patch techniques setting
 USE_SLICING_PATCH_TECHNIQUE     = True
@@ -84,7 +84,7 @@ YOLO_LOSS_IOU_THRESHOLD         = 0.5
 
 
 VALIDATE_SCORE_THRESHOLD        = 0.35
-VALIDATE_IOU_THRESHOLD          = 0.3
+VALIDATE_IOU_THRESHOLD          = 0.5
 
 
 # COCO DATASET has only evaluation dataset
@@ -118,8 +118,8 @@ elif TRAINING_DATASET_TYPE == "VISDRONE":
         TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
         TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
     else:
-        TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train_slice2.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice2.txt"
+        TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train_slice.txt"
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice.txt"
     RELATIVE_PATH               = ""
     PREFIX_PATH                 = ""
     
