@@ -99,10 +99,10 @@ class PredictionResult:
             pred_bbox = self.model(image_data, training=False)
             pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]               #reshape to [3, bbox_num, 85]
             pred_bbox = tf.concat(pred_bbox, axis=0)                                            #concatenate to [bbox_num, 85]
-            pred_bboxes = postprocess_boxes(pred_bbox, np.copy(sliced_image.image), self.sliced_input_size, self.score_threshold)      #scale to origional and select valid bboxes
+            pred_bboxes = postprocess_boxes(pred_bbox, np.copy(sliced_image.image), self.sliced_input_size, 0.5) #self.score_threshold)      #scale to origional and select valid bboxes
             if len(pred_bboxes) == 0:
                 continue
-            pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, self.iou_threshold, method='nms'))                                       #Non-maximum suppression: xymin, xymax        
+            pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, 0.5, method='nms'))   #self.iou_threshold, method='nms'))                                       #Non-maximum suppression: xymin, xymax        
             sliced_image.predictions = pred_bboxes
             sliced_image_with_prediction_list.append(sliced_image)
         return sliced_image_with_prediction_list
@@ -129,6 +129,17 @@ class PredictionResult:
             sliced_image_with_prediction.predictions = sliced_image_with_prediction.predictions + pred_offset
             pred_bboxes = np.concatenate([pred_bboxes, sliced_image_with_prediction.predictions], axis=0)
             pred_bboxes = self.postprocess_slicing_predictions_into_original_image(pred_bboxes)
+
+            # image_test = draw_bbox(np.copy(self.image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
+            # #draw bbox to image
+            # (x1, y1), (x2, y2) = (sliced_image_with_prediction.starting_point[0], sliced_image_with_prediction.starting_point[1]), (sliced_image_with_prediction.starting_point[0] + SLICED_IMAGE_SIZE[0], sliced_image_with_prediction.starting_point[1] + SLICED_IMAGE_SIZE[1])
+            # cv2.rectangle(image_test, (x1,y1), (x2, y2), (255,0,0), 5)
+
+            # cv2.imshow("Test for slicing", cv2.resize(image_test, [1280, 720]))
+            # if cv2.waitKey() == "q":
+            #     pass
+            # cv2.destroyAllWindows()
+
         end_time = time.time() - start_time
         
         # image_test = draw_bbox(np.copy(self.image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
