@@ -129,7 +129,7 @@ def main():
         for image_data, target in trainset:
             results = train_step(image_data, target)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
             current_step = results[0] % steps_per_epoch
-            print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.6f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f}"
+            print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f}"
                   .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5]))
             giou_train += results[2]
             conf_train += results[3]

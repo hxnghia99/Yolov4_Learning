@@ -129,30 +129,21 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             original_h, original_w, _ = original_image.shape
             TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
         
+        image = cv2.cvtColor(np.copy(original_image), cv2.COLOR_BGR2RGB)    
+        image = image_preprocess(image, TEST_INPUT_SIZE)
+        image_data = image[np.newaxis, ...].astype(np.float32)
 
-        if not USE_SLICING_PATCH_TECHNIQUE:
-            image = cv2.cvtColor(np.copy(original_image), cv2.COLOR_BGR2RGB)    
-            image = image_preprocess(image, TEST_INPUT_SIZE)
-            image_data = image[np.newaxis, ...].astype(np.float32)
-
-            #measure time to make prediction
-            t1 = time.time()
-            pred_bboxes = Yolo(image_data, training=False)
-            t2 = time.time()
-            times.append(t2-t1)
-        
-            #post process for prediction bboxes
-            pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
-            pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
-            pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
-            pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, iou_threshold, method='nms'))                 #remove bboxes for same object in specific class 
-        
-        else:
-            prediction_obj = PredictionResult(yolo, np.copy(original_image), TEST_INPUT_SIZE, SLICED_IMAGE_SIZE, score_threshold, iou_threshold)
-            pred_bboxes, time = prediction_obj.make_prediciton()
-            pred_bboxes = tf.convert_to_tensor(pred_bboxes)
-            times.append(time)
-
+        #measure time to make prediction
+        t1 = time.time()
+        pred_bboxes = Yolo(image_data, training=False)
+        t2 = time.time()
+        times.append(t2-t1)
+    
+        #post process for prediction bboxes
+        pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
+        pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
+        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
+        pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, iou_threshold, method='nms'))                 #remove bboxes for same object in specific class 
 
         if EVALUATION_DATASET_TYPE == "VISDRONE":
             bboxes = tf.cast(bboxes, dtype=tf.float64)

@@ -64,7 +64,7 @@ class Dataset(object):
             bboxes_annotations = []
             #At each annotations, divide into [image_path, [list of bboxes] ]
             for text in text_by_line:
-                if not text.replace(',','').replace('-','').isnumeric():
+                if not text.replace(',','').replace('-1','').isnumeric():
                     temp_path   = os.path.relpath(text, RELATIVE_PATH)
                     temp_path   = os.path.join(PREFIX_PATH, temp_path)
                     image_path  = temp_path.replace('\\','/')
@@ -90,6 +90,17 @@ class Dataset(object):
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations])
         
+        #return raw image and bboxes
+        if mAP:
+            return image, bboxes
+
+
+        """ DATA AUGMENTATION if needed """
+        if self.data_aug:
+            image, bboxes = self.random_horizontal_flip(image, bboxes)
+            image, bboxes = self.random_crop(image, bboxes)
+            image, bboxes = self.random_translate(image, bboxes)
+
         if TRAINING_DATASET_TYPE == "VISDRONE":
             """
             VISDRONE ignored region and class "other" preprocessing
@@ -101,15 +112,6 @@ class Dataset(object):
                     image[y_tl:y_br, x_tl:x_br] = 128.0 #make ignored region into gray
             bboxes = bboxes[bbox_mask]
 
-        """
-        DATA AUGMENTATION if needed
-        """
-        if self.data_aug:
-            image, bboxes = self.random_horizontal_flip(image, bboxes)
-            image, bboxes = self.random_crop(image, bboxes)
-            image, bboxes = self.random_translate(image, bboxes)
-        if mAP:
-            return image, bboxes
         #preprocess, bboxes as (xmin, ymin, xmax, ymax)
         image, bboxes = image_preprocess(image, self.input_size, bboxes)
         return image, bboxes
@@ -218,14 +220,14 @@ class Dataset(object):
                     #end while -> increase num_annotations by 1
                     num_annotations += 1
 
-                    #Testing
-                    if self.testing:
-                        image = draw_bbox(image, bboxes, YOLO_CLASS_PATH, show_label=False)
-                        cv2.imshow("Testing", image)
-                        if cv2.waitKey() == 'q':
-                            pass
-                        cv2.destroyAllWindows()
-                        continue
+                    # #Testing
+                    # if self.testing:
+                    #     image = draw_bbox(image, bboxes, YOLO_CLASS_PATH, show_label=False)
+                    #     cv2.imshow("Testing", image)
+                    #     if cv2.waitKey() == 'q':
+                    #         pass
+                    #     cv2.destroyAllWindows()
+                    #     continue
 
                 #end if -> increase batchs_count by 1
                 self.batchs_count += 1

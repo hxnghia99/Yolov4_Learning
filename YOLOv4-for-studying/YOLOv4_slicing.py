@@ -94,15 +94,21 @@ class PredictionResult:
         sliced_image_with_prediction_list = []
         for sliced_image in sliced_images:
             image_data = cv2.cvtColor(np.copy(sliced_image.image), cv2.COLOR_BGR2RGB)
+
+            #Create a new model using image original size scaling to 32
+            if EVALUATION_DATASET_TYPE == "VISDRONE" and EVALUATE_ORIGINAL_SIZE:
+                original_h, original_w, _ = image_data.shape
+                self.input_size = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
+
             image_data = image_preprocess(image_data, self.sliced_input_size)                  #scale to size 416
             image_data = image_data[np.newaxis, ...].astype(np.float32)                         #reshape [1, 416, 416, 3]
             pred_bbox = self.model(image_data, training=False)
             pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]               #reshape to [3, bbox_num, 85]
             pred_bbox = tf.concat(pred_bbox, axis=0)                                            #concatenate to [bbox_num, 85]
-            pred_bboxes = postprocess_boxes(pred_bbox, np.copy(sliced_image.image), self.sliced_input_size, 0.5) #self.score_threshold)      #scale to origional and select valid bboxes
+            pred_bboxes = postprocess_boxes(pred_bbox, np.copy(sliced_image.image), self.sliced_input_size, self.score_threshold)      #scale to origional and select valid bboxes
             if len(pred_bboxes) == 0:
                 continue
-            pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, 0.5, method='nms'))   #self.iou_threshold, method='nms'))                                       #Non-maximum suppression: xymin, xymax        
+            pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, self.iou_threshold, method='nms'))                                       #Non-maximum suppression: xymin, xymax        
             sliced_image.predictions = pred_bboxes
             sliced_image_with_prediction_list.append(sliced_image)
         return sliced_image_with_prediction_list
@@ -111,6 +117,11 @@ class PredictionResult:
     def make_prediciton(self):
         start_time = time.time()
         image_data = cv2.cvtColor(np.copy(self.image), cv2.COLOR_BGR2RGB)
+        #Create a new model using image original size scaling to 32
+        if EVALUATION_DATASET_TYPE == "VISDRONE" and EVALUATE_ORIGINAL_SIZE:
+            original_h, original_w, _ = image_data.shape
+            self.input_size = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
+
         image_data = image_preprocess(image_data, self.input_size)                  #scale to size 416
         image_data = image_data[np.newaxis, ...].astype(np.float32)                         #reshape [1, 416, 416, 3]
         pred_bbox = self.model(image_data, training=False)
@@ -120,25 +131,26 @@ class PredictionResult:
         pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, self.iou_threshold, method='nms'))                                       #Non-maximum suppression: xymin, xymax              
 
         # pred_bboxes = [[0,0,0,0,0,0]]
-        # image_test = draw_bbox(np.copy(self.image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
-        # cv2.imshow("Test before slicing prediciton", cv2.resize(image_test, [1280, 720]))
+        image_test = draw_bbox(np.copy(self.image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
+        cv2.imshow("Test before slicing prediciton", cv2.resize(image_test, [1280, 720]))
 
         sliced_image_with_prediction_list = self.make_sliced_predictions()
-        for sliced_image_with_prediction in sliced_image_with_prediction_list:
+        for index, sliced_image_with_prediction in enumerate(sliced_image_with_prediction_list):
             pred_offset = np.concatenate([sliced_image_with_prediction.starting_point, sliced_image_with_prediction.starting_point, [0], [0]], axis=-1)[np.newaxis, :]
             sliced_image_with_prediction.predictions = sliced_image_with_prediction.predictions + pred_offset
             pred_bboxes = np.concatenate([pred_bboxes, sliced_image_with_prediction.predictions], axis=0)
             pred_bboxes = self.postprocess_slicing_predictions_into_original_image(pred_bboxes)
 
-            # image_test = draw_bbox(np.copy(self.image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
-            # #draw bbox to image
-            # (x1, y1), (x2, y2) = (sliced_image_with_prediction.starting_point[0], sliced_image_with_prediction.starting_point[1]), (sliced_image_with_prediction.starting_point[0] + SLICED_IMAGE_SIZE[0], sliced_image_with_prediction.starting_point[1] + SLICED_IMAGE_SIZE[1])
-            # cv2.rectangle(image_test, (x1,y1), (x2, y2), (255,0,0), 5)
+            image_test = draw_bbox(np.copy(self.image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
+            #draw bbox to image
+            (x1, y1), (x2, y2) = (sliced_image_with_prediction.starting_point[0], sliced_image_with_prediction.starting_point[1]), (sliced_image_with_prediction.starting_point[0] + SLICED_IMAGE_SIZE[0], sliced_image_with_prediction.starting_point[1] + SLICED_IMAGE_SIZE[1])
+            cv2.rectangle(image_test, (x1,y1), (x2, y2), (255,0,0), 5)
 
-            # cv2.imshow("Test for slicing", cv2.resize(image_test, [1280, 720]))
-            # if cv2.waitKey() == "q":
-            #     pass
-            # cv2.destroyAllWindows()
+            cv2.imwrite("Images/Test for slicing image " + str(index) + ".png", image_test)
+            cv2.imshow("Test for slicing image " + str(index) , cv2.resize(image_test, [1280, 720]))
+            if cv2.waitKey() == "q":
+                pass
+            cv2.destroyAllWindows()
 
         end_time = time.time() - start_time
         
@@ -179,7 +191,6 @@ class Original_Image_Into_Sliced_Images:
         self.testing = TESTING
         if self.testing:
             self.slice_image(self.original_image, self.original_bboxes, *self.sliced_image_size, *self.overlap_ratio, self.min_area_ratio)
-
 
     #Get the bbox coordinate of sliced images in origional image
     def get_sliced_image_coordinates(   self,
@@ -249,7 +260,10 @@ class Original_Image_Into_Sliced_Images:
                 if intersection_area/gt_bbox_area >= min_area_ratio:
                     sliced_image_gt_bbox = np.concatenate([top_left - sliced_image_coordinates[:2], bottom_right - sliced_image_coordinates[:2], np.array([original_gt_bbox[4]])])  #minus starting point
                     sliced_image_gt_bboxes.append(sliced_image_gt_bbox)
-        return sliced_image_gt_bboxes
+        if len(sliced_image_gt_bboxes) != 0:
+            return sliced_image_gt_bboxes
+        else:
+            return np.array([[0,0,0,0,-1]])
 
 
     #slice the original image into objects of class SliceImage
@@ -283,20 +297,21 @@ class Original_Image_Into_Sliced_Images:
             if original_gt_bboxes is not None:   
                 # Extract gt bboxes
                 sliced_image_gt_bboxes = self.process_gt_bboxes_to_sliced_image(np.copy(original_gt_bboxes), sliced_image_coordinates, min_area_ratio)
-                #Make sure to contain class 0-9 bboxes
-                check = 0
-                for sliced_image_gt_bbox in sliced_image_gt_bboxes:
-                    if sliced_image_gt_bbox[4] > -0.5 and sliced_image_gt_bbox[4] < 9.5:
-                        check += 1
                 
-                if len(sliced_image_gt_bboxes) != 0 and bool(check):
+                # #Make sure to contain class 0-9 bboxes
+                # check = 0
+                # for sliced_image_gt_bbox in sliced_image_gt_bboxes:
+                #     if sliced_image_gt_bbox[4] > -0.5 and sliced_image_gt_bbox[4] < 9.5:
+                #         check += 1
+                
+                if len(sliced_image_gt_bboxes) != 0: # and bool(check):
                     number_images += 1
                     sliced_image_obj = SlicedImage(sliced_image, sliced_image_gt_bboxes, starting_point)
                     self.sliced_image_list.append(sliced_image_obj)
                     
                         
                     if self.testing:
-                        sliced_image = draw_bbox(sliced_image, sliced_image_gt_bboxes, YOLO_CLASS_PATH, show_label=False)
+                        sliced_image = draw_bbox(sliced_image, sliced_image_gt_bboxes, YOLO_CLASS_PATH.replace(".txt","_test.txt"), show_label=True)
                 if self.testing:
                     cv2.imshow("test", sliced_image)
                     if cv2.waitKey() == 'q':
@@ -351,7 +366,7 @@ class Generate_sliced_images_and_annotations:
             bboxes_annotations = []
             #At each annotations, divide into [image_path, [list of bboxes] ]
             for text in text_by_line:
-                if not text.replace(',','').replace('-','').isnumeric():
+                if not text.replace(',','').replace('-1','').isnumeric():
                     temp_path   = os.path.relpath(text, RELATIVE_PATH)
                     temp_path   = os.path.join(PREFIX_PATH, temp_path)
                     image_path  = temp_path.replace('\\','/')
@@ -406,23 +421,29 @@ class Generate_sliced_images_and_annotations:
 
 if __name__=="__main__":
     # Testing
-    text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/9999965_00000_d_0000023.jpg 682,661,765,695,3 904,567,934,644,3 958,484,1023,558,3 979,286,1013,359,3 818,554,890,584,3 799,494,891,531,3 821,455,890,484,3 813,402,890,432,3 816,358,893,388,3 817,309,892,338,3 825,267,896,299,3 815,227,885,259,3 697,152,773,193,3 810,49,890,86,3 805,10,885,42,3 988,83,1019,156,4 824,190,896,219,4 331,25,369,103,4 800,138,898,183,5 689,287,774,326,3 700,344,777,379,3 697,402,777,432,3 697,502,774,537,3 701,550,765,579,4 544,389,598,586,8 314,625,346,702,3 318,535,351,609,3 321,438,357,515,3 329,333,363,405,3 329,227,356,302,3 317,119,364,213,5 308,733,346,786,3 633,77,647,117,9 633,87,648,106,1 954,69,969,86,0 1003,462,1018,474,0 1041,445,1055,456,0 917,133,928,146,0 740,740,753,761,0 1016,681,1028,695,0 1053,471,1062,483,0'
-    text = text_by_line.split()
-    bboxes = []
-    for t in text:
-        if not t.replace(',', '').isnumeric():
-            temp_path   = os.path.relpath(t, RELATIVE_PATH)
-            temp_path   = os.path.join(PREFIX_PATH, temp_path)
-            image_path  = temp_path.replace('\\','/')
-        else:
-            t = list(map(int, t.split(',')))
-            bboxes.append(t)
-    image = cv2.imread(image_path)
-    bboxes = np.array(bboxes)
-    test = Original_Image_Into_Sliced_Images(image, None, TESTING=True)
+    # text_by_line = './YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images/0000182_01220_d_0000039.jpg 413,60,490,150,-1 516,134,546,158,-1 496,125,509,133,3 490,144,503,151,-1 536,169,551,185,-1 621,210,652,225,3 636,230,641,247,0 632,219,663,236,3 646,225,674,239,3 646,235,680,250,3 699,310,713,336,9 703,308,712,328,1 688,325,698,350,0 678,317,687,344,0 646,271,654,289,9 646,268,653,284,1 741,447,765,480,9 747,446,759,471,1 659,415,691,461,7 607,301,616,325,0 649,374,663,396,9 651,367,663,388,1 514,301,574,329,3 630,317,636,335,9 631,313,637,331,1 610,288,620,305,9 613,286,620,302,1 487,163,517,178,4 527,179,533,188,6 518,191,530,208,7 547,205,552,217,9 548,203,552,215,1 523,168,527,175,9 524,167,528,174,1 510,202,515,212,9 510,199,516,209,1 415,159,421,170,-1 430,189,434,199,9 431,187,434,198,1 444,183,449,191,9 444,180,448,190,1 345,274,360,293,9 226,274,238,286,9 233,266,245,275,9 174,318,237,351,3 331,282,354,318,7 286,437,313,463,9 235,514,285,539,9 399,235,406,248,9 399,232,405,245,1 412,245,417,260,9 383,286,393,303,9 372,399,384,428,9 412,240,417,256,1 384,282,392,298,1 371,392,384,417,1 373,399,383,422,1 373,396,384,420,1'
+    # text = text_by_line.split()
+    # bboxes = []
+    # for t in text:
+    #     if not t.replace(',', '').replace("-1","").isnumeric():
+    #         temp_path   = os.path.relpath(t, RELATIVE_PATH)
+    #         temp_path   = os.path.join(PREFIX_PATH, temp_path)
+    #         image_path  = temp_path.replace('\\','/')
+    #     else:
+    #         t = list(map(int, t.split(',')))
+    #         bboxes.append(t)
+    # image = cv2.imread(image_path)
+    # bboxes = np.array(bboxes)
+    # test = Original_Image_Into_Sliced_Images(image, bboxes, TESTING=True)
     
-    # IMAGE_FOLDER = ["YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images", "YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-val/images", "YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-test-dev/images"]
-    # READ_ANNOTATION_FILE =["./YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt", "./YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt", "./YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"]
-    # for i, _ in enumerate(IMAGE_FOLDER):
-    #     Generate_sliced_images_and_annotations(IMAGE_FOLDER[i], READ_ANNOTATION_FILE[i]).slice_images_and_save()
+    # IMAGE_FOLDER = "YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images"
+    # READ_ANNOTATION_FILE = "./YOLOv4-for-studying/dataset/Visdrone_DATASET/train2.txt"
+    # Generate_sliced_images_and_annotations(IMAGE_FOLDER, READ_ANNOTATION_FILE).slice_images_and_save()
+
+
+
+    IMAGE_FOLDER = ["YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images", "YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-val/images"]
+    READ_ANNOTATION_FILE =["./YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt", "./YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"]
+    for i, _ in enumerate(IMAGE_FOLDER):
+        Generate_sliced_images_and_annotations(IMAGE_FOLDER[i], READ_ANNOTATION_FILE[i]).slice_images_and_save()
 

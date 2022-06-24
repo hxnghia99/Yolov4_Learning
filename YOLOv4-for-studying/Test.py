@@ -226,11 +226,25 @@ yolo = Load_YOLOv4_Model()
 sliced_images_obj = Original_Image_Into_Sliced_Images(image, bboxes)
 sliced_images = sliced_images_obj.load_sliced_images_for_export()
 
+# image_test =draw_bbox(np.copy(image), np.copy(bboxes), "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=False)
+# cv2.imshow("ground truth image", cv2.resize(image_test, [1280, 720]))
+
+
+# for sliced_image in sliced_images:
+#     image_test = draw_bbox(np.copy(sliced_image.image), sliced_image.bboxes, "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=True)
+#     cv2.imshow("Sliced image", cv2.resize(image_test, [416, 416]))
+#     if cv2.waitKey() == "q":
+#         pass
+#     cv2.destroyAllWindows()
+
+
+
+
 input_size = [416, 416]
-score_threshold = 0.35
+score_threshold = 0.425
 iou_threshold = 0.5
 
-image_test =draw_bbox(np.copy(image), np.copy(bboxes), "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=False)
+image_test =draw_bbox(np.copy(image), np.copy(bboxes), "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=True)
 cv2.imshow("ground truth", cv2.resize(image_test, [1280, 720]))
 
 prediction_obj = PredictionResult(yolo, image, input_size, SLICED_IMAGE_SIZE, score_threshold, iou_threshold)
@@ -268,7 +282,7 @@ if EVALUATION_DATASET_TYPE == "VISDRONE":
     pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
 
 
-image_test = draw_bbox(np.copy(image),pred_bboxes, YOLO_CLASS_PATH, show_label=False)
+image_test = draw_bbox(np.copy(image),pred_bboxes, YOLO_CLASS_PATH, show_label=True)
 cv2.imshow("Test after slicing prediciton", cv2.resize(image_test, [1280, 720]))
 if cv2.waitKey() == "q":
     pass

@@ -81,6 +81,22 @@ def IoU_Estimate():
     #    print("Accuracy: {:.2f}%".format(avg_iou(data, arr[i]) * 100))
     print("Boxes: {}".format(out))
 
+    anchor =    out
+    # print(anchor)
+
+    anchor_area = np.multiply.reduce(anchor, axis=-1)
+    # print(anchor_area)
+
+    anchor_n = []
+    while len(anchor):
+        i = np.argmin(anchor_area)
+        anchor_n.append(anchor[i])
+        anchor = np.delete(anchor, i, axis=0)
+        anchor_area = np.delete(anchor_area, i, axis=0)
+    anchor_n = np.array(anchor_n)  
+    print("\nSorted anchor:", anchor_n)
+
+
     colors = ['blue', 'yellow', 'red', 'green', 'cyan', 'magenta', 'white', 'gray', 'brown']
     for i in range(len(colors)):
         plt.scatter(data[:,0],data[:,1],s=5,c='black',label='scale')
@@ -93,7 +109,6 @@ def IoU_Estimate():
     plt.xlim([0, 200])  
     plt.legend()
     plt.show()
-
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ TRAINING_DATASET_TYPE           = "VISDRONE"
 TRAIN_TRANSFER                  = True
 
 # ["COCO", "LG", "VISDRONE"]
-MAKE_EVALUATION                 = True
+MAKE_EVALUATION                 = False
 EVALUATION_DATASET_TYPE         = "VISDRONE"
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
 """ ---------------------------------"""
@@ -32,8 +32,8 @@ SLICED_IMAGE_SIZE               = [416, 416]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
-TRAIN_BATCH_SIZE                = 4
-TEST_BATCH_SIZE                 = 4
+TRAIN_BATCH_SIZE                = 2
+TEST_BATCH_SIZE                 = 2
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
@@ -68,6 +68,11 @@ YOLO_ANCHORS                    = [[[12,  16], [19,   36], [40,   28]],
 # YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
 #                                    [[16, 28], [29, 18], [27, 43]],
 #                                    [[53, 29], [60, 60], [123, 97]]]
+# # Visdrone anchors 416x416 only for sliced images
+# YOLO_ANCHORS                    = [[[7, 9], [10, 18], [21, 14]],
+#                                    [[16, 28], [38, 23], [25, 42]],
+#                                    [[69, 38], [45, 67], [111, 95]]]
+
 
 
 
@@ -78,8 +83,8 @@ TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints i
 TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
 TRAIN_EPOCHS                    = 50
-TRAIN_LR_END                    = 1e-6
-TRAIN_LR_INIT                   = 1e-4
+TRAIN_LR_END                    = 1e-7
+TRAIN_LR_INIT                   = 1e-5
 YOLO_LOSS_IOU_THRESHOLD         = 0.5
 
 
@@ -118,8 +123,8 @@ elif TRAINING_DATASET_TYPE == "VISDRONE":
         TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
         TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
     else:
-        TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train_slice.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice.txt"
+        TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train2_slice.txt"
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train2_slice.txt"
     RELATIVE_PATH               = ""
     PREFIX_PATH                 = ""
     
