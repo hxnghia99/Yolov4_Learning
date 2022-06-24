@@ -35,16 +35,21 @@ input: (2) model, weight file
 output: model with pretrained weights
 obj:    load pretrained weights into the model (just apply for YOLOv4)
 ######################################################################'''
-#Function to load trained parameters into YOLOv3 model
+#Function to load trained parameters into YOLOv4 model
 def load_yolov4_weights(model, weights_file):
     tf.keras.backend.clear_session() # used to reset layer names
-    # Layer quantity in YOLOv3 Model
+    # Layer quantity in YOLOv4 Model
     range1 = 110                        #Total of layers
     range2 = [93, 101, 109]             #Index of output layers
     with open(weights_file, 'rb') as wf:
         major, minor, revision, seen, _ = np.fromfile(wf, dtype=np.int32, count=5)
         j = 0
         for i in range(range1):
+
+            if i == 78:
+                print(" \n Finished loading weights of CSPDarknet53 + SPP block ... \n")
+                break
+
             #Get name of convolutional layer
             if i > 0: conv_layer_name = 'conv2d_%d' %i
             else: conv_layer_name = 'conv2d'
@@ -55,6 +60,7 @@ def load_yolov4_weights(model, weights_file):
             filters = conv_layer.filters                        # number of filters: output dimensions
             k_size = conv_layer.kernel_size[0]                  # kernel_size
             in_dim = conv_layer.input_shape[-1]                 # input dimensions
+            
             #Get bn weights or bias from file
             if i not in range2:
                 # bn weights from file:  [beta, gamma, mean, variance]
@@ -65,6 +71,7 @@ def load_yolov4_weights(model, weights_file):
                 j += 1
             else:
                 conv_bias = np.fromfile(wf, dtype=np.float32, count=filters)
+            
             #Get convolutional weights from file
             # shape in file (out_dim, in_dim, height, width)
             conv_shape = (filters, in_dim, k_size, k_size)
@@ -78,7 +85,7 @@ def load_yolov4_weights(model, weights_file):
             else:
                 conv_layer.set_weights([conv_weights, conv_bias])
 
-        assert len(wf.read()) == 0, 'failed to read all data'
+        # assert len(wf.read()) == 0, 'failed to read all data'
 
 
 
