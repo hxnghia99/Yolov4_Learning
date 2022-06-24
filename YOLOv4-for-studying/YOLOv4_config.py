@@ -32,8 +32,8 @@ SLICED_IMAGE_SIZE               = [416, 416]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
-TRAIN_BATCH_SIZE                = 2
-TEST_BATCH_SIZE                 = 2
+TRAIN_BATCH_SIZE                = 1
+TEST_BATCH_SIZE                 = 1
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
@@ -51,7 +51,7 @@ TEST_DATA_AUG                   = False
 YOLO_MAX_BBOX_PER_SCALE         = 1000
 ANCHORS_PER_GRID_CELL           = 3
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
-YOLO_SCALE_OFFSET               = [8, 16, 32]
+YOLO_SCALE_OFFSET               = [1, 2, 4]
 # COCO anchors
 YOLO_ANCHORS                    = [[[12,  16], [19,   36], [40,   28]],
                                    [[36,  75], [76,   55], [72,  146]],

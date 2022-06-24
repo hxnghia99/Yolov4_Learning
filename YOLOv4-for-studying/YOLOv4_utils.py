@@ -45,6 +45,11 @@ def load_yolov4_weights(model, weights_file):
         major, minor, revision, seen, _ = np.fromfile(wf, dtype=np.int32, count=5)
         j = 0
         for i in range(range1):
+
+            if i == 78:
+                print("\n Finished loading weights of CSPDarknet53 + SPP block ... \n")
+                break
+
             #Get name of convolutional layer
             if i > 0: conv_layer_name = 'conv2d_%d' %i
             else: conv_layer_name = 'conv2d'
@@ -78,7 +83,7 @@ def load_yolov4_weights(model, weights_file):
             else:
                 conv_layer.set_weights([conv_weights, conv_bias])
 
-        assert len(wf.read()) == 0, 'failed to read all data'
+        # assert len(wf.read()) == 0, 'failed to read all data'
 
 
 
