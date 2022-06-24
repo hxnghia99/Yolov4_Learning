@@ -389,7 +389,8 @@ class Generate_sliced_images_and_annotations:
             os.remove(save_annotation_path)
         
         annotations_list = self.load_annotations(read_annotation_path)
-        for annotation in annotations_list:
+        for index, annotation in enumerate(annotations_list):
+            print("Finished slicing and saving image ", index)
             #Get data inside annotation
             image_path, bboxes_annotations = annotation
             bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations])
