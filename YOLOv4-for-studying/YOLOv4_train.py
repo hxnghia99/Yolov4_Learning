@@ -60,6 +60,12 @@ def main():
     #Create Adam optimizers
     optimizer = tf.keras.optimizers.Adam()
     
+    #Create log folder and summary
+    if os.path.exists(TRAIN_LOGDIR): shutil.rmtree(TRAIN_LOGDIR)
+    training_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'training/')
+    validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
+
+
     #Create training function for each batch
     def train_step(image_data, target):
         with tf.GradientTape() as tape:
@@ -114,12 +120,6 @@ def main():
                 prob_loss += loss_items[2]
             total_loss = giou_loss + conf_loss + prob_loss
         return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
-
-    #Create log folder and summary
-    if os.path.exists(TRAIN_LOGDIR): shutil.rmtree(TRAIN_LOGDIR)
-    training_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'training/')
-    validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
-
 
     best_val_loss = 1000 # should be large at start
     #For each epoch, do training and validating

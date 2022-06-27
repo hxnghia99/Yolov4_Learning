@@ -94,12 +94,11 @@ class Dataset(object):
         if mAP:
             return image, bboxes
 
-
         """ DATA AUGMENTATION if needed """
         if self.data_aug:
-            image, bboxes = self.random_horizontal_flip(image, bboxes)
-            image, bboxes = self.random_crop(image, bboxes)
-            image, bboxes = self.random_translate(image, bboxes)
+            image, bboxes = self.random_horizontal_flip(np.copy(image), np.copy(bboxes))
+            image, bboxes = self.random_crop(np.copy(image), np.copy(bboxes))
+            image, bboxes = self.random_translate(np.copy(image), np.copy(bboxes))
 
         if TRAINING_DATASET_TYPE == "VISDRONE":
             """
