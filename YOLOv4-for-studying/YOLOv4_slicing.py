@@ -344,6 +344,7 @@ class Original_Image_Into_Sliced_Images:
         return self.sliced_image_list
 
 
+import matplotlib.pyplot as plt
 
 class Generate_sliced_images_and_annotations:
     def __init__(self, IMAGE_FOLDER, READ_ANNOTATION_PATH):
@@ -388,7 +389,13 @@ class Generate_sliced_images_and_annotations:
         if os.path.exists(save_annotation_path):
             os.remove(save_annotation_path)
         
+
         annotations_list = self.load_annotations(read_annotation_path)
+        # maxe = []
+        # max_count = 0
+        # image_path_test = []
+        # num_bbox_test = []
+        excessive_image_num = 0
         for index, annotation in enumerate(annotations_list):
             print("Finished slicing and saving image ", index)
             #Get data inside annotation
@@ -399,24 +406,53 @@ class Generate_sliced_images_and_annotations:
             sliced_images_obj = Original_Image_Into_Sliced_Images(image, bboxes)
             sliced_image_obj_list = sliced_images_obj.load_sliced_images_for_export()
             
-            with open(save_annotation_path, "a") as f:
-                bboxes_annotation = [",".join(list(map(str, bbox))) for bbox in bboxes]
-                all_info_annotation = prefix_image_path + image_path + " " + " ".join(bboxes_annotation)
-                f.write(all_info_annotation + "\n")
+            
+        #     num_bbox = [len(x.bboxes) for x in sliced_image_obj_list]
+        #     maxe.extend(num_bbox)
 
+        #     if np.max(num_bbox) >= 200: 
+        #         image_path_test.append(image_path)
+        #         num_bbox_test.append(num_bbox)
+
+        # print(maxe)
+        # print(image_path_test)
+        # print(num_bbox_test)
+        # unique, count = np.unique(maxe, return_counts=True)
+        # count = count + 10
+
+        # fig = plt.figure()
+        # plt.bar(unique, count, color="green", width=1)
+        # plt.xlabel("Number of bboxes per image")
+        # plt.ylabel("Number of image")
+        # plt.show()
+
+            
+
+            # with open(save_annotation_path, "a") as f:
+            #     bboxes_annotation = [",".join(list(map(str, bbox))) for bbox in bboxes]
+            #     all_info_annotation = prefix_image_path + image_path + " " + " ".join(bboxes_annotation)
+            #     f.write(all_info_annotation + "\n")
+            
             for sliced_image_obj in sliced_image_obj_list:
-                self.export_sliced_image_and_annotation(sliced_image_obj, image_name, self.image_folder, self.save_annotation_path)
+                excessive_image_num += self.export_sliced_image_and_annotation(sliced_image_obj, image_name, self.image_folder, self.save_annotation_path)
         print(f"\n Finished slicing and saving for {self.save_annotation_path}! \n")
+        return excessive_image_num
+
+
 
     def export_sliced_image_and_annotation(self, sliced_image, image_name, image_folder, save_annotation_path):
-        prefix_image_path = self.prefix_image_path
-        x_tf, y_tf = sliced_image.starting_point
-        saved_image_path = prefix_image_path + image_folder + "/" + image_name + "_sp_" + str(x_tf) + "_" + str(y_tf) + ".png"
-        cv2.imwrite(saved_image_path, sliced_image.image)
         bbox_annotation = [",".join(list(map(str, bbox))) for bbox in sliced_image.bboxes]
-        all_info_annotation = saved_image_path + " " + " ".join(bbox_annotation)
-        with open(save_annotation_path, "a") as f:
-            f.write(all_info_annotation + "\n")
+        if len(bbox_annotation) <= 150:
+            prefix_image_path = self.prefix_image_path
+            x_tf, y_tf = sliced_image.starting_point
+            saved_image_path = prefix_image_path + image_folder + "/" + image_name + "_sp_" + str(x_tf) + "_" + str(y_tf) + ".png"
+            cv2.imwrite(saved_image_path, sliced_image.image)
+            all_info_annotation = saved_image_path + " " + " ".join(bbox_annotation)
+            with open(save_annotation_path, "a") as f:
+                f.write(all_info_annotation + "\n")
+            return 0
+        else:
+            return 1
         
 
 
@@ -438,7 +474,7 @@ if __name__=="__main__":
     # test = Original_Image_Into_Sliced_Images(image, bboxes, TESTING=True)
     
     # IMAGE_FOLDER = "YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images"
-    # READ_ANNOTATION_FILE = "./YOLOv4-for-studying/dataset/Visdrone_DATASET/train2.txt"
+    # READ_ANNOTATION_FILE = "./YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
     # Generate_sliced_images_and_annotations(IMAGE_FOLDER, READ_ANNOTATION_FILE).slice_images_and_save()
 
 
@@ -446,5 +482,6 @@ if __name__=="__main__":
     IMAGE_FOLDER = ["YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-train/images", "YOLOv4-for-studying/dataset/Visdrone_DATASET/VisDrone2019-DET-val/images"]
     READ_ANNOTATION_FILE =["./YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt", "./YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"]
     for i, _ in enumerate(IMAGE_FOLDER):
-        Generate_sliced_images_and_annotations(IMAGE_FOLDER[i], READ_ANNOTATION_FILE[i]).slice_images_and_save()
+        failed_image_num = Generate_sliced_images_and_annotations(IMAGE_FOLDER[i], READ_ANNOTATION_FILE[i]).slice_images_and_save()
+        print(i, " : Number of images that have more 150 objects = ", failed_image_num)
 
