@@ -12,7 +12,7 @@
 """ ------ IMPORTANT SETTING ------ """
 # ["COCO", "LG", "VISDRONE"]
 TRAINING_DATASET_TYPE           = "VISDRONE"
-TRAIN_TRANSFER                  = True
+TRAIN_TRANSFER                  = False
 
 # ["COCO", "LG", "VISDRONE"]
 MAKE_EVALUATION                 = False
@@ -82,7 +82,7 @@ TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according valida
 TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 40
+TRAIN_EPOCHS                    = 50
 TRAIN_LR_END                    = 1e-8
 TRAIN_LR_INIT                   = 1e-6
 YOLO_LOSS_IOU_THRESHOLD         = 0.5

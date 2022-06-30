@@ -39,6 +39,7 @@ def main():
     testset = Dataset('test')
     #initial settings for training
     steps_per_epoch = len(trainset)     #num_batches
+    validate_steps_per_epoch = len(testset)
     global_steps = tf.Variable(1, trainable=False, dtype=tf.int64)  #start 1
     warmup_steps = TRAIN_WARMUP_EPOCHS * steps_per_epoch
     total_steps = TRAIN_EPOCHS * steps_per_epoch
@@ -158,8 +159,11 @@ def main():
         #Validating the model with testing dataset
         num_testset = len(testset)
         giou_val, conf_val, prob_val, total_val = 0, 0, 0, 0
+        current_step = 0
         for image_data, target in testset:
             results = validate_step(image_data, target)
+            print("Processing: {:5.0f}/{}".format(current_step, validate_steps_per_epoch))
+            current_step += 1
             giou_val += results[0]
             conf_val += results[1]
             prob_val += results[2]

@@ -122,14 +122,13 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     json_pred = [[] for _ in range(num_gt_classes)]
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
-        original_image, bboxes = dataset.parse_annotation(annotation, True)
+        original_image, bboxes = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
         
         #Create a new model using image original size scaling to 32
         if EVALUATION_DATASET_TYPE == "VISDRONE" and EVALUATE_ORIGINAL_SIZE:
             original_h, original_w, _ = original_image.shape
             TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
-        
-        image = cv2.cvtColor(np.copy(original_image), cv2.COLOR_BGR2RGB)    
+         
         image = image_preprocess(image, TEST_INPUT_SIZE)
         image_data = image[np.newaxis, ...].astype(np.float32)
 
