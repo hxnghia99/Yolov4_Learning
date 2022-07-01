@@ -17,7 +17,7 @@ from YOLOv4_utils import *
 #Compute YOLOv4 loss for each scale using reference code
 def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS_PATH):
     label       = tf.convert_to_tensor(label)
-    gt_bboxes   = tf.convert_to_tensor(gt_bboxes)
+    # gt_bboxes   = tf.convert_to_tensor(gt_bboxes)
     NUM_CLASSES = len(read_class_names(CLASSES_PATH))
     pred_shape  = tf.shape(pred)
     batch_size  = pred_shape[0]
@@ -40,10 +40,11 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
     label_prob          = label[:, :, :, :, 5:]
     
     if not USE_CIOU_LOSS:
-        # *** Calculate giou loss from prediction and label ***
-        giou = tf.expand_dims(bboxes_giou_from_xywh(pred_xywh, label_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]
-        bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size_h * input_size_w)
-        giou_loss = label_respond * bbox_loss_scale * (1 - giou)
+        # # *** Calculate giou loss from prediction and label ***
+        # giou = tf.expand_dims(bboxes_giou_from_xywh(pred_xywh, label_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]
+        # bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size_h * input_size_w)
+        # giou_loss = label_respond * bbox_loss_scale * (1 - giou)
+        pass
     else:
         # *** Calculate ciou loss from prediction and label ***
         ciou = tf.expand_dims(bboxes_ciou_from_xywh(pred_xywh, label_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]

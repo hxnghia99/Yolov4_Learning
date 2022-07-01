@@ -15,6 +15,8 @@ import cv2
 from YOLOv4_config import *
 from YOLOv4_utils import *
 import time
+import matplotlib.pyplot as plt
+
 
 
 #Postprocess to merge sliced_prediction into original prediction
@@ -161,6 +163,12 @@ class PredictionResult:
         # cv2.destroyAllWindows()
         return [pred_bboxes, end_time]
 
+
+
+
+
+
+
 #Create format of each sliced_image object including 4 attributes
 class SlicedImage:
     def __init__(   self,                           
@@ -243,6 +251,7 @@ class Original_Image_Into_Sliced_Images:
             return False
         return True
 
+
     #Tranform gt_bboxes in original image into those in sliced images
     def process_gt_bboxes_to_sliced_image(  self, 
                                             original_gt_bboxes,                         #List of gt bboxes with format [4 coordinates, class_idx]
@@ -280,63 +289,42 @@ class Original_Image_Into_Sliced_Images:
         if not (original_image_width != 0 and original_image_height != 0):
             raise RuntimeError(f"Error from invalid image size: {original_image.shape}")
        
+        # 1) Get cooridnates of sliced images       
         sliced_image_coordinates_list = self.get_sliced_image_coordinates(*[original_image_width, original_image_height], *[slice_width, slice_height], *[overlap_width_ratio, overlap_height_ratio])
         
-        
+        # 2) Slice image according to sliced coordinates
         number_images = 0
         # iterate over slices
         for sliced_image_coordinates in sliced_image_coordinates_list:
-            # count number of sliced images
-            
             # Extract starting point of the sliced image
             starting_point = [sliced_image_coordinates[0], sliced_image_coordinates[1]]
             # Extract sliced image
             tl_x, tl_y, br_x, br_y = sliced_image_coordinates
             sliced_image = np.copy(original_image[tl_y:br_y, tl_x:br_x])
             
+            # 3) Slice bboxes according to sliced coordinates
             if original_gt_bboxes is not None:   
                 # Extract gt bboxes
-                sliced_image_gt_bboxes = self.process_gt_bboxes_to_sliced_image(np.copy(original_gt_bboxes), sliced_image_coordinates, min_area_ratio)
-                
-                # #Make sure to contain class 0-9 bboxes
-                # check = 0
-                # for sliced_image_gt_bbox in sliced_image_gt_bboxes:
-                #     if sliced_image_gt_bbox[4] > -0.5 and sliced_image_gt_bbox[4] < 9.5:
-                #         check += 1
-                
-                if len(sliced_image_gt_bboxes) != 0: # and bool(check):
-                    number_images += 1
-                    sliced_image_obj = SlicedImage(sliced_image, sliced_image_gt_bboxes, starting_point)
-                    self.sliced_image_list.append(sliced_image_obj)
+                sliced_image_gt_bboxes = self.process_gt_bboxes_to_sliced_image(np.copy(original_gt_bboxes), sliced_image_coordinates, min_area_ratio)  #at least 1 bbox
+                sliced_image_obj = SlicedImage(sliced_image, sliced_image_gt_bboxes, starting_point)
+                self.sliced_image_list.append(sliced_image_obj)
                     
-                        
-                    if self.testing:
-                        sliced_image = draw_bbox(sliced_image, sliced_image_gt_bboxes, YOLO_CLASS_PATH.replace(".txt","_test.txt"), show_label=True)
                 if self.testing:
+                    sliced_image = draw_bbox(sliced_image, sliced_image_gt_bboxes, YOLO_CLASS_PATH.replace(".txt","_test.txt"), show_label=True)
                     cv2.imshow("test", sliced_image)
                     if cv2.waitKey() == 'q':
                         pass
                     cv2.destroyAllWindows()
                     print("OK!")
-            #No original_bboxes input : inference time
+            #No original_bboxes input : inference time for slicing prediction
             else:
                 sliced_image_obj = SlicedImage(sliced_image, None, starting_point)
-                number_images += 1
                 self.sliced_image_list.append(sliced_image_obj)
 
+            #count the number of sliced images for each image
+            number_images += 1
         return number_images
 
-
-    def load_sliced_images(self):
-        #Load sliced images into sliced_image_list
-        number_sliced_images = self.slice_image(self.original_image, self.original_bboxes, *self.sliced_image_size, *self.overlap_ratio, self.min_area_ratio)
-        #extract images and gt bboxes
-        sliced_images = []
-        sliced_images_gt_bboxes = []
-        for i in range(number_sliced_images):
-            sliced_images.append(self.sliced_image_list[i].image)
-            sliced_images_gt_bboxes.append(self.sliced_image_list[i].bboxes)
-        return [sliced_images, sliced_images_gt_bboxes]
 
     def load_sliced_images_for_export(self):
         #Load sliced images into sliced_image_list
@@ -344,7 +332,7 @@ class Original_Image_Into_Sliced_Images:
         return self.sliced_image_list
 
 
-import matplotlib.pyplot as plt
+
 
 class Generate_sliced_images_and_annotations:
     def __init__(self, IMAGE_FOLDER, READ_ANNOTATION_PATH):
@@ -352,7 +340,8 @@ class Generate_sliced_images_and_annotations:
         self.read_annotation_path = READ_ANNOTATION_PATH
         self.save_annotation_path = self.read_annotation_path.split(".txt")[0] + "_slice.txt"
         self.prefix_image_path = "./"
-
+        if not os.path.exists(self.image_folder + "_slice"):
+                os.mkdir(self.image_folder + "_slice")
 
     #Get the list of annotations for each line
     def load_annotations(self, annotation_path):
@@ -379,17 +368,16 @@ class Generate_sliced_images_and_annotations:
                 final_annotations.append([image_path, bboxes_annotations])
         return final_annotations        
 
-
     
     def slice_images_and_save(self):
         read_annotation_path = self.read_annotation_path
         save_annotation_path = self.save_annotation_path
         prefix_image_path = self.prefix_image_path
+        image_folder = self.image_folder
 
-        if os.path.exists(save_annotation_path):
+        if os.path.exists(save_annotation_path):        #remove old annotation file
             os.remove(save_annotation_path)
         
-
         annotations_list = self.load_annotations(read_annotation_path)
         # maxe = []
         # max_count = 0
@@ -426,26 +414,26 @@ class Generate_sliced_images_and_annotations:
         # plt.ylabel("Number of image")
         # plt.show()
 
-            
-
-            # with open(save_annotation_path, "a") as f:
-            #     bboxes_annotation = [",".join(list(map(str, bbox))) for bbox in bboxes]
-            #     all_info_annotation = prefix_image_path + image_path + " " + " ".join(bboxes_annotation)
-            #     f.write(all_info_annotation + "\n")
+            with open(save_annotation_path, "a") as f:
+                if len(bboxes) <= 150:
+                    bboxes_annotation = [",".join(list(map(str, bbox))) for bbox in bboxes]
+                    all_info_annotation = prefix_image_path + image_path + " " + " ".join(bboxes_annotation)
+                    f.write(all_info_annotation + "\n")
             
             for sliced_image_obj in sliced_image_obj_list:
-                excessive_image_num += self.export_sliced_image_and_annotation(sliced_image_obj, image_name, self.image_folder, self.save_annotation_path)
+                excessive_image_num += self.export_sliced_image_and_annotation(sliced_image_obj, image_name, image_folder, save_annotation_path)
         print(f"\n Finished slicing and saving for {self.save_annotation_path}! \n")
         return excessive_image_num
 
 
-
     def export_sliced_image_and_annotation(self, sliced_image, image_name, image_folder, save_annotation_path):
+        
         bbox_annotation = [",".join(list(map(str, bbox))) for bbox in sliced_image.bboxes]
         if len(bbox_annotation) <= 150:
             prefix_image_path = self.prefix_image_path
             x_tf, y_tf = sliced_image.starting_point
-            saved_image_path = prefix_image_path + image_folder + "/" + image_name + "_sp_" + str(x_tf) + "_" + str(y_tf) + ".png"
+            
+            saved_image_path = prefix_image_path + image_folder + "_slice" + "/" + image_name + "_sp_" + str(x_tf) + "_" + str(y_tf) + ".png"
             cv2.imwrite(saved_image_path, sliced_image.image)
             all_info_annotation = saved_image_path + " " + " ".join(bbox_annotation)
             with open(save_annotation_path, "a") as f:
