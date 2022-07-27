@@ -45,12 +45,12 @@ def main():
     total_steps = TRAIN_EPOCHS * steps_per_epoch
     
     #Create Darkent53 model and load pretrained weights
-    if TRAIN_TRANSFER:
+    if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
         Darknet = YOLOv4_Model(CLASSES_PATH=YOLO_COCO_CLASS_PATH)
         load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
     #Create YOLO model
     yolo = YOLOv4_Model(training=True, CLASSES_PATH=YOLO_CLASS_PATH)
-    if TRAIN_TRANSFER:
+    if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
         for i, l in enumerate(Darknet.layers):
             layer_weights = l.get_weights()
             if layer_weights != []:
@@ -58,6 +58,11 @@ def main():
                     yolo.layers[i].set_weights(layer_weights)
                 except:
                     print("skipping", yolo.layers[i].name)
+    elif TRAIN_FROM_CHECKPOINT:
+        yolo.load_weights(PREDICTION_WEIGHT_FILE)
+        print("Load weight file from checkpoint ... ")
+
+        
     #Create Adam optimizers
     optimizer = tf.keras.optimizers.Adam()
     

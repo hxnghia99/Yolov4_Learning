@@ -11,7 +11,7 @@
 
 
 import tensorflow as tf
-from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input, UpSampling2D
+from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input, UpSampling2D, Conv2DTranspose
 from tensorflow.keras.regularizers import L2
 from YOLOv4_config import *
 
@@ -59,6 +59,40 @@ def convolutional(input_layer, filters_shape, downsample=False, activate=True, b
     return conv_layer
 
 
+
+#filters_shape contains (filter width, filter height, filter channel, filter num)
+def deconvolutional(input_layer, filters_shape, upsample=False, activate=True, bn=True, activate_type='leaky'):
+    #add zero-padding when downsampling
+    if upsample:
+        # input_layer = ZeroPadding2D(((1, 0), (1, 0)))(input_layer)                  #To create the exact size from computation
+        padding = 'same'
+        strides = 2
+    else:
+        strides = 1
+        padding = 'same'
+    #add the 2D deconvolutional layer to the input_layer
+    conv_layer = Conv2DTranspose(  filters       =   filters_shape[-1],          
+                    kernel_size         =   filters_shape[0],
+                    strides             =   strides,
+                    padding             =   padding,
+                    use_bias            =   not bn,
+                    kernel_regularizer  =   L2(0.0005),                             #L2 regularizer: smaller weights -> simpler model
+                    kernel_initializer  =   tf.random_normal_initializer(stddev=0.01),
+                    bias_initializer    =   tf.constant_initializer(0.)
+                    )(input_layer)
+    #add batch normalization layer after convolution layer
+    if bn:
+        conv_layer = BatchNormalization()(conv_layer)
+    #add ReLu activation
+    if activate == True:
+        if activate_type == "leaky":
+            conv_layer = LeakyReLU(alpha=0.1)(conv_layer)
+        elif activate_type =='mish':
+            conv_layer = mish(conv_layer)
+    return conv_layer
+
+
+
 #Define the residual block in YOLOv4
 def residual_block(input_layer, input_channel, filter_num1, filter_num2, activate_type='leaky'):
     short_cut = input_layer
@@ -71,9 +105,23 @@ def residual_block(input_layer, input_channel, filter_num1, filter_num2, activat
 #Define CSPDarknet53 network architecture
 def CSPDarknet53(input_data):
     input_data = convolutional(input_data, (3, 3, 3, 32), activate_type="mish")                     #output: 416 x 416 x 32
+    input_data = convolutional(input_data, (1, 1, 32, 32), activate_type="mish")                     #output: 416 x 416 x 32
+    
+    """ Additional Super-resolution P(-1) """
+    route_0 = deconvolutional(input_data, (3, 3, 32, 16), upsample=True, activate_type="mish")
+    route_0 = convolutional(route_0, (1, 1, 16, 16), activate_type="mish")
+    route_0_temp = convolutional(input_data, (1,1, 32, 16), activate_type="mish")
+    route_0_temp = UpSampling2D()(route_0_temp)
+    route_0 = tf.concat([route_0, route_0_temp], axis=-1)
+    route_0 = convolutional(route_0, (3,3, 32, 16), activate_type="mish")
+    route_0 = convolutional(route_0, (1,1, 16, 16), activate_type="mish")
+
+
+
     route_1 = input_data
     input_data = convolutional(input_data, (3, 3, 32, 64), downsample=True, activate_type='mish')   #output: 208 x 208 x 64
-    
+    input_data = convolutional(input_data, (1, 1, 32, 64), activate_type='mish')   #output: 208 x 208 x 64
+
     #CSP block 1
     # First branch
     route = input_data
@@ -166,7 +214,10 @@ def CSPDarknet53(input_data):
     input_data = convolutional(input_data, (3, 3, 512, 1024))
     input_data = convolutional(input_data, (1, 1, 1024, 512))                                       #output: 13 x 13 x 512
 
-    return route_1, route_2, route_3, route_4, route_5, input_data
+    # return route_1, route_2, route_3, route_4, route_5, input_data
+
+
+    return route_0, route_1, route_2, route_3, route_4, route_5, input_data
 
 
 
@@ -210,7 +261,9 @@ def CSPDarknet53(input_data):
 #Add neck layers to CSPDarknet53 and create YOLOv4 model
 def YOLOv4_detector(input_layer, NUM_CLASS):
     # Create CSPDarknet53 network and 3 backbone features at large, medium and small scale
-    route_1, route_2, route_3, route_4, route_5, conv = CSPDarknet53(input_layer)
+
+    route_0, route_1, route_2, route_3, route_4, route_5, conv = CSPDarknet53(input_layer)
+    # route_1, route_2, route_3, route_4, route_5, conv = CSPDarknet53(input_layer)
     # route_1, route_2, route_3, route_4, conv = CSPDarknet53(input_layer)   
     # route_1, route_2, route_3, conv = CSPDarknet53(input_layer)   
 
@@ -326,13 +379,12 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     # return [conv_sbbox, conv_mbbox, conv_lbbox]
 
 
-
-
-
     #upsampling 6
     route_1 = conv                                                                  #output: 208 x 208 x 32
-    conv = convolutional(conv, (1, 1, 16, 16))                                      #output: 208 x 208 x 16
+    conv = convolutional(conv, (1, 1, 16, 8))                                      #output: 208 x 208 x 16
     conv = UpSampling2D()(conv)                                                     #output: 416 x 416 x 16   
+    route_0 = convolutional(route_0, (1,1, 16, 8))
+    conv = tf.concat([route_0, conv], axis=-1)
     #Compress information of feature maps
     conv = convolutional(conv, (1, 1, 16, 8))
     conv = convolutional(conv, (3, 3, 8, 16))
@@ -567,7 +619,7 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
             class_names[ID] = name.strip('\n')
     NUM_CLASS = len(class_names)
     #Create input layer
-    input_layer = Input([None, None, input_channel])
+    input_layer = Input([128, 224, input_channel])
 
     conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS)
 

@@ -48,34 +48,39 @@ input = tf.keras.layers.Input([None, None, 3])
 
 
 
-output1 = tf.keras.layers.Conv2DTranspose(filters=3, kernel_size=3, dilation_rate=(1,1), strides=(2,2))(input)
+output1 = tf.keras.layers.Conv2DTranspose(filters=3, kernel_size=3, strides=(2,2), padding='same')(input)
 model1 = tf.keras.Model(input, output1)
 
-output2 = tf.keras.layers.UpSampling2D()(input)
-model2 = tf.keras.Model(input, output2)
+# output2 = tf.keras.layers.UpSampling2D()(input)
+# model2 = tf.keras.Model(input, output2)
 
 image_o1 = model1(image)
-image_o2 = model2(image)
+# image_o2 = model2(image)
 
-image_o3 = tf.keras.layers.UpSampling2D()(image)
+# image_o3 = tf.keras.layers.UpSampling2D()(image)
 
 
 
 print(image.shape)
 print(image_o1.shape)
-print(image_o2.shape)
-print(image_o3.shape)
 
-print(np.array(image_o2[0, 0, 0:10, :]))
-print(np.array(image_o3[0, 0, 0:10, :]))
+image_o1t = np.array(image_o1[0], np.uint8)
 
-image_o1t = np.array(image_o1[0]).astype(np.uint8)
-image_o2t = np.array(image_o2[0]).astype(np.uint8)
 
-cv2.imshow('test0', cv2.resize(np.array(image[0]), (1280, 720)))
+
+# print(image_o2.shape)
+# print(image_o3.shape)
+
+# print(np.array(image_o2[0, 0, 0:10, :]))
+# print(np.array(image_o3[0, 0, 0:10, :]))
+
+# image_o1t = np.array(image_o1[0]).astype(np.uint8)
+# image_o2t = np.array(image_o2[0]).astype(np.uint8)
+
+# # cv2.imshow('test0', cv2.resize(np.array(image[0]), (1280, 720)))
 cv2.imshow('test1', cv2.resize(image_o1t, (1280, 720)))
-cv2.imshow('test2', cv2.resize(image_o2t, (1280, 720)))
-cv2.imshow('test3', cv2.resize(np.array(image_o3[0]), (1280, 720)))
+# cv2.imshow('test2', cv2.resize(image_o2t, (1280, 720)))
+# # cv2.imshow('test3', cv2.resize(np.array(image_o3[0]), (1280, 720)))
 if cv2.waitKey() == 'q':
     pass
 

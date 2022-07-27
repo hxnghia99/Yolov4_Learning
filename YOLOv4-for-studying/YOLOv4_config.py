@@ -12,7 +12,8 @@
 """ ------ IMPORTANT SETTING ------ """
 # ["COCO", "LG", "VISDRONE"]
 TRAINING_DATASET_TYPE           = "LG"
-TRAIN_TRANSFER                  = True
+TRAIN_TRANSFER                  = False
+TRAIN_FROM_CHECKPOINT           = False
 
 # ["COCO", "LG", "VISDRONE"]
 MAKE_EVALUATION                 = True
