@@ -14,8 +14,6 @@ import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input, UpSampling2D
 from tensorflow.keras.regularizers import L2
 from YOLOv4_config import *
-from YOLOv4_utils import *
-
 
 #Configure Batch Normalization layer for 2 trainable parameters
 class BatchNormalization(tf.keras.layers.BatchNormalization):
@@ -120,113 +118,130 @@ def CSPDarknet53(input_data):
     # Concatenation
     input_data = tf.concat([input_data, route], axis=-1)                                            #outout: 52 x 52 x 256
     input_data = convolutional(input_data, (1, 1, 256, 256), activate_type='mish')                  #output: 52 x 52 x 256
-    # #Get feature map at large scale to concatenate later
-    # route_4 = input_data     
-    # # Downsampling
-    # input_data = convolutional(input_data, (3, 3, 256, 512), downsample=True, activate_type='mish') #output: 26 x 26 x 512
+    #Get feature map at large scale to concatenate later
+    route_4 = input_data     
+    # Downsampling
+    input_data = convolutional(input_data, (3, 3, 256, 512), downsample=True, activate_type='mish') #output: 26 x 26 x 512
     
-    # #CSP block 4
-    # # First branch
-    # route = input_data
-    # route = convolutional(input_data, (1, 1, 512, 256), activate_type='mish')                       #output: 26 x 26 x 256
-    # # Second branch
-    # input_data = convolutional(input_data, (1, 1, 512, 256), activate_type='mish')                  #output: 26 x 26 x 256
-    # for _ in range(8):
-    #     input_data = residual_block(input_data, 256, 256, 256, activate_type='mish')
-    # input_data = convolutional(input_data, (1, 1, 256, 256), activate_type='mish')                  #output: 26 x 26 x 256
-    # # Concatenation
-    # input_data = tf.concat([input_data, route], axis=-1)                                            #outout: 26 x 26 x 512
-    # input_data = convolutional(input_data, (1, 1, 512, 512), activate_type='mish')                  #output: 26 x 26 x 512
-    # #Get feature map at medium scale to concatenate later
-    # route_5 = input_data
-    # # Downsampling
-    # input_data = convolutional(input_data, (3, 3, 512, 1024), downsample=True, activate_type='mish')#output: 13 x 13 x 1024
+    #CSP block 4
+    # First branch
+    route = input_data
+    route = convolutional(input_data, (1, 1, 512, 256), activate_type='mish')                       #output: 26 x 26 x 256
+    # Second branch
+    input_data = convolutional(input_data, (1, 1, 512, 256), activate_type='mish')                  #output: 26 x 26 x 256
+    for _ in range(8):
+        input_data = residual_block(input_data, 256, 256, 256, activate_type='mish')
+    input_data = convolutional(input_data, (1, 1, 256, 256), activate_type='mish')                  #output: 26 x 26 x 256
+    # Concatenation
+    input_data = tf.concat([input_data, route], axis=-1)                                            #outout: 26 x 26 x 512
+    input_data = convolutional(input_data, (1, 1, 512, 512), activate_type='mish')                  #output: 26 x 26 x 512
+    #Get feature map at medium scale to concatenate later
+    route_5 = input_data
+    # Downsampling
+    input_data = convolutional(input_data, (3, 3, 512, 1024), downsample=True, activate_type='mish')#output: 13 x 13 x 1024
     
-    # #CSP block 5
-    # # First branch
-    # route = input_data
-    # route = convolutional(input_data, (1, 1, 1024, 512), activate_type='mish')                      #output: 13 x 13 x 512
-    # # Second branch
-    # input_data = convolutional(input_data, (1, 1, 1024, 512), activate_type='mish')                 #output: 13 x 13 x 512
-    # for _ in range(4):
-    #     input_data = residual_block(input_data, 512, 512, 512, activate_type='mish')
-    # input_data = convolutional(input_data, (1, 1, 512, 512), activate_type='mish')                  #output: 13 x 13 x 512
-    # # Concatenation
-    # input_data = tf.concat([input_data, route], axis=-1)                                            #output: 13 x 13 x 1024
-    # input_data = convolutional(input_data, (1, 1, 1024, 1024), activate_type='mish')                #output: 13 x 13 x 1024
+    #CSP block 5
+    # First branch
+    route = input_data
+    route = convolutional(input_data, (1, 1, 1024, 512), activate_type='mish')                      #output: 13 x 13 x 512
+    # Second branch
+    input_data = convolutional(input_data, (1, 1, 1024, 512), activate_type='mish')                 #output: 13 x 13 x 512
+    for _ in range(4):
+        input_data = residual_block(input_data, 512, 512, 512, activate_type='mish')
+    input_data = convolutional(input_data, (1, 1, 512, 512), activate_type='mish')                  #output: 13 x 13 x 512
+    # Concatenation
+    input_data = tf.concat([input_data, route], axis=-1)                                            #output: 13 x 13 x 1024
+    input_data = convolutional(input_data, (1, 1, 1024, 1024), activate_type='mish')                #output: 13 x 13 x 1024
 
+    #Compress information of feature map
+    input_data = convolutional(input_data, (1, 1, 1024, 512))                                       #output: 13 x 13 x 512
+    input_data = convolutional(input_data, (3, 3, 512, 1024))                                       #output: 13 x 13 x 1024
+    input_data = convolutional(input_data, (1, 1, 1024, 512))                                       #output: 13 x 13 x 512
+    #SPP block
+    max_pooling_1 = MaxPool2D(pool_size=13, padding='SAME', strides=1)(input_data)
+    max_pooling_2 = MaxPool2D(pool_size=9, padding='SAME', strides=1)(input_data)
+    max_pooling_3 = MaxPool2D(pool_size=5, padding='SAME', strides=1)(input_data)
+    input_data = tf.concat([max_pooling_1, max_pooling_2, max_pooling_3, input_data], axis=-1)      #output: 13 x 13 x 2048
+    input_data = convolutional(input_data, (1, 1, 2048, 512))                                       
+    input_data = convolutional(input_data, (3, 3, 512, 1024))
+    input_data = convolutional(input_data, (1, 1, 1024, 512))                                       #output: 13 x 13 x 512
+
+    return route_1, route_2, route_3, route_4, route_5, input_data
+
+
+
+    # """ High resolution P4 """
     # #Compress information of feature map
-    # input_data = convolutional(input_data, (1, 1, 1024, 512))                                       #output: 13 x 13 x 512
-    # input_data = convolutional(input_data, (3, 3, 512, 1024))                                       #output: 13 x 13 x 1024
-    # input_data = convolutional(input_data, (1, 1, 1024, 512))                                       #output: 13 x 13 x 512
+    # input_data = convolutional(input_data, (1, 1, 512, 256))                                       #output: 13 x 13 x 512
+    # input_data = convolutional(input_data, (3, 3, 256, 512))                                       #output: 13 x 13 x 1024
+    # input_data = convolutional(input_data, (1, 1, 512, 256))                                       #output: 13 x 13 x 512
     # #SPP block
     # max_pooling_1 = MaxPool2D(pool_size=13, padding='SAME', strides=1)(input_data)
     # max_pooling_2 = MaxPool2D(pool_size=9, padding='SAME', strides=1)(input_data)
     # max_pooling_3 = MaxPool2D(pool_size=5, padding='SAME', strides=1)(input_data)
     # input_data = tf.concat([max_pooling_1, max_pooling_2, max_pooling_3, input_data], axis=-1)      #output: 13 x 13 x 2048
-    # input_data = convolutional(input_data, (1, 1, 2048, 512))                                       
-    # input_data = convolutional(input_data, (3, 3, 512, 1024))
-    # input_data = convolutional(input_data, (1, 1, 1024, 512))                                       #output: 13 x 13 x 512
+    # input_data = convolutional(input_data, (1, 1, 1024, 256))                                       
+    # input_data = convolutional(input_data, (3, 3, 256, 512))
+    # input_data = convolutional(input_data, (1, 1, 512, 256))                                       #output: 13 x 13 x 512
 
-    # return route_1, route_2, route_3, route_4, route_5, input_data
-
-
-    #Compress information of feature map
-    input_data = convolutional(input_data, (1, 1, 256, 128))                                        #output: 52 x 52 x 128
-    input_data = convolutional(input_data, (3, 3, 128, 256))                                        #output: 52 x 52 x 256
-    input_data = convolutional(input_data, (1, 1, 256, 128))                                        #output: 52 x 52 x 128
-    #SPP block
-    max_pooling_1 = MaxPool2D(pool_size=11, padding='SAME', strides=1)(input_data)
-    max_pooling_2 = MaxPool2D(pool_size=7, padding='SAME', strides=1)(input_data)
-    max_pooling_3 = MaxPool2D(pool_size=4, padding='SAME', strides=1)(input_data)
-    input_data = tf.concat([max_pooling_1, max_pooling_2, max_pooling_3, input_data], axis=-1)      #output: 52 x 52 x 512
-    input_data = convolutional(input_data, (1, 1, 512, 128))                                       
-    input_data = convolutional(input_data, (3, 3, 128, 256))
-    input_data = convolutional(input_data, (1, 1, 256, 128))                                        #output: 52 x 52 x 128
-
-    return route_1, route_2, route_3, input_data
+    # return route_1, route_2, route_3, route_4, input_data
 
 
 
-# #Upsampling
-# def upsample(input_layer):
-#     return tf.image.resize(input_layer, (input_layer.shape[1] * 2, input_layer.shape[2] * 2), method='nearest')
+
+    # """ High resolution P3 """
+    # #Compress information of feature map
+    # input_data = convolutional(input_data, (1, 1, 256, 128))                                        #output: 52 x 52 x 128
+    # input_data = convolutional(input_data, (3, 3, 128, 256))                                        #output: 52 x 52 x 256
+    # input_data = convolutional(input_data, (1, 1, 256, 128))                                        #output: 52 x 52 x 128
+    # #SPP block
+    # max_pooling_1 = MaxPool2D(pool_size=11, padding='SAME', strides=1)(input_data)
+    # max_pooling_2 = MaxPool2D(pool_size=7, padding='SAME', strides=1)(input_data)
+    # max_pooling_3 = MaxPool2D(pool_size=4, padding='SAME', strides=1)(input_data)
+    # input_data = tf.concat([max_pooling_1, max_pooling_2, max_pooling_3, input_data], axis=-1)      #output: 52 x 52 x 512
+    # input_data = convolutional(input_data, (1, 1, 512, 128))                                       
+    # input_data = convolutional(input_data, (3, 3, 128, 256))
+    # input_data = convolutional(input_data, (1, 1, 256, 128))                                        #output: 52 x 52 x 128
+
+    # return route_1, route_2, route_3, input_data
+
 
 
 #Add neck layers to CSPDarknet53 and create YOLOv4 model
 def YOLOv4_detector(input_layer, NUM_CLASS):
     # Create CSPDarknet53 network and 3 backbone features at large, medium and small scale
-    # route_1, route_2, route_3, route_4, route_5, conv = CSPDarknet53(input_layer)   
-    route_1, route_2, route_3, conv = CSPDarknet53(input_layer)   
+    route_1, route_2, route_3, route_4, route_5, conv = CSPDarknet53(input_layer)
+    # route_1, route_2, route_3, route_4, conv = CSPDarknet53(input_layer)   
+    # route_1, route_2, route_3, conv = CSPDarknet53(input_layer)   
 
-    # *** PANet bottom up layers ***
-    # #upsampling 1
-    # # route_6 = conv                                                              #output: 13 x 13 x 512
-    # conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 13 x 13 x 256
-    # conv = UpSampling2D()(conv)                                                     #output: 26 x 26 x 256                                       
-    # route_5 = convolutional(route_5, (1, 1, 512, 256))    #output: 26 x 26 x 256
-    # conv = tf.concat([route_5, conv], axis=-1)                         #output: 26 x 26 x 512
+    """ PANet bottom up layers """
+    #upsampling 1
+    # route_6 = conv                                                              #output: 13 x 13 x 512
+    conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 13 x 13 x 256
+    conv = UpSampling2D()(conv)                                                     #output: 26 x 26 x 256                                       
+    route_5 = convolutional(route_5, (1, 1, 512, 256))    #output: 26 x 26 x 256
+    conv = tf.concat([route_5, conv], axis=-1)                         #output: 26 x 26 x 512
     
-    # #Compress information of feature maps
-    # conv = convolutional(conv, (1, 1, 512, 256))
-    # conv = convolutional(conv, (3, 3, 256, 512))
-    # conv = convolutional(conv, (1, 1, 512, 256))
-    # conv = convolutional(conv, (3, 3, 256, 512))
-    # conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 26 x 26 x 256  
+    #Compress information of feature maps
+    conv = convolutional(conv, (1, 1, 512, 256))
+    conv = convolutional(conv, (3, 3, 256, 512))
+    conv = convolutional(conv, (1, 1, 512, 256))
+    conv = convolutional(conv, (3, 3, 256, 512))
+    conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 26 x 26 x 256  
     
-    # #upsampling 2
-    # # route_5 = conv                                                              #output: 26 x 26 x 256
-    # conv = conv = convolutional(conv, (1, 1, 256, 128))                             #output: 26 x 26 x 128
-    # conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                     
-    # route_4 = convolutional(route_4, (1, 1, 256, 128))      #output: 52 x 52 x 128
-    # conv = tf.concat([route_4, conv], axis=-1)                          #output: 52 x 52 x 256
+    #upsampling 2
+    # route_5 = conv                                                              #output: 26 x 26 x 256
+    conv = conv = convolutional(conv, (1, 1, 256, 128))                             #output: 26 x 26 x 128
+    conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                     
+    route_4 = convolutional(route_4, (1, 1, 256, 128))      #output: 52 x 52 x 128
+    conv = tf.concat([route_4, conv], axis=-1)                          #output: 52 x 52 x 256
 
-    # #Compress information of feature maps
-    # conv = convolutional(conv, (1, 1, 256, 128))
-    # conv = convolutional(conv, (3, 3, 128, 256))
-    # conv = convolutional(conv, (1, 1, 256, 128))
-    # conv = convolutional(conv, (3, 3, 128, 256))
-    # conv = convolutional(conv, (1, 1, 256, 128))                                    #output: 52 x 52 x 128
+    #Compress information of feature maps
+    conv = convolutional(conv, (1, 1, 256, 128))
+    conv = convolutional(conv, (3, 3, 128, 256))
+    conv = convolutional(conv, (1, 1, 256, 128))
+    conv = convolutional(conv, (3, 3, 128, 256))
+    conv = convolutional(conv, (1, 1, 256, 128))                                    #output: 52 x 52 x 128
 
     """ Additional upsampling: 3 times to original image size """
     #upsampling 3
@@ -270,44 +285,244 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     conv = convolutional(conv, (3, 3, 16, 32))
     conv = convolutional(conv, (1, 1, 32, 16))                                      #output: 416 x 416 x 16
 
-    # *** PANet top down layers ***
+
+    # """PANet top down layers: P0 - P2"""
+    # #Small bbox convolutional output
+    # route_1 = conv
+    # route_1 = convolutional(route_1, (3, 3, 16, 32))                                #output: 416 x 416 x 32 
+    # conv_sbbox = convolutional(route_1, (1, 1, 32, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+    #                                                                                 #output: 416 x 416 x 3*(NUM_CLASS+5)
+    # #Downsampling 1
+    # conv = convolutional(conv, (3, 3, 16, 32), downsample=True)                     #output: 208 x 208 x 32
+    # conv = tf.concat([conv, route_2], axis=-1)                                      #output: 208 x 208 x 64
+
+    # #Compress information of feature maps
+    # conv = convolutional(conv, (1, 1, 64, 32))
+    # conv = convolutional(conv, (3, 3, 32, 64))
+    # conv = convolutional(conv, (1, 1, 64, 32))
+    # conv = convolutional(conv, (3, 3, 32, 64))
+    # conv = convolutional(conv, (1, 1, 64, 32))                                      #output: 208 x 208 x 32
+
+    # #Medium bbox convolutional output
+    # route_2 = conv
+    # route_2 = convolutional(route_2, (3, 3, 32, 64))                                #output: 208 x 208 x 64
+    # conv_mbbox = convolutional(route_2, (1, 1, 64, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+    #                                                                                 #output: 208 x 208 x 3*(NUM_CLASS+5)
+    # #Downsampling 2
+    # conv = convolutional(conv, (3, 3, 32, 64), downsample=True)                     #output: 104 x 104 x 64
+    # conv = tf.concat([conv, route_3], axis=-1)                                      #output: 104 x 104 x 128
+
+    # #Compress information of feature maps
+    # conv = convolutional(conv, (1, 1, 128, 64))
+    # conv = convolutional(conv, (3, 3, 64, 128))
+    # conv = convolutional(conv, (1, 1, 128, 64))
+    # conv = convolutional(conv, (3, 3, 64, 128))
+    # conv = convolutional(conv, (1, 1, 128, 64))                                     #output: 104 x 104 x 64
+    
+    # #Small bbox convolutional output
+    # conv = convolutional(conv, (3, 3, 64, 128))                                     #output: 104 x 104 x 128
+    # conv_lbbox = convolutional(conv, (1, 1, 256, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+    #                                                                                 #output: 104 x 104 x 3*(NUM_CLASS+5)
+    # return [conv_sbbox, conv_mbbox, conv_lbbox]
+
+
+
+
+
+    #upsampling 6
+    route_1 = conv                                                                  #output: 208 x 208 x 32
+    conv = convolutional(conv, (1, 1, 16, 16))                                      #output: 208 x 208 x 16
+    conv = UpSampling2D()(conv)                                                     #output: 416 x 416 x 16   
+    #Compress information of feature maps
+    conv = convolutional(conv, (1, 1, 16, 8))
+    conv = convolutional(conv, (3, 3, 8, 16))
+    conv = convolutional(conv, (1, 1, 16, 8))
+    conv = convolutional(conv, (3, 3, 8, 16))
+    conv = convolutional(conv, (1, 1, 16, 8))                                      #output: 416 x 416 x 16
+
+
+    """PANet top down layers : P(-1) - P1 """
     #Small bbox convolutional output
-    route_1 = conv
-    route_1 = convolutional(route_1, (3, 3, 16, 32))                                #output: 416 x 416 x 32 
-    conv_sbbox = convolutional(route_1, (1, 1, 32, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+    route_0 = conv
+    route_0 = convolutional(route_0, (3, 3, 8, 16))                                #output: 416 x 416 x 32 
+    conv_sbbox = convolutional(route_0, (1, 1, 16, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
                                                                                     #output: 416 x 416 x 3*(NUM_CLASS+5)
     #Downsampling 1
-    conv = convolutional(conv, (3, 3, 16, 32), downsample=True)                     #output: 208 x 208 x 32
-    conv = tf.concat([conv, route_2], axis=-1)                                      #output: 208 x 208 x 64
+    conv = convolutional(conv, (3, 3, 8, 16), downsample=True)                     #output: 208 x 208 x 32
+    conv = tf.concat([conv, route_1], axis=-1)                                      #output: 208 x 208 x 64
 
     #Compress information of feature maps
-    conv = convolutional(conv, (1, 1, 64, 32))
-    conv = convolutional(conv, (3, 3, 32, 64))
-    conv = convolutional(conv, (1, 1, 64, 32))
-    conv = convolutional(conv, (3, 3, 32, 64))
-    conv = convolutional(conv, (1, 1, 64, 32))                                      #output: 208 x 208 x 32
+    conv = convolutional(conv, (1, 1, 32, 16))
+    conv = convolutional(conv, (3, 3, 16, 32))
+    conv = convolutional(conv, (1, 1, 32, 16))
+    conv = convolutional(conv, (3, 3, 16, 32))
+    conv = convolutional(conv, (1, 1, 32, 16))                                      #output: 208 x 208 x 32
 
     #Medium bbox convolutional output
-    route_2 = conv
-    route_2 = convolutional(route_2, (3, 3, 32, 64))                                #output: 208 x 208 x 64
-    conv_mbbox = convolutional(route_2, (1, 1, 64, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+    route_1 = conv
+    route_1 = convolutional(route_1, (3, 3, 16, 32))                                #output: 208 x 208 x 64
+    conv_mbbox = convolutional(route_1, (1, 1, 32, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
                                                                                     #output: 208 x 208 x 3*(NUM_CLASS+5)
     #Downsampling 2
-    conv = convolutional(conv, (3, 3, 32, 64), downsample=True)                     #output: 104 x 104 x 64
-    conv = tf.concat([conv, route_3], axis=-1)                                      #output: 104 x 104 x 128
+    conv = convolutional(conv, (3, 3, 16, 32), downsample=True)                     #output: 104 x 104 x 64
+    conv = tf.concat([conv, route_2], axis=-1)                                      #output: 104 x 104 x 128
 
     #Compress information of feature maps
-    conv = convolutional(conv, (1, 1, 128, 64))
-    conv = convolutional(conv, (3, 3, 64, 128))
-    conv = convolutional(conv, (1, 1, 128, 64))
-    conv = convolutional(conv, (3, 3, 64, 128))
-    conv = convolutional(conv, (1, 1, 128, 64))                                     #output: 104 x 104 x 64
+    conv = convolutional(conv, (1, 1, 64, 32))
+    conv = convolutional(conv, (3, 3, 32, 64))
+    conv = convolutional(conv, (1, 1, 64, 32))
+    conv = convolutional(conv, (3, 3, 32, 64))
+    conv = convolutional(conv, (1, 1, 64, 32))                                     #output: 104 x 104 x 64
     
     #Small bbox convolutional output
-    conv = convolutional(conv, (3, 3, 64, 128))                                     #output: 104 x 104 x 128
-    conv_lbbox = convolutional(conv, (1, 1, 256, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+    conv = convolutional(conv, (3, 3, 32, 64))                                     #output: 104 x 104 x 128
+    conv_lbbox = convolutional(conv, (1, 1, 64, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
                                                                                     #output: 104 x 104 x 3*(NUM_CLASS+5)
     return [conv_sbbox, conv_mbbox, conv_lbbox]
+
+
+
+
+
+
+
+
+# def cspdarknet53(input_data):
+#     input_data = convolutional(input_data, (3, 3,  3,  32), activate_type="mish")
+#     input_data = convolutional(input_data, (3, 3, 32,  64), downsample=True, activate_type="mish")
+
+#     route = input_data
+#     route = convolutional(route, (1, 1, 64, 64), activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 64, 64), activate_type="mish")
+#     for i in range(1):
+#         input_data = residual_block(input_data,  64,  32, 64, activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 64, 64), activate_type="mish")
+
+#     input_data = tf.concat([input_data, route], axis=-1)
+#     input_data = convolutional(input_data, (1, 1, 128, 64), activate_type="mish")
+#     input_data = convolutional(input_data, (3, 3, 64, 128), downsample=True, activate_type="mish")
+#     route = input_data
+#     route = convolutional(route, (1, 1, 128, 64), activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 128, 64), activate_type="mish")
+#     for i in range(2):
+#         input_data = residual_block(input_data, 64,  64, 64, activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 64, 64), activate_type="mish")
+#     input_data = tf.concat([input_data, route], axis=-1)
+
+#     input_data = convolutional(input_data, (1, 1, 128, 128), activate_type="mish")
+#     input_data = convolutional(input_data, (3, 3, 128, 256), downsample=True, activate_type="mish")
+#     route = input_data
+#     route = convolutional(route, (1, 1, 256, 128), activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 256, 128), activate_type="mish")
+#     for i in range(8):
+#         input_data = residual_block(input_data, 128, 128, 128, activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 128, 128), activate_type="mish")
+#     input_data = tf.concat([input_data, route], axis=-1)
+
+#     input_data = convolutional(input_data, (1, 1, 256, 256), activate_type="mish")
+#     route_1 = input_data
+#     input_data = convolutional(input_data, (3, 3, 256, 512), downsample=True, activate_type="mish")
+#     route = input_data
+#     route = convolutional(route, (1, 1, 512, 256), activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 512, 256), activate_type="mish")
+#     for i in range(8):
+#         input_data = residual_block(input_data, 256, 256, 256, activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 256, 256), activate_type="mish")
+#     input_data = tf.concat([input_data, route], axis=-1)
+
+#     input_data = convolutional(input_data, (1, 1, 512, 512), activate_type="mish")
+#     route_2 = input_data
+#     input_data = convolutional(input_data, (3, 3, 512, 1024), downsample=True, activate_type="mish")
+#     route = input_data
+#     route = convolutional(route, (1, 1, 1024, 512), activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 1024, 512), activate_type="mish")
+#     for i in range(4):
+#         input_data = residual_block(input_data, 512, 512, 512, activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 512, 512), activate_type="mish")
+#     input_data = tf.concat([input_data, route], axis=-1)
+
+#     input_data = convolutional(input_data, (1, 1, 1024, 1024), activate_type="mish")
+#     input_data = convolutional(input_data, (1, 1, 1024, 512))
+#     input_data = convolutional(input_data, (3, 3, 512, 1024))
+#     input_data = convolutional(input_data, (1, 1, 1024, 512))
+
+#     max_pooling_1 = tf.keras.layers.MaxPool2D(pool_size=13, padding='SAME', strides=1)(input_data)
+#     max_pooling_2 = tf.keras.layers.MaxPool2D(pool_size=9, padding='SAME', strides=1)(input_data)
+#     max_pooling_3 = tf.keras.layers.MaxPool2D(pool_size=5, padding='SAME', strides=1)(input_data)
+#     input_data = tf.concat([max_pooling_1, max_pooling_2, max_pooling_3, input_data], axis=-1)
+
+#     input_data = convolutional(input_data, (1, 1, 2048, 512))
+#     input_data = convolutional(input_data, (3, 3, 512, 1024))
+#     input_data = convolutional(input_data, (1, 1, 1024, 512))
+
+#     return route_1, route_2, input_data
+
+
+# def YOLOv4_detector(input_layer, NUM_CLASS):
+#     route_1, route_2, conv = cspdarknet53(input_layer)
+
+#     route = conv
+#     conv = convolutional(conv, (1, 1, 512, 256))
+#     conv = UpSampling2D()(conv)
+#     route_2 = convolutional(route_2, (1, 1, 512, 256))
+#     conv = tf.concat([route_2, conv], axis=-1)
+
+#     conv = convolutional(conv, (1, 1, 512, 256))
+#     conv = convolutional(conv, (3, 3, 256, 512))
+#     conv = convolutional(conv, (1, 1, 512, 256))
+#     conv = convolutional(conv, (3, 3, 256, 512))
+#     conv = convolutional(conv, (1, 1, 512, 256))
+
+#     route_2 = conv
+#     conv = convolutional(conv, (1, 1, 256, 128))
+#     conv = UpSampling2D()(conv)
+#     route_1 = convolutional(route_1, (1, 1, 256, 128))
+#     conv = tf.concat([route_1, conv], axis=-1)
+
+#     conv = convolutional(conv, (1, 1, 256, 128))
+#     conv = convolutional(conv, (3, 3, 128, 256))
+#     conv = convolutional(conv, (1, 1, 256, 128))
+#     conv = convolutional(conv, (3, 3, 128, 256))
+#     conv = convolutional(conv, (1, 1, 256, 128))
+
+#     route_1 = conv
+#     conv = convolutional(conv, (3, 3, 128, 256))
+#     conv_sbbox = convolutional(conv, (1, 1, 256, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+
+#     conv = convolutional(route_1, (3, 3, 128, 256), downsample=True)
+#     conv = tf.concat([conv, route_2], axis=-1)
+
+#     conv = convolutional(conv, (1, 1, 512, 256))
+#     conv = convolutional(conv, (3, 3, 256, 512))
+#     conv = convolutional(conv, (1, 1, 512, 256))
+#     conv = convolutional(conv, (3, 3, 256, 512))
+#     conv = convolutional(conv, (1, 1, 512, 256))
+
+#     route_2 = conv
+#     conv = convolutional(conv, (3, 3, 256, 512))
+#     conv_mbbox = convolutional(conv, (1, 1, 512, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+
+#     conv = convolutional(route_2, (3, 3, 256, 512), downsample=True)
+#     conv = tf.concat([conv, route], axis=-1)
+
+#     conv = convolutional(conv, (1, 1, 1024, 512))
+#     conv = convolutional(conv, (3, 3, 512, 1024))
+#     conv = convolutional(conv, (1, 1, 1024, 512))
+#     conv = convolutional(conv, (3, 3, 512, 1024))
+#     conv = convolutional(conv, (1, 1, 1024, 512))
+
+#     conv = convolutional(conv, (3, 3, 512, 1024))
+#     conv_lbbox = convolutional(conv, (1, 1, 1024, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+
+#     return [conv_sbbox, conv_mbbox, conv_lbbox]
+
+
+
+
+
+
+
+
 
 
 #Define function used to change the output tensor to the information of (bbox, confidence, class)

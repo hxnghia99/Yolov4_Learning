@@ -10,7 +10,6 @@
 
 
 import os
-from unittest import result
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import numpy as np
@@ -124,12 +123,14 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         annotation = dataset.annotations[index]
         original_image, bboxes = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
         
-        #Create a new model using image original size scaling to 32
-        if EVALUATION_DATASET_TYPE == "VISDRONE" and EVALUATE_ORIGINAL_SIZE:
+        # Create a new model using image original size scaling to 32
+        if EVALUATE_ORIGINAL_SIZE:
             original_h, original_w, _ = original_image.shape
             TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
-         
-        image = image_preprocess(image, TEST_INPUT_SIZE)
+        
+        # TEST_INPUT_SIZE = [352, 192]
+
+        image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
         image_data = image[np.newaxis, ...].astype(np.float32)
 
         #measure time to make prediction
@@ -141,8 +142,8 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         #post process for prediction bboxes
         pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
         pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
-        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
-        pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, iou_threshold, method='nms'))                 #remove bboxes for same object in specific class 
+        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, 0.35)#score_threshold)  #remove invalid and low score bboxes
+        pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, method='nms', iou_threshold=0.5))#iou_threshold))                 #remove bboxes for same object in specific class 
 
         if EVALUATION_DATASET_TYPE == "VISDRONE":
             bboxes = tf.cast(bboxes, dtype=tf.float64)
@@ -175,10 +176,10 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             removed_bbox_mask = tf.math.logical_or(removed_ignored_mask, removed_other_mask)
             pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
 
-        # test_image = draw_bbox(np.copy(original_image), np.copy(bboxes), "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names_test.txt", show_label=True)
-        # cv2.imshow("Ground truth", test_image)
-        # test_image = draw_bbox(np.copy(original_image), np.copy(pred_bboxes), YOLO_CLASS_PATH, show_label=True)
-        # cv2.imshow("Prediction after slicing", test_image)
+        # test_image = draw_bbox(cv2.cvtColor(np.copy(original_image), cv2.COLOR_BGR2RGB), np.copy(bboxes), "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt", show_label=True)
+        # cv2.imshow("Ground truth", cv2.resize(test_image, (1280, 720)))
+        # test_image = draw_bbox(cv2.cvtColor(np.copy(original_image), cv2.COLOR_BGR2RGB), np.copy(pred_bboxes), YOLO_CLASS_PATH, show_label=True)
+        # cv2.imshow("Prediction after slicing", cv2.resize(test_image, (1280, 720)))
         # if cv2.waitKey() == "q":
         #     pass
         # cv2.destroyAllWindows()

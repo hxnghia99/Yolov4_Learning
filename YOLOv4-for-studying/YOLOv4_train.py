@@ -108,18 +108,17 @@ def main():
 
     #Create validation function after each epoch
     def validate_step(image_data, target):
-        with tf.GradientTape() as tape:
-            pred_result = yolo(image_data, training=False)
-            giou_loss=conf_loss=prob_loss=0
-            grid = len(YOLO_SCALE_OFFSET)
-            #calculate loss at each each
-            for i in range(grid):
-                conv, pred = pred_result[i*2], pred_result[i*2+1]
-                loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
-                giou_loss += loss_items[0]
-                conf_loss += loss_items[1]
-                prob_loss += loss_items[2]
-            total_loss = giou_loss + conf_loss + prob_loss
+        pred_result = yolo(image_data, training=False)
+        giou_loss=conf_loss=prob_loss=0
+        grid = len(YOLO_SCALE_OFFSET)
+        #calculate loss at each each
+        for i in range(grid):
+            conv, pred = pred_result[i*2], pred_result[i*2+1]
+            loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
+            giou_loss += loss_items[0]
+            conf_loss += loss_items[1]
+            prob_loss += loss_items[2]
+        total_loss = giou_loss + conf_loss + prob_loss
         return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
     best_val_loss = 1000 # should be large at start
@@ -160,6 +159,7 @@ def main():
         num_testset = len(testset)
         giou_val, conf_val, prob_val, total_val = 0, 0, 0, 0
         current_step = 0
+        print(" VALIDATION ")
         for image_data, target in testset:
             results = validate_step(image_data, target)
             print("Processing: {:5.0f}/{}".format(current_step, validate_steps_per_epoch))
@@ -178,7 +178,7 @@ def main():
         validate_writer.flush()
 
         # print validate summary data 
-        print("\n\nepoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}\n\n".
+        print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}\n\n".
               format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset))
 
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:

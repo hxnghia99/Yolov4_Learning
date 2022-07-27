@@ -40,8 +40,8 @@ class Dataset(object):
         self.max_bbox_per_scale     = YOLO_MAX_BBOX_PER_SCALE
         #settings of output sizes, output levels
         self.num_output_levels      = len(self.strides)
-        self.output_gcell_sizes_w   = self.input_size[0] // self.strides   #number of gridcells each scale
-        self.output_gcell_sizes_h   = self.input_size[1] // self.strides
+        self.output_gcell_sizes_w   = np.array(self.input_size[0] // self.strides).astype(np.int32)   #number of gridcells each scale
+        self.output_gcell_sizes_h   = np.array(self.input_size[1] // self.strides).astype(np.int32)
 
         #Testing
         self.testing = TESTING
@@ -120,7 +120,7 @@ class Dataset(object):
     def preprocess_true_bboxes(self, bboxes):
         #create label from true bboxes
         #shape [3, gcell, gcell, anchors, 5 + num_classes]
-        label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float)
+        label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
                             for i in range(self.num_output_levels)]
         bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(self.num_output_levels)]
         bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)
@@ -129,7 +129,7 @@ class Dataset(object):
             bbox_coordinates = bbox[:4]
             bbox_class_idx   = bbox[4]
             #class label smoothing
-            onehot = np.zeros(self.num_classes, dtype=np.float)
+            onehot = np.zeros(self.num_classes, dtype=np.float32)
             onehot[bbox_class_idx] = 1.0
             delta = 0.01
             smooth_onehot = onehot * (1 - delta) + delta / self.num_classes    # label*(1-delta) + delta/K
