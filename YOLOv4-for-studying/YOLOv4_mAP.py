@@ -211,7 +211,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             json.dump(json_pred[gt_class_names.index(class_name)], outfile)
 
     #Calculate each AP and mAP of the model, then print out result
-    # AP_dictionary = {}
+    AP_dictionary = {}
     with open(mAP_PATH, 'w') as results_file:
         results_file.write("#   EVALUATION RESULTS   # \n\n")
         sum_mAP = 0.0
@@ -291,13 +291,16 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                 
                 # print("'{}' AP = {:0.4f}\n".format(class_name, ap))
                 #print result of class AP into result file
-                text = "{0:.3f}%".format(ap * 100) + " = " + class_name + " AP \n" 
+                text = "{0:.3f}%".format(ap * 100) + " = " + class_name + " AP" + str(MIN_OVERLAP) + " \n" 
                 # rounded_prec = ['%.3f' % x for x in prec]
                 # rounded_rec = ['%.3f' % x for x in rec]
                 # results_file.write(text + "\n Precision: " + str(rounded_prec)
                 #                         + "\n Recall   : " + str(rounded_rec) + "\n\n")
                 results_file.write(text)
-                # AP_dictionary[class_name] = ap
+                if class_name not in AP_dictionary:
+                    AP_dictionary[class_name] = [ap]
+                else:
+                    AP_dictionary[class_name].append(ap)
             
             #Calculate mAP and print result
             results_file.write(f'\n# mAP{int(MIN_OVERLAP*100)} of all classes\n')
@@ -312,10 +315,13 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             text = "mAP50:95 = {:.3f}% , {:.2f} FPS \n".format(mAP*100, fps)
             results_file.write(text + "\n")
             print(text)
+            for class_name in gt_class_names:
+                AP = sum(AP_dictionary[class_name]) / len(MIN_OVERLAP_RANGE)
+                text = "{0:.2f}%".format(AP * 100) + " = " + class_name + " AP" 
+                results_file.write(text)
+                print(text)
 
         return mAP*100
-
-
 
 
 if __name__ == '__main__':
