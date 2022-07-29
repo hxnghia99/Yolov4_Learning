@@ -12,18 +12,28 @@
 """ ------ IMPORTANT SETTING ------ """
 # ["COCO", "LG", "VISDRONE"]
 TRAINING_DATASET_TYPE           = "LG"
-TRAIN_TRANSFER                  = False
+TRAIN_TRANSFER                  = True
 TRAIN_FROM_CHECKPOINT           = False
+MODEL_BRANCH_TYPE               = ["P0", "P3"]
+
+"""
+MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
+    - original    =             P3n         |           P5n
+    - HR_P5       =             P0          |           P5
+    - HR_P4       =             P0          |           P4
+    - HR_P3       =             P0          |           P3
+    - HR_P5_P0    =             P(-1)       |           P5     
+"""
 
 # ["COCO", "LG", "VISDRONE"]
-MAKE_EVALUATION                 = True
+MAKE_EVALUATION                 = False
 EVALUATION_DATASET_TYPE         = "LG"
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
 """ ---------------------------------"""
 
 #Important initial settings
 USE_CIOU_LOSS                   = False
-EVALUATE_ORIGINAL_SIZE          = True
+EVALUATE_ORIGINAL_SIZE          = False
 USE_NMS_CENTER_D                = False
 USE_PRIMARY_EVALUATION_METRIC   = True         #calculate mAP0.5:0.95
 
@@ -53,9 +63,12 @@ YOLO_MAX_BBOX_PER_SCALE         = 64
 ANCHORS_PER_GRID_CELL           = 3
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
 
-# YOLO_SCALE_OFFSET               = [8, 16, 32]
-# YOLO_SCALE_OFFSET               = [1, 2, 4]
-YOLO_SCALE_OFFSET               = [0.5, 1, 2]
+if MODEL_BRANCH_TYPE[0] == "P(-1)":
+    YOLO_SCALE_OFFSET           = [0.5, 1, 2]
+elif MODEL_BRANCH_TYPE[0] == "P0":
+    YOLO_SCALE_OFFSET           = [1, 2, 4]
+elif MODEL_BRANCH_TYPE[0] == "P3n":
+    YOLO_SCALE_OFFSET           = [8, 16, 32]
 
 
 # # COCO anchors
@@ -90,7 +103,12 @@ TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
 TRAIN_EPOCHS                    = 50
 TRAIN_LR_END                    = 1e-6
-TRAIN_LR_INIT                   = 1e-4
+if MODEL_BRANCH_TYPE[0] == "P(-1)":
+    TRAIN_LR_INIT               = 2e-3
+elif MODEL_BRANCH_TYPE[0] == "P0":
+    TRAIN_LR_INIT               = 1e-3
+elif MODEL_BRANCH_TYPE[0] == "P3n":
+    TRAIN_LR_INIT               = 1e-4
 YOLO_LOSS_IOU_THRESHOLD         = 0.5
 
 
@@ -106,8 +124,10 @@ if TRAINING_DATASET_TYPE == "COCO":
 # LG DATASET has trainset, validationset, testset
 elif TRAINING_DATASET_TYPE == "LG":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
-    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train.txt"
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test.txt"
+    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
+    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
+    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
     RELATIVE_PATH               = 'E:/dataset/TOTAL/'
     PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
     
@@ -170,7 +190,7 @@ if MAKE_EVALUATION:
         RELATIVE_PATH               = 'E:/dataset/TOTAL/'
         PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET' 
         YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test.txt"  
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
         if EVALUATE_TRANSFER:
             EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
             # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_original_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
