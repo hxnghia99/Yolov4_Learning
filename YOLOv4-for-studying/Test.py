@@ -14,11 +14,12 @@ import os
 import cv2
 import numpy as np
 from YOLOv4_config import *
+from YOLOv4_utils import *
 
 text_by_line = "E:/dataset/TOTAL/train\images\c1_2020-10-292020-10-29-12-06-57-000119.jpg 779,128,802,185,1 402,52,421,102,1 644,46,658,91,1 885,65,902,106,1 293,69,308,116,1 620,43,633,84,1 900,35,914,72,1 632,44,643,88,1 338,126,376,187,1 288,0,297,16,1 345,148,376,212,1"
 text_by_line = "E:/dataset/TOTAL/train\images/frame_20210417_090930_00518_51.jpg 443,493,636,608,0 125,254,168,293,1 152,211,198,256,1 150,177,194,215,1 330,77,377,117,1 298,124,339,170,1 328,206,378,252,1 962,1007,1052,1056,2 1184,981,1274,1029,2 689,1042,773,1080,2 526,297,591,353,2"
-
-
+text_by_line = "./YOLOv4-for-studying/dataset/LG_DATASET/train/images/frame_20210425_120031_01203.jpg 1607,220,1737,330,1 1565,253,1705,361,1 1369,386,1544,482,1 359,304,630,723,1 490,829,634,1047,2 37,502,187,643,2"
+text_by_line = "./YOLOv4-for-studying/dataset/LG_DATASET/train/images/frame_20210425_181901_02717.jpg 1187,459,1514,779,1 1569,1,1663,30,1"
 
 text = text_by_line.split()
 bboxes = []
@@ -33,7 +34,12 @@ for t in text:
 bboxes = np.array(bboxes)
 
 imaget = cv2.imread(image_path)
-# cv2.imshow('truth', cv2.resize(image,(224, 128))) #7x4
+# cv2.imshow('truth', cv2.resize(imaget,(1280, 720))) #7x4
+
+
+# image = draw_bbox(imaget, bboxes, YOLO_CLASS_PATH, show_label=False)
+# cv2.imshow('bbox', cv2.resize(image,(1280, 720)))
+
 
 
 # if cv2.waitKey() == 'q':
@@ -41,30 +47,38 @@ imaget = cv2.imread(image_path)
 
 image = imaget[np.newaxis, ...]
 
+# print(image.shape)
+a = np.ones(image.shape)
+image = np.concatenate([image, a, a, a], axis=-1)
+print(image.shape)
 
-import tensorflow as tf
-
-input = tf.keras.layers.Input([None, None, 3])
-
+test = tf.nn.depth_to_space(image, 2)
+print(test.shape)
 
 
-output1 = tf.keras.layers.Conv2DTranspose(filters=3, kernel_size=3, strides=(2,2), padding='same')(input)
-model1 = tf.keras.Model(input, output1)
+# import tensorflow as tf
+
+# input = tf.keras.layers.Input([None, None, 3])
+
+
+
+# output1 = tf.keras.layers.Conv2DTranspose(filters=3, kernel_size=3, strides=(2,2), padding='same')(input)
+# model1 = tf.keras.Model(input, output1)
 
 # output2 = tf.keras.layers.UpSampling2D()(input)
 # model2 = tf.keras.Model(input, output2)
 
-image_o1 = model1(image)
+# image_o1 = model1(image)
 # image_o2 = model2(image)
 
 # image_o3 = tf.keras.layers.UpSampling2D()(image)
 
 
 
-print(image.shape)
-print(image_o1.shape)
+# print(image.shape)
+# print(image_o1.shape)
 
-image_o1t = np.array(image_o1[0], np.uint8)
+# image_o1t = np.array(image_o1[0], np.uint8)
 
 
 
@@ -78,11 +92,11 @@ image_o1t = np.array(image_o1[0], np.uint8)
 # image_o2t = np.array(image_o2[0]).astype(np.uint8)
 
 # # cv2.imshow('test0', cv2.resize(np.array(image[0]), (1280, 720)))
-cv2.imshow('test1', cv2.resize(image_o1t, (1280, 720)))
+# cv2.imshow('test1', cv2.resize(image_o1t, (1280, 720)))
 # cv2.imshow('test2', cv2.resize(image_o2t, (1280, 720)))
 # # cv2.imshow('test3', cv2.resize(np.array(image_o3[0]), (1280, 720)))
-if cv2.waitKey() == 'q':
-    pass
+# if cv2.waitKey() == 'q':
+#     pass
 
 
 

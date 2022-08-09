@@ -301,7 +301,10 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                     AP_dictionary[class_name] = [ap]
                 else:
                     AP_dictionary[class_name].append(ap)
-            
+
+                if MIN_OVERLAP == 0.5 or MIN_OVERLAP == 0.75:
+                    print(text)
+
             #Calculate mAP and print result
             results_file.write(f'\n# mAP{int(MIN_OVERLAP*100)} of all classes\n')
             mAP = sum_AP / num_gt_classes
@@ -318,7 +321,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             for class_name in gt_class_names:
                 AP = sum(AP_dictionary[class_name]) / len(MIN_OVERLAP_RANGE)
                 text = "{0:.2f}%".format(AP * 100) + " = " + class_name + " AP" 
-                results_file.write(text)
+                results_file.write(text + "\n")
                 print(text)
 
         return mAP*100

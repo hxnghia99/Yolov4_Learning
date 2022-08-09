@@ -14,7 +14,7 @@
 TRAINING_DATASET_TYPE           = "LG"
 TRAIN_TRANSFER                  = True
 TRAIN_FROM_CHECKPOINT           = False
-MODEL_BRANCH_TYPE               = ["P0", "P3"]
+MODEL_BRANCH_TYPE               = ["P2", "P5m"]
 
 """
 MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
@@ -22,7 +22,8 @@ MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - HR_P5       =             P0          |           P5
     - HR_P4       =             P0          |           P4
     - HR_P3       =             P0          |           P3
-    - HR_P5_P0    =             P(-1)       |           P5     
+    - HR_P5_P0    =             P(-1)       |           P5
+    - HR_P2_P5    =             P2          |           P5m
 """
 
 # ["COCO", "LG", "VISDRONE"]
@@ -69,6 +70,8 @@ elif MODEL_BRANCH_TYPE[0] == "P0":
     YOLO_SCALE_OFFSET           = [1, 2, 4]
 elif MODEL_BRANCH_TYPE[0] == "P3n":
     YOLO_SCALE_OFFSET           = [8, 16, 32]
+elif MODEL_BRANCH_TYPE[0] == "P2":
+    YOLO_SCALE_OFFSET           = [4, 8, 16]
 
 
 # # COCO anchors
@@ -107,7 +110,7 @@ if MODEL_BRANCH_TYPE[0] == "P(-1)":
     TRAIN_LR_INIT               = 2e-3
 elif MODEL_BRANCH_TYPE[0] == "P0":
     TRAIN_LR_INIT               = 1e-3
-elif MODEL_BRANCH_TYPE[0] == "P3n":
+elif MODEL_BRANCH_TYPE[0] == "P3n" or MODEL_BRANCH_TYPE[0] == "P2":
     TRAIN_LR_INIT               = 1e-4
 YOLO_LOSS_IOU_THRESHOLD         = 0.5
 

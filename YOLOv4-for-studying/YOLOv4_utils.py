@@ -45,7 +45,7 @@ def load_yolov4_weights(model, weights_file):
         major, minor, revision, seen, _ = np.fromfile(wf, dtype=np.int32, count=5)
         j = 0
         for i in range(range1):
-            if (MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n") and i == 72: 
+            if (MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n") and i == 78: 
                 print("\n Load backbone weights to P5 layer ... \n")
                 break
             elif MODEL_BRANCH_TYPE[1] == "P4" and i == 59:
@@ -53,6 +53,9 @@ def load_yolov4_weights(model, weights_file):
                 break
             elif MODEL_BRANCH_TYPE[1] == "P3" and i == 38:
                 print("\n Load backbone weights to P3 layer ... \n")
+                break
+            elif MODEL_BRANCH_TYPE[0] == "P2" and i == 78:
+                print("\n Load backbone weights to P5 layer and SPP block ... \n")
                 break
 
             #Get name of convolutional layer
