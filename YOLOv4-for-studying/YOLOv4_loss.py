@@ -15,7 +15,7 @@ from YOLOv4_config import *
 from YOLOv4_utils import *
 
 #Compute YOLOv4 loss for each scale using reference code
-def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS_PATH):
+def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS_PATH, fmap_student=None, fmap_teacher=None):
     label       = tf.convert_to_tensor(label)
     # gt_bboxes   = tf.convert_to_tensor(gt_bboxes)
     NUM_CLASSES = len(read_class_names(CLASSES_PATH))
@@ -72,6 +72,30 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
     conf_loss = tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4]))
     prob_loss = tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4]))
 
+
+    #if use featuremap teacher to teach feature map student
+    if fmap_teacher != None:
+        #global loss
+        gb_loss = tf.norm(fmap_teacher - fmap_student, ord=1, axis=-1)
+        gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2]))
+        #positive object loss
+        flag_pos_obj = np.zeros(fmap_teacher.shape)
+        num_channels = fmap_teacher.shape[-1]
+        for k in range(batch_size):
+            for j in range(YOLO_MAX_BBOX_PER_SCALE):
+                if np.multiply.reduce(gt_bboxes[k,j][2:4]) != 0:
+                    x, y, w, h = np.array(gt_bboxes[k,j] / YOLO_SCALE_OFFSET[i]).astype(np.int32)
+                    if x+w > fmap_teacher.shape[2]: w = fmap_teacher.shape[2] - x
+                    if y+h > fmap_teacher.shape[1]: h = fmap_teacher.shape[1] - y
+                    temp = np.ones([h, w, num_channels])
+                    flag_pos_obj[k][y:(y+h), x:(x+w), :] = temp
+        flag_pos_obj = np.array(flag_pos_obj, dtype=np.bool)
+        pos_obj_loss = (fmap_teacher - fmap_student)[flag_pos_obj]
+        pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))
+        pos_obj_loss = tf.divide(pos_obj_loss, tf.cast(batch_size, tf.float32))
+
+        return giou_loss, conf_loss, prob_loss, gb_loss, pos_obj_loss
+    
     return giou_loss, conf_loss, prob_loss
 
     

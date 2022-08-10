@@ -83,7 +83,7 @@ elif MODEL_BRANCH_TYPE[0] == "P2":
 #                                    [[16, 27], [31, 19], [27, 39]],
 #                                    [[54, 30], [47, 57], [96, 77]]]
 # Visdrone anchors 992x640
-YOLO_ANCHORS                    = [[[6, 8], [16, 11], [10, 18]],
+YOLO_ANCHORS                    = [[[6, 8], [16, 11], [10, 18]],            #224x128
                                    [[17, 27], [28, 17], [28, 40]],
                                    [[47, 27], [52, 52], [96, 75]]]
 # # Visdrone anchors 544x352 only for sliced images
@@ -127,10 +127,10 @@ if TRAINING_DATASET_TYPE == "COCO":
 # LG DATASET has trainset, validationset, testset
 elif TRAINING_DATASET_TYPE == "LG":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
+    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_400samples.txt"
+    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/train_400samples.txt"
     TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
     TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
-    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
-    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
     RELATIVE_PATH               = 'E:/dataset/TOTAL/'
     PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
     
