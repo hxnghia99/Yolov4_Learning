@@ -83,12 +83,11 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         num_channels = fmap_teacher.shape[-1]
         for k in range(batch_size):
             for j in range(YOLO_MAX_BBOX_PER_SCALE):
-                if np.multiply.reduce(gt_bboxes[k,j][2:4]) != 0:
-                    x, y, w, h = np.array(gt_bboxes[k,j] / YOLO_SCALE_OFFSET[i]).astype(np.int32)
-                    if x+w > fmap_teacher.shape[2]: w = fmap_teacher.shape[2] - x
-                    if y+h > fmap_teacher.shape[1]: h = fmap_teacher.shape[1] - y
-                    temp = np.ones([h, w, num_channels])
-                    flag_pos_obj[k][y:(y+h), x:(x+w), :] = temp
+                if np.multiply.reduce(gt_bboxes[k,j][2:4]) != 0:        #gt_bboxes: xywh
+                    gt_bbox = np.concatenate([gt_bboxes[k,j][:2]-gt_bboxes[k,j][2:4]*0.5, gt_bboxes[k,j][:2]+gt_bboxes[k,j][2:4]*0.5], axis=-1).astype(np.int32)
+                    xmin, ymin, xmax, ymax = np.array(gt_bbox / YOLO_SCALE_OFFSET[i]).astype(np.int32)
+                    temp = np.ones([ymax-ymin, xmax-xmin, num_channels])
+                    flag_pos_obj[k][ymin:ymax, xmin:xmax, :] = temp
         flag_pos_obj = np.array(flag_pos_obj, dtype=np.bool)
         pos_obj_loss = (fmap_teacher - fmap_student)[flag_pos_obj]
         pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))

@@ -180,7 +180,7 @@ def main():
             total_loss = giou_loss + conf_loss + prob_loss 
             return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
-    best_val_loss = 1000 # should be large at start
+    best_val_loss = 100000 # should be large at start
     #For each epoch, do training and validating
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train

@@ -126,7 +126,7 @@ class Dataset(object):
         
 
     #Find the best anchors for each bbox at each scale
-    def preprocess_true_bboxes(self, bboxes):
+    def preprocess_true_bboxes(self, bboxes):       #bbox: [xy_min, xy_max]
         #create label from true bboxes
         #shape [3, gcell, gcell, anchors, 5 + num_classes]
         label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
