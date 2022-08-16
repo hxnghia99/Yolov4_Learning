@@ -15,6 +15,7 @@ TRAINING_DATASET_TYPE           = "LG"
 TRAIN_TRANSFER                  = True
 TRAIN_FROM_CHECKPOINT           = False
 MODEL_BRANCH_TYPE               = ["P2", "P5m"]
+USE_FTT                         = True
 
 """
 MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]

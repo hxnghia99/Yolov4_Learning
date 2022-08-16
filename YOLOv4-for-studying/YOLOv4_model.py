@@ -10,6 +10,7 @@
 
 
 
+from tkinter import dialog
 from YOLOv4_utils import *
 
 import tensorflow as tf
@@ -258,6 +259,39 @@ def CSPDarknet53(input_data, dilation=False):
         
 
 
+
+#Implementation of feature texture transfer (FTT model)
+def FTT_module(p_lr, p_hr, num_channels, dilation=False):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
+    def content_extractor(conv, num_channels, iterations=3):
+        for _ in range(iterations):
+            conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)
+            conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)
+        return conv
+    
+    def texture_extractor(conv, num_channels, iterations=3):
+        for _ in range(iterations):
+            conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)
+            conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)
+        conv = convolutional(conv, (1,1, num_channels, int(num_channels/2)), dilation=dilation)
+        return conv
+    #start the module
+    p_lr = convolutional(p_lr, (1, 1, num_channels, num_channels*4), dilation=dilation) # x4 channels --> num_channels = 4c
+    p_lr = content_extractor(p_lr, num_channels*4)
+    p_lr = tf.nn.depth_to_space(p_lr, 2)           #pixel shufflement --> num_channels = c
+
+    p_hr = tf.concat([p_lr, p_hr], axis=-1)
+    p_hr = texture_extractor(p_hr, num_channels*2)      #num_channels = c
+    #element-wise sum
+    result = p_lr + p_hr
+    return result
+
+
+
+
+
+
+
+
 #Add neck layers to CSPDarknet53 and create YOLOv4 model
 def YOLOv4_detector(input_layer, NUM_CLASS):
     # Create CSPDarknet53 network and 3 backbone features at large, medium and small scale
@@ -275,12 +309,15 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     """ PANet bottom up layers """
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 1
-        route_5 = conv                                                              #output: 13 x 13 x 512
-        conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 13 x 13 x 256
-        conv = UpSampling2D()(conv)                               #output: 26 x 26 x 256                                       
-        route_4 = convolutional(route_4, (1, 1, 512, 256))    #output: 26 x 26 x 256
-        conv = tf.concat([route_4, conv], axis=-1)                         #output: 26 x 26 x 512
-        
+        if not USE_FTT:
+            route_5 = conv                                                              #output: 13 x 13 x 512
+            conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 13 x 13 x 256
+            conv = UpSampling2D()(conv)                               #output: 26 x 26 x 256                                       
+            route_4 = convolutional(route_4, (1, 1, 512, 256))    #output: 26 x 26 x 256
+            conv = tf.concat([route_4, conv], axis=-1)                         #output: 26 x 26 x 512
+        else:
+            conv = FTT_module(conv, route_4, 512)
+
         #Compress information of feature maps
         conv = convolutional(conv, (1, 1, 512, 256))
         conv = convolutional(conv, (3, 3, 256, 512))
@@ -291,11 +328,14 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P4" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 2
-        route_4 = conv                                                              #output: 26 x 26 x 256
-        conv = conv = convolutional(conv, (1, 1, 256, 128))                             #output: 26 x 26 x 128
-        conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                 
-        route_3 = convolutional(route_3, (1, 1, 256, 128))      #output: 52 x 52 x 128
-        conv = tf.concat([route_3, conv], axis=-1)                          #output: 52 x 52 x 256
+        if not USE_FTT:
+            route_4 = conv                                                              #output: 26 x 26 x 256
+            conv = conv = convolutional(conv, (1, 1, 256, 128))                             #output: 26 x 26 x 128
+            conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                 
+            route_3 = convolutional(route_3, (1, 1, 256, 128))      #output: 52 x 52 x 128
+            conv = tf.concat([route_3, conv], axis=-1)                          #output: 52 x 52 x 256
+        else:
+            conv = FTT_module(conv, route_3, 256)
 
         #Compress information of feature maps
         conv = convolutional(conv, (1, 1, 256, 128))
@@ -309,11 +349,14 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     """ Additional upsampling: to resolution P2 """
     if  MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 3
-        route_3 = conv                                                                #output: 52 x 52 x 128
-        conv = convolutional(conv, (1, 1, 128, 64))                                     #output: 52 x 52 x 64
-        conv = UpSampling2D()(conv)                                                     #output: 104 x 104 x 64                                       
-        route_2 = convolutional(route_2, (1, 1, 128, 64))                               #output: 104 x 104 x 64
-        conv = tf.concat([route_2, conv], axis=-1)                                      #output: 104 x 104 x 128
+        if not USE_FTT:
+            route_3 = conv                                                                #output: 52 x 52 x 128
+            conv = convolutional(conv, (1, 1, 128, 64))                                     #output: 52 x 52 x 64
+            conv = UpSampling2D()(conv)                                                     #output: 104 x 104 x 64                                       
+            route_2 = convolutional(route_2, (1, 1, 128, 64))                               #output: 104 x 104 x 64
+            conv = tf.concat([route_2, conv], axis=-1)                                      #output: 104 x 104 x 128
+        else:
+            conv = FTT_module(conv, route_2, 128)
         #Compress information of feature maps
         conv = convolutional(conv, (1, 1, 128, 64))
         conv = convolutional(conv, (3, 3, 64, 128))
@@ -729,7 +772,6 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
 
 
 
-
 def create_YOLOv4_backbone(input_channel=3, dilation=False):
     input_layer = Input([None, None, input_channel])
     _, route_3, route_4, conv = CSPDarknet53(input_layer, dilation=dilation)
@@ -737,27 +779,41 @@ def create_YOLOv4_backbone(input_channel=3, dilation=False):
     """ PANet bottom up layers """
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 1
-        fmap_bb_P5 = conv                                                              #output: 13 x 13 x 512
-        conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 13 x 13 x 256
-        conv = UpSampling2D()(conv)                               #output: 26 x 26 x 256                                       
-        route_4 = convolutional(route_4, (1, 1, 512, 256), dilation=dilation)    #output: 26 x 26 x 256
-        fmap_bb_P4 = route_4
-        conv = tf.concat([route_4, conv], axis=-1)                         #output: 26 x 26 x 512
+        fmap_bb_P5 = conv 
+        if not USE_FTT:
+            conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)                                    #output: 13 x 13 x 256
+            conv = UpSampling2D()(conv)                               #output: 26 x 26 x 256                                       
+            route_4 = convolutional(route_4, (1, 1, 512, 256), dilation=dilation)    #output: 26 x 26 x 256
+            conv = tf.concat([route_4, conv], axis=-1)                         #output: 26 x 26 x 512
+        else:
+            conv = FTT_module(conv, route_4, 512, dilation=dilation)
         
         #Compress information of feature maps
-        conv = convolutional(conv, (1, 1, 512, 256))
-        conv = convolutional(conv, (3, 3, 256, 512))
-        conv = convolutional(conv, (1, 1, 512, 256))
-        conv = convolutional(conv, (3, 3, 256, 512))                                    #output: 26 x 26 x 512
-        conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 26 x 26 x 256  
+        conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 256, 512), dilation=dilation)
+        conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 256, 512), dilation=dilation)                                    #output: 26 x 26 x 512
+        conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)                                    #output: 26 x 26 x 256  
+        fmap_bb_P4 = conv
     
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P4" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 2
-        route_4 = conv                                                              #output: 26 x 26 x 256
-        conv = conv = convolutional(conv, (1, 1, 256, 128))                             #output: 26 x 26 x 128
-        conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                 
-        route_3 = convolutional(route_3, (1, 1, 256, 128), dilation=dilation)      #output: 52 x 52 x 128
-        fmap_bb_P3 = route_3
+        if not USE_FTT:
+            route_4 = conv                                                              #output: 26 x 26 x 256
+            conv = conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)                             #output: 26 x 26 x 128
+            conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                 
+            route_3 = convolutional(route_3, (1, 1, 256, 128), dilation=dilation)      #output: 52 x 52 x 128
+            conv = tf.concat([route_3, conv], axis=-1)
+        else:
+            conv = FTT_module(conv, route_3, 256, dilation=dilation)
+
+        #Compress information of feature maps
+        conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 128, 256), dilation=dilation)
+        conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 128, 256), dilation=dilation)                                    #output: 52 x 52 x 256
+        conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)                                    #output: 52 x 52 x 128
+        fmap_bb_P3 = conv
 
     output_tensors = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, conv]
     YOLOv4_backbone = tf.keras.Model(input_layer, output_tensors)
