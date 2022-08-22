@@ -10,7 +10,6 @@
 
 
 import os
-from pydoc import resolve
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import sys
 from tensorflow.python.client import device_lib
@@ -106,7 +105,7 @@ def main():
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
                 if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-                    fmap_loss += 0.1 * loss_items[3]
+                    fmap_loss += loss_items[3]
                     fmap_loss += loss_items[4]
             #calculate total of loss
             if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
@@ -169,7 +168,7 @@ def main():
             conf_loss += loss_items[1]
             prob_loss += loss_items[2]
             if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-                fmap_loss += 0.1 * loss_items[3]
+                fmap_loss += loss_items[3]
                 fmap_loss += loss_items[4]
 
         #calculate total of loss
@@ -242,7 +241,7 @@ def main():
         validate_writer.flush()
 
         # print validate summary data 
-        print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f} - total_val_loss:{:.2f}\n\n".
+        print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f} - total_fmap_loss:{:.2f}\n\n".
               format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, fmap_val/num_testset))
 
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
