@@ -763,7 +763,7 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
         if training:                                                           
             output_tensors.append(conv_tensor)
         output_tensors.append(pred_tensor)                                      #shape [3 or 6, batch_size, output_size, output_size, 3, 85]
-    if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+    if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m" and training:
         for temp in student_fmaps:
             output_tensors.append(temp)
     YOLOv4_model = tf.keras.Model(input_layer, output_tensors)

@@ -217,7 +217,7 @@ def main():
             continue
         #Validating the model with testing dataset
         num_testset = len(testset)
-        giou_val, conf_val, prob_val, total_val, fmap_val = 0, 0, 0, 0, 0
+        giou_val, conf_val, prob_val, total_val, fmap_val, detection_loss = 0, 0, 0, 0, 0, 0
         current_step = 0
         print(" VALIDATION ")
         for image_data, target in testset:
@@ -230,7 +230,7 @@ def main():
             prob_val += results[2]
             total_val += results[3]
             fmap_val += results[4]
-
+            detection_loss += giou_val + conf_val + prob_val
         # writing validate summary data
         with validate_writer.as_default():
             tf.summary.scalar("loss/total_val", total_val/num_testset, step=epoch)
@@ -238,6 +238,7 @@ def main():
             tf.summary.scalar("loss/conf_val", conf_val/num_testset, step=epoch)
             tf.summary.scalar("loss/prob_val", prob_val/num_testset, step=epoch)
             tf.summary.scalar("loss/fmap_val", fmap_val/num_testset, step=epoch)
+            tf.summary.scalar("loss/detection_loss", detection_loss/num_testset, step=epoch)
         validate_writer.flush()
 
         # print validate summary data 
@@ -245,12 +246,12 @@ def main():
               format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, fmap_val/num_testset))
 
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
-            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(total_val/num_testset))
+            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(detection_loss/num_testset))
             yolo.save_weights(save_directory)
-        if TRAIN_SAVE_BEST_ONLY and best_val_loss>total_val/num_testset:
+        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
-            best_val_loss = total_val/num_testset
+            best_val_loss = detection_loss/num_testset
     FLAG_USE_BACKBONE_EVALUATION = False
 
 if __name__ == '__main__':

@@ -234,23 +234,31 @@ from (Xmin, Ymin, Xmax, Ymax)
 def bboxes_giou_from_minmax(boxes1, boxes2):
     #area of bboxes1 and bboxes2
     boxes1_area = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
+    boxes1_area = tf.maximum(boxes1_area, 1e-10)            #FIXBUG: OUTPUT AS 0
     boxes2_area = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
+    boxes2_area = tf.maximum(boxes2_area, 1e-10)
     #coordinates of intersection
     inters_top_left     = tf.maximum(boxes1[..., :2], boxes2[..., :2])
     inters_bottom_right = tf.minimum(boxes1[..., 2:], boxes2[..., 2:])
     #area of intersection and union
-    intersection = tf.maximum(inters_bottom_right - inters_top_left, 0.)
-    intersection_area = tf.math.reduce_prod(intersection, axis=-1)
-    union_area = boxes1_area + boxes2_area - intersection_area
+    intersection = tf.maximum(inters_bottom_right - inters_top_left, 1e-10)
+    intersection_area = tf.maximum(tf.math.reduce_prod(intersection, axis=-1),1e-10)
+    union_area = tf.maximum(boxes1_area + boxes2_area - intersection_area, 1e-10)
+
     #ious for list of bboxes
-    ious = intersection_area / union_area
+    ious = tf.maximum(intersection_area / union_area, 1e-10)
     #enclose area
     enclose_top_left    = tf.minimum(boxes1[..., :2], boxes2[..., :2])
     enclose_bottom_right= tf.maximum(boxes1[..., 2:], boxes2[..., 2:])
-    enclose             = tf.maximum(enclose_bottom_right - enclose_top_left, 0.0)
-    enclose_area        = tf.math.reduce_prod(enclose, axis=-1)
+    enclose             = tf.maximum(enclose_bottom_right - enclose_top_left, 1e-10)
+    enclose_area        = tf.maximum(tf.math.reduce_prod(enclose, axis=-1), 1e-10)
+
     #gious for list of bboxes
     gious = ious - 1.0 * (enclose_area - union_area) / enclose_area
+    # assert(math.isnan(tf.math.reduce_sum(gious)), "There is Nan when computing gious")
+    if tf.math.reduce_any(tf.math.is_nan(gious)):
+        print("GIoUs have NaN value!")
+
     return gious
 
 

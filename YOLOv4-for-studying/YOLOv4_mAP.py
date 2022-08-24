@@ -302,7 +302,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                 else:
                     AP_dictionary[class_name].append(ap)
 
-                if MIN_OVERLAP == 0.5 or MIN_OVERLAP == 0.75:
+                if MIN_OVERLAP == MIN_OVERLAP_RANGE[0] or MIN_OVERLAP == MIN_OVERLAP_RANGE[5]:
                     print(text)
 
             #Calculate mAP and print result

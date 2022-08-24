@@ -97,7 +97,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # pos_obj_loss = tf.divide(pos_obj_loss, tf.cast(batch_size, tf.float32))
 
     if fmap_teacher!=None:
-        return giou_loss, conf_loss, prob_loss, gb_loss, pos_obj_loss
+        return giou_loss, conf_loss, prob_loss, LAMDA_FMAP_LOSS*gb_loss, LAMDA_FMAP_LOSS*pos_obj_loss
     else:
         return giou_loss, conf_loss, prob_loss
 

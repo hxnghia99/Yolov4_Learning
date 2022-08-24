@@ -15,8 +15,8 @@ TRAINING_DATASET_TYPE           = "LG"
 TRAIN_TRANSFER                  = True
 TRAIN_FROM_CHECKPOINT           = False
 MODEL_BRANCH_TYPE               = ["P2", "P5m"]
-USE_FTT                         = True
-
+USE_FTT                         = False
+LAMDA_FMAP_LOSS                 = 0.2
 """
 MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - original    =             P3n         |           P5n
@@ -45,8 +45,8 @@ SLICED_IMAGE_SIZE               = [416, 416]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
-TRAIN_BATCH_SIZE                = 2
-TEST_BATCH_SIZE                 = 2
+TRAIN_BATCH_SIZE                = 16
+TEST_BATCH_SIZE                 = 16
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
@@ -128,10 +128,10 @@ if TRAINING_DATASET_TYPE == "COCO":
 # LG DATASET has trainset, validationset, testset
 elif TRAINING_DATASET_TYPE == "LG":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
-    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_400samples.txt"
-    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/train_400samples.txt"
+    #TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_10samples.txt"
+    #TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_10samples.txt"
     TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
+    TEST_ANNOTATION_PATH        = "yolov4-for-studying/dataset/lg_dataset/test_lg_total.txt"
     RELATIVE_PATH               = 'E:/dataset/TOTAL/'
     PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
     
