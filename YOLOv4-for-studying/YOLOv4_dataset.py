@@ -23,7 +23,7 @@ class Dataset(object):
         #settings of annotation path, input size, batch size
         self.annotation_path        = TRAIN_ANNOTATION_PATH if dataset_type == 'train' else TEST_ANNOTATION_PATH
         self.input_size             = TRAIN_INPUT_SIZE if dataset_type == 'train' else TEST_INPUT_SIZE
-        if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+        if USE_SUPERVISION:
             self.input_size_x2 = np.array(self.input_size, dtype=np.int32) * 2
         self.batch_size             = TRAIN_BATCH_SIZE if dataset_type == 'train' else TEST_BATCH_SIZE
         self.data_aug               = TRAIN_DATA_AUG if dataset_type == 'train' else TEST_DATA_AUG
@@ -113,13 +113,13 @@ class Dataset(object):
                     image[y_tl:y_br, x_tl:x_br] = 128.0 #make ignored region into gray
             bboxes = bboxes[bbox_mask]
 
-        if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+        if USE_SUPERVISION:
             image_x2 = image_preprocess(np.copy(image), self.input_size_x2)
 
         #preprocess, bboxes as (xmin, ymin, xmax, ymax)
         image, bboxes = image_preprocess(image, self.input_size, bboxes)
 
-        if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+        if USE_SUPERVISION:
             return image, bboxes, image_x2
 
         return image, bboxes
@@ -194,8 +194,8 @@ class Dataset(object):
         with tf.device('/cpu:0'):
             #Generate initial variables for batch: image, label small+medium+large bboxes
             batch_image = np.zeros((self.batch_size, self.input_size[1], self.input_size[0], 3), dtype=np.float32)
-            if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-                batch_image_x2 = np.zeros((self.batch_size, self.input_size[1]*2, self.input_size[0]*2, 3), dtype=np.float32)
+            if USE_SUPERVISION:
+                batch_image_x2 = np.zeros((self.batch_size, self.input_size_x2[1], self.input_size_x2[0], 3), dtype=np.float32)
             batch_label_sbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[0], self.output_gcell_sizes_w[0],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
             batch_label_mbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[1], self.output_gcell_sizes_w[1],
@@ -215,7 +215,7 @@ class Dataset(object):
                         annotation_idx -= self.num_samples
                     annotation = self.annotations[annotation_idx]
                     #Read image and bboxes from annotation, then extract labels of 3 scales
-                    if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+                    if USE_SUPERVISION:
                         image, bboxes, image_x2 = self.parse_annotation(annotation)
                     else:
                         image, bboxes = self.parse_annotation(annotation)
@@ -224,7 +224,7 @@ class Dataset(object):
                     #shape [output size, output size, 3, 85]
                     #Add image, labels to batchs
                     batch_image[num_annotations,:,:,:] = image
-                    if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+                    if USE_SUPERVISION:
                         batch_image_x2[num_annotations,:,:,:] = image_x2
 
                     batch_label_sbboxes[num_annotations,:,:,:,:]    = label_sbboxes         #shape [batch, output size, output size, 3, 85]
@@ -251,7 +251,7 @@ class Dataset(object):
                 batch_small_target = batch_label_sbboxes, batch_sbboxes
                 batch_medium_target  = batch_label_mbboxes, batch_mbboxes
                 batch_large_target  = batch_label_lbboxes, batch_lbboxes
-                if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+                if USE_SUPERVISION:
                     return (batch_image, batch_image_x2) , (batch_small_target, batch_medium_target, batch_large_target)
                 else:
                     return batch_image, (batch_small_target, batch_medium_target, batch_large_target)

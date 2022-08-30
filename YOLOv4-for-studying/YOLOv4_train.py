@@ -10,6 +10,7 @@
 
 
 import os
+from turtle import pos
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import sys
 from tensorflow.python.client import device_lib
@@ -62,10 +63,10 @@ def main():
         yolo.load_weights(PREDICTION_WEIGHT_FILE)
         print("Load weight file from checkpoint ... ")
 
-    #yolov4 backbone network
-    yolo_backbone = create_YOLOv4_backbone()
- 
-    FLAG_USE_BACKBONE_EVALUATION = False
+    if USE_SUPERVISION:
+        #yolov4 backbone network
+        yolo_backbone = create_YOLOv4_backbone(dilation=BACKBONE_DILATION)
+        FLAG_USE_BACKBONE_EVALUATION = False
 
     #Create Adam optimizers
     optimizer = tf.keras.optimizers.Adam()
@@ -82,7 +83,7 @@ def main():
 
     #Create training function for each batch
     def train_step(image_data, target):
-        if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+        if USE_SUPERVISION:
             weight_sharing_origin_to_backbone(yolo_backbone, yolo)
             fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1])
             image_data = image_data[0]
@@ -90,11 +91,11 @@ def main():
 
         with tf.GradientTape() as tape:
             pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
-            giou_loss=conf_loss=prob_loss=fmap_loss=0
+            giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
             num_scales = len(YOLO_SCALE_OFFSET)
             #calculate loss at each scale  
             for i in range(num_scales):
-                if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+                if USE_SUPERVISION:
                     conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                     fmap_teacher = fmap_backbone[i]
                     loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -104,12 +105,12 @@ def main():
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
-                if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-                    fmap_loss += loss_items[3]
-                    fmap_loss += loss_items[4]
+                if USE_SUPERVISION:
+                    gb_loss += loss_items[3]
+                    pos_pixel_loss += loss_items[4]
             #calculate total of loss
-            if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-                total_loss = giou_loss + conf_loss + prob_loss + fmap_loss
+            if USE_SUPERVISION:
+                total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss
             else:   
                 total_loss = giou_loss + conf_loss + prob_loss 
             #backpropagate gradients
@@ -132,32 +133,32 @@ def main():
                 tf.summary.scalar("training_loss/giou_loss", giou_loss, step=global_steps)
                 tf.summary.scalar("training_loss/conf_loss", conf_loss, step=global_steps)
                 tf.summary.scalar("training_loss/prob_loss", prob_loss, step=global_steps)
-                if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-                    tf.summary.scalar("training_loss/fmap_loss", fmap_loss, step=global_steps)
+                if USE_SUPERVISION:
+                    tf.summary.scalar("training_loss/gb_loss", gb_loss, step=global_steps)
+                    tf.summary.scalar("training_loss/pos_pixel_poss", pos_pixel_loss, step=global_steps)
             training_writer.flush()     
         
-        if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-            return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), fmap_loss.numpy()
+        if USE_SUPERVISION:
+            return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy()
         else:
             return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
 
     #Create validation function after each epoch
     def validate_step(image_data, target):
-        if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m" and not FLAG_USE_BACKBONE_EVALUATION:
+        if USE_SUPERVISION and not FLAG_USE_BACKBONE_EVALUATION:
             weight_sharing_origin_to_backbone(yolo_backbone, yolo)
-        if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+        if USE_SUPERVISION:
             fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1])
             image_data = image_data[0]
             fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
-
-            
+   
         pred_result = yolo(image_data, training=False)
-        giou_loss=conf_loss=prob_loss=fmap_loss=0
+        giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
         grid = len(YOLO_SCALE_OFFSET)
         #calculate loss at each each
         for i in range(grid):
-            if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+            if USE_SUPERVISION:
                 conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                 fmap_teacher = fmap_backbone[i]
                 loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -167,33 +168,42 @@ def main():
             giou_loss += loss_items[0]
             conf_loss += loss_items[1]
             prob_loss += loss_items[2]
-            if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-                fmap_loss += loss_items[3]
-                fmap_loss += loss_items[4]
+            if USE_SUPERVISION:
+                gb_loss += loss_items[3]
+                pos_pixel_loss += loss_items[4]
 
         #calculate total of loss
-        if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
-            total_loss = giou_loss + conf_loss + prob_loss + fmap_loss
-            return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), fmap_loss.numpy()
+        if USE_SUPERVISION:
+            total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss
+            return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy()
         else:   
             total_loss = giou_loss + conf_loss + prob_loss 
             return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
-    best_val_loss = 100000 # should be large at start
+    best_val_loss = 1000 # should be large at start
     #For each epoch, do training and validating
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
-        giou_train, conf_train, prob_train, total_train, fmap_train = 0, 0, 0, 0, 0
+        giou_train, conf_train, prob_train, total_train, gb_train, pos_pixel_train = 0, 0, 0, 0, 0, 0
         for image_data, target in trainset:
             results = train_step(image_data, target)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
             current_step = results[0] % steps_per_epoch
-            print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f} - fmap_loss={:.2f}"
-                  .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5], results[6]))
-            giou_train += results[2]
-            conf_train += results[3]
-            prob_train += results[4]
-            total_train += results[5]    
-            fmap_train += results[6]
+            if USE_SUPERVISION:
+                print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f} - fmap_loss={:.2f}"
+                    .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5], results[6]+results[7]))
+                giou_train += results[2]
+                conf_train += results[3]
+                prob_train += results[4]
+                total_train += results[5]    
+                gb_train += results[6]
+                pos_pixel_train += results[7]
+            else:
+                print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f}"
+                    .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5]))
+                giou_train += results[2]
+                conf_train += results[3]
+                prob_train += results[4]
+                total_train += results[5] 
 
         # writing training summary data
         with training_writer.as_default():
@@ -201,14 +211,19 @@ def main():
             tf.summary.scalar("loss/giou_val", giou_train/steps_per_epoch, step=epoch)
             tf.summary.scalar("loss/conf_val", conf_train/steps_per_epoch, step=epoch)
             tf.summary.scalar("loss/prob_val", prob_train/steps_per_epoch, step=epoch)
-            tf.summary.scalar("loss/fmap_val", fmap_train/steps_per_epoch, step=epoch)
+            if USE_SUPERVISION:
+                tf.summary.scalar("loss/gb_val", gb_train/steps_per_epoch, step=epoch)
+                tf.summary.scalar("loss/pos_pixel_val", pos_pixel_train/steps_per_epoch, step=epoch)
         training_writer.flush()
 
         # print validate summary data
         print("\n\n TRAINING")
-        print("epoch={:2.0f} : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - total_fmap_loss:{:.2f}".
-              format(epoch+1, giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch, fmap_train/steps_per_epoch))
-        
+        if USE_SUPERVISION:
+            print("epoch={:2.0f} : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - total_fmap_loss:{:.2f}".
+                format(epoch+1, giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch, (gb_train+pos_pixel_train)/steps_per_epoch))
+        else:
+            print("epoch={:2.0f} : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f}".
+                format(epoch+1, giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch))
         
         #If we do not have testing dataset, we save weights for every epoch
         if len(testset) == 0:
@@ -217,33 +232,45 @@ def main():
             continue
         #Validating the model with testing dataset
         num_testset = len(testset)
-        giou_val, conf_val, prob_val, total_val, fmap_val, detection_loss = 0, 0, 0, 0, 0, 0
+        giou_val, conf_val, prob_val, total_val, gb_val, pos_pixel_val, detection_loss = 0, 0, 0, 0, 0, 0, 0
         current_step = 0
         print(" VALIDATION ")
         for image_data, target in testset:
             results = validate_step(image_data, target)
-            FLAG_USE_BACKBONE_EVALUATION = True
+            if USE_SUPERVISION:
+                FLAG_USE_BACKBONE_EVALUATION = True
             print("Processing: {:5.0f}/{}".format(current_step, validate_steps_per_epoch))
             current_step += 1
             giou_val += results[0]
             conf_val += results[1]
             prob_val += results[2]
             total_val += results[3]
-            fmap_val += results[4]
-            detection_loss += giou_val + conf_val + prob_val
+            if USE_SUPERVISION:
+                gb_val += results[4]
+                pos_pixel_val += results[5]
+                detection_loss += results[0] + results[1] + results[2]
         # writing validate summary data
         with validate_writer.as_default():
             tf.summary.scalar("loss/total_val", total_val/num_testset, step=epoch)
             tf.summary.scalar("loss/giou_val", giou_val/num_testset, step=epoch)
             tf.summary.scalar("loss/conf_val", conf_val/num_testset, step=epoch)
             tf.summary.scalar("loss/prob_val", prob_val/num_testset, step=epoch)
-            tf.summary.scalar("loss/fmap_val", fmap_val/num_testset, step=epoch)
-            tf.summary.scalar("loss/detection_loss", detection_loss/num_testset, step=epoch)
+            if USE_SUPERVISION:
+                tf.summary.scalar("loss/gb_val", gb_val/num_testset, step=epoch)
+                tf.summary.scalar("loss/pos_pixel_val", pos_pixel_val/num_testset, step=epoch)
+                tf.summary.scalar("loss/detection_loss", detection_loss/num_testset, step=epoch)
         validate_writer.flush()
+        if USE_SUPERVISION:
+            # print validate summary data 
+            print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f} - total_fmap_loss:{:.2f}\n\n".
+                format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, (gb_val+pos_pixel_val)/num_testset))
+        else:
+            # print validate summary data 
+            print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}\n\n".
+                format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset))
 
-        # print validate summary data 
-        print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f} - total_fmap_loss:{:.2f}\n\n".
-              format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, fmap_val/num_testset))
+        if not USE_SUPERVISION:
+            detection_loss = total_val
 
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(detection_loss/num_testset))
@@ -252,7 +279,8 @@ def main():
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = detection_loss/num_testset
-    FLAG_USE_BACKBONE_EVALUATION = False
+    if USE_SUPERVISION:
+        FLAG_USE_BACKBONE_EVALUATION = False
 
 if __name__ == '__main__':
     main()

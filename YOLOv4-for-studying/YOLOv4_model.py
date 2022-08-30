@@ -309,7 +309,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     """ PANet bottom up layers """
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 1
-        if not USE_FTT:
+        if not USE_FTT_P4:
             route_5 = conv                                                              #output: 13 x 13 x 512
             conv = convolutional(conv, (1, 1, 512, 256))                                    #output: 13 x 13 x 256
             conv = UpSampling2D()(conv)                               #output: 26 x 26 x 256                                       
@@ -328,7 +328,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P4" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 2
-        if not USE_FTT:
+        if not USE_FTT_P3:
             route_4 = conv                                                              #output: 26 x 26 x 256
             conv = conv = convolutional(conv, (1, 1, 256, 128))                             #output: 26 x 26 x 128
             conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                 
@@ -349,7 +349,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
     """ Additional upsampling: to resolution P2 """
     if  MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 3
-        if not USE_FTT:
+        if not USE_FTT_P2:
             route_3 = conv                                                                #output: 52 x 52 x 128
             conv = convolutional(conv, (1, 1, 128, 64))                                     #output: 52 x 52 x 64
             conv = UpSampling2D()(conv)                                                     #output: 104 x 104 x 64                                       
@@ -566,8 +566,10 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
         conv = convolutional(conv, (3, 3, 256, 512))
         conv_lbbox = convolutional(conv, (1, 1, 512, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
 
-        return [conv_sbbox, conv_mbbox, conv_lbbox], [fmap_P2, fmap_P3, fmap_P4]
-
+        if USE_SUPERVISION:
+            return [conv_sbbox, conv_mbbox, conv_lbbox], [fmap_P2, fmap_P3, fmap_P4]
+        else:
+            return [conv_sbbox, conv_mbbox, conv_lbbox]
 
 
 
@@ -752,18 +754,18 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
     NUM_CLASS = len(class_names)
     #Create input layer
     input_layer = Input([128, 224, input_channel])
-    if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m":
+    if USE_SUPERVISION:
         conv_tensors, student_fmaps = YOLOv4_detector(input_layer, NUM_CLASS)
     else:
         conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS)
 
     output_tensors = []
-    for i, conv_tensor in enumerate(conv_tensors):                              #small -> medium -> large
+    for i, conv_tensor in enumerate(conv_tensors):                              #small bboxes -> medium -> large
         pred_tensor = decode(conv_tensor, NUM_CLASS, i)
         if training:                                                           
             output_tensors.append(conv_tensor)
         output_tensors.append(pred_tensor)                                      #shape [3 or 6, batch_size, output_size, output_size, 3, 85]
-    if MODEL_BRANCH_TYPE[0] == "P2" and MODEL_BRANCH_TYPE[1] == "P5m" and training:
+    if training and USE_SUPERVISION:
         for temp in student_fmaps:
             output_tensors.append(temp)
     YOLOv4_model = tf.keras.Model(input_layer, output_tensors)
@@ -780,7 +782,7 @@ def create_YOLOv4_backbone(input_channel=3, dilation=False):
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 1
         fmap_bb_P5 = conv 
-        if not USE_FTT:
+        if not USE_FTT_P4:
             conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)                                    #output: 13 x 13 x 256
             conv = UpSampling2D()(conv)                               #output: 26 x 26 x 256                                       
             route_4 = convolutional(route_4, (1, 1, 512, 256), dilation=dilation)    #output: 26 x 26 x 256
@@ -798,7 +800,7 @@ def create_YOLOv4_backbone(input_channel=3, dilation=False):
     
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P4" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 2
-        if not USE_FTT:
+        if not USE_FTT_P3:
             route_4 = conv                                                              #output: 26 x 26 x 256
             conv = conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)                             #output: 26 x 26 x 128
             conv = UpSampling2D()(conv)                                                     #output: 52 x 52 x 128                                                 

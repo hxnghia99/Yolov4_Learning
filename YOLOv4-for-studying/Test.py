@@ -19,7 +19,12 @@ from YOLOv4_utils import *
 text_by_line = "E:/dataset/TOTAL/train\images\c1_2020-10-292020-10-29-12-06-57-000119.jpg 779,128,802,185,1 402,52,421,102,1 644,46,658,91,1 885,65,902,106,1 293,69,308,116,1 620,43,633,84,1 900,35,914,72,1 632,44,643,88,1 338,126,376,187,1 288,0,297,16,1 345,148,376,212,1"
 text_by_line = "E:/dataset/TOTAL/train\images/frame_20210417_090930_00518_51.jpg 443,493,636,608,0 125,254,168,293,1 152,211,198,256,1 150,177,194,215,1 330,77,377,117,1 298,124,339,170,1 328,206,378,252,1 962,1007,1052,1056,2 1184,981,1274,1029,2 689,1042,773,1080,2 526,297,591,353,2"
 text_by_line = "./YOLOv4-for-studying/dataset/LG_DATASET/train/images/frame_20210425_120031_01203.jpg 1607,220,1737,330,1 1565,253,1705,361,1 1369,386,1544,482,1 359,304,630,723,1 490,829,634,1047,2 37,502,187,643,2"
-text_by_line = "./YOLOv4-for-studying/dataset/LG_DATASET/train/images/frame_20210425_181901_02717.jpg 1187,459,1514,779,1 1569,1,1663,30,1"
+# text_by_line = "./YOLOv4-for-studying/dataset/LG_DATASET/train/images/frame_20210425_181901_02717.jpg 1187,459,1514,779,1 1569,1,1663,30,1"
+text_by_line = "E:/dataset/TOTAL/train\images\c1_2020-10-292020-10-29-12-15-58-000137.jpg 1087,343,1143,438,1 421,260,461,354,1 640,149,672,216,1 1034,151,1062,202,1 505,88,522,144,1 749,103,767,159,1 385,105,406,156,1 579,97,595,146,1 411,98,433,154,1 471,84,494,139,1 286,75,307,121,1 408,29,425,64,1 579,48,589,85,1 425,93,444,149,1 619,37,633,77,1 907,27,916,59,1 259,77,278,120,1 681,89,703,145,1 666,103,683,160,1 400,0,414,23,1 710,100,723,156,1 352,0,365,15,1 599,1,607,30,1 513,2,522,27,1 276,65,292,112,1 405,32,422,65,1 714,107,732,160,1 713,114,726,174,1 724,121,738,177,1 734,135,749,185,1 747,0,757,27,1 276,2,286,31,1 284,0,291,21,1 291,0,300,28,1 316,0,327,22,1 331,0,338,17,1 259,63,271,106,1"
+RELATIVE_PATH               = "E:/dataset/TOTAL/"
+PREFIX_PATH                 = "C:/Users/Claw/VSCode_Gitrepo/Yolov4_Learning/YOLOv4-for-studying/dataset/LG_DATASET"
+
+size = [224, 128]
 
 text = text_by_line.split()
 bboxes = []
@@ -34,26 +39,23 @@ for t in text:
 bboxes = np.array(bboxes)
 
 imaget = cv2.imread(image_path)
-# cv2.imshow('truth', cv2.resize(imaget,(1280, 720))) #7x4
+imaget, bboxes = image_preprocess(imaget, size, bboxes)
 
 
-# image = draw_bbox(imaget, bboxes, YOLO_CLASS_PATH, show_label=False)
-# cv2.imshow('bbox', cv2.resize(image,(1280, 720)))
+image = draw_bbox(np.copy(imaget), bboxes, YOLO_CLASS_PATH, show_label=False)
+cv2.imshow('bbox', cv2.resize(imaget,(1280, 720)))
+if cv2.waitKey() == 'q':
+    pass
 
+# image = imaget[np.newaxis, ...]
 
-
-# if cv2.waitKey() == 'q':
-#     pass
-
-image = imaget[np.newaxis, ...]
-
+# # print(image.shape)
+# a = np.ones(image.shape)
+# image = np.concatenate([image, a, a, a], axis=-1)
 # print(image.shape)
-a = np.ones(image.shape)
-image = np.concatenate([image, a, a, a], axis=-1)
-print(image.shape)
 
-test = tf.nn.depth_to_space(image, 2)
-print(test.shape)
+# test = tf.nn.depth_to_space(image, 2)
+# print(test.shape)
 
 
 # import tensorflow as tf

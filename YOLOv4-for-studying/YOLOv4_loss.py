@@ -77,7 +77,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
     if fmap_teacher != None:
         #global loss
         # gb_loss = tf.norm(fmap_teacher - fmap_student, ord=2, axis=-1)
-        gb_loss = tf.math.abs(fmap_teacher - fmap_student)
+        gb_loss = tf.square(fmap_teacher - fmap_student)
         gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2]))
         #positive object loss
         flag_pos_obj = np.zeros(fmap_teacher.shape)
@@ -93,7 +93,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         pos_obj_loss = (fmap_teacher - fmap_student) * tf.cast(flag_pos_obj, tf.float32)
         # pos_obj_loss = (fmap_teacher - fmap_student)[flag_pos_obj]
         # pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))
-        pos_obj_loss = tf.reduce_mean(tf.reduce_sum(tf.math.abs(pos_obj_loss), axis=[1, 2]))
+        pos_obj_loss = tf.reduce_mean(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2]))
         # pos_obj_loss = tf.divide(pos_obj_loss, tf.cast(batch_size, tf.float32))
 
     if fmap_teacher!=None:
