@@ -10,7 +10,6 @@
 
 
 import os
-from turtle import pos
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import sys
 from tensorflow.python.client import device_lib
@@ -94,8 +93,8 @@ def main():
             giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
             num_scales = len(YOLO_SCALE_OFFSET)
             #calculate loss at each scale  
-            for i in range(num_scales):
-                if USE_SUPERVISION:
+            for i in range(num_scales): 
+                if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
                     conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                     fmap_teacher = fmap_backbone[i]
                     loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -105,7 +104,7 @@ def main():
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
-                if USE_SUPERVISION:
+                if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
                     gb_loss += loss_items[3]
                     pos_pixel_loss += loss_items[4]
             #calculate total of loss
@@ -158,7 +157,7 @@ def main():
         grid = len(YOLO_SCALE_OFFSET)
         #calculate loss at each each
         for i in range(grid):
-            if USE_SUPERVISION:
+            if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
                 conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                 fmap_teacher = fmap_backbone[i]
                 loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -168,7 +167,7 @@ def main():
             giou_loss += loss_items[0]
             conf_loss += loss_items[1]
             prob_loss += loss_items[2]
-            if USE_SUPERVISION:
+            if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
                 gb_loss += loss_items[3]
                 pos_pixel_loss += loss_items[4]
 
