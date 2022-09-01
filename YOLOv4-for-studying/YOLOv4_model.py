@@ -317,7 +317,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS):
             conv = tf.concat([route_4, conv], axis=-1)                         #output: 26 x 26 x 512
         else:
             conv = FTT_module(conv, route_4, 512)
-
+        # fmap_P4 = conv
         #Compress information of feature maps
         conv = convolutional(conv, (1, 1, 512, 256))
         conv = convolutional(conv, (3, 3, 256, 512))

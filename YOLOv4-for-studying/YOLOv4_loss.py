@@ -10,6 +10,7 @@
 
 
 
+from tkinter import N
 import tensorflow as tf
 from YOLOv4_config import *
 from YOLOv4_utils import *
@@ -78,22 +79,35 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         #global loss
         # gb_loss = tf.norm(fmap_teacher - fmap_student, ord=2, axis=-1)
         gb_loss = tf.square(fmap_teacher - fmap_student)
-        gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2]))
+        gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3]) / tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel
         #positive object loss
         flag_pos_obj = np.zeros(fmap_teacher.shape)
         num_channels = fmap_teacher.shape[-1]
-        for k in range(batch_size):
-            for j in range(YOLO_MAX_BBOX_PER_SCALE):
+        list_num_pos_pixel = []
+        num_fmap_w_pos_pixel = 0
+        for k in range(batch_size):         #each image
+            num_pos_pixel = 0
+            for j in range(YOLO_MAX_BBOX_PER_SCALE):    #each gt bbox
                 if np.multiply.reduce(gt_bboxes[k,j][2:4]) != 0:        #gt_bboxes: xywh
                     gt_bbox = np.concatenate([gt_bboxes[k,j][:2]-gt_bboxes[k,j][2:4]*0.5, gt_bboxes[k,j][:2]+gt_bboxes[k,j][2:4]*0.5], axis=-1).astype(np.int32)
                     xmin, ymin, xmax, ymax = np.array(gt_bbox / YOLO_SCALE_OFFSET[i]).astype(np.int32)
+                    num_pos_pixel += (ymax-ymin)*(xmax-xmin)*num_channels
                     temp = np.ones([ymax-ymin, xmax-xmin, num_channels])
                     flag_pos_obj[k][ymin:ymax, xmin:xmax, :] = temp
+            if num_pos_pixel==0:
+                num_pos_pixel=1
+            else:
+                num_fmap_w_pos_pixel+=1  
+            list_num_pos_pixel.append(num_pos_pixel)
+        if num_fmap_w_pos_pixel == 0:
+            num_fmap_w_pos_pixel=1
+        num_fmap_w_pos_pixel = tf.cast(num_fmap_w_pos_pixel, tf.float32)
+        list_num_pos_pixel = tf.cast(np.array(list_num_pos_pixel), tf.float32)
         flag_pos_obj = np.array(flag_pos_obj, dtype=np.bool)
         pos_obj_loss = (fmap_teacher - fmap_student) * tf.cast(flag_pos_obj, tf.float32)
         # pos_obj_loss = (fmap_teacher - fmap_student)[flag_pos_obj]
         # pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))
-        pos_obj_loss = tf.reduce_mean(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2]))
+        pos_obj_loss = tf.reduce_sum(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2, 3]) / list_num_pos_pixel) / num_fmap_w_pos_pixel
         # pos_obj_loss = tf.divide(pos_obj_loss, tf.cast(batch_size, tf.float32))
 
     if fmap_teacher!=None:

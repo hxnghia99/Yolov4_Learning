@@ -95,6 +95,7 @@ def main():
             #calculate loss at each scale  
             for i in range(num_scales): 
                 if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
                     conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                     fmap_teacher = fmap_backbone[i]
                     loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -105,6 +106,7 @@ def main():
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
                 if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
                     gb_loss += loss_items[3]
                     pos_pixel_loss += loss_items[4]
             #calculate total of loss
@@ -158,6 +160,7 @@ def main():
         #calculate loss at each each
         for i in range(grid):
             if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+            # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
                 conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                 fmap_teacher = fmap_backbone[i]
                 loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -168,6 +171,7 @@ def main():
             conf_loss += loss_items[1]
             prob_loss += loss_items[2]
             if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+            # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
                 gb_loss += loss_items[3]
                 pos_pixel_loss += loss_items[4]
 
@@ -188,7 +192,7 @@ def main():
             results = train_step(image_data, target)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
             current_step = results[0] % steps_per_epoch
             if USE_SUPERVISION:
-                print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f} - fmap_loss={:.2f}"
+                sys.stdout.write("\rEpoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:8.4f} - conf_loss={:10.4f} - prob_loss={:8.4f} - total_loss={:10.4f} - fmap_loss={:8.4f}"
                     .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5], results[6]+results[7]))
                 giou_train += results[2]
                 conf_train += results[3]
@@ -197,7 +201,7 @@ def main():
                 gb_train += results[6]
                 pos_pixel_train += results[7]
             else:
-                print("epoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:7.2f} - conf_loss={:7.2f} - prob_loss={:7.2f} - total_loss={:7.2f}"
+                sys.stdout.write("\rEpoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:8.4f} - conf_loss={:10.4f} - prob_loss={:8.4f} - total_loss={:10.4f}"
                     .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5]))
                 giou_train += results[2]
                 conf_train += results[3]
@@ -216,13 +220,13 @@ def main():
         training_writer.flush()
 
         # print validate summary data
-        print("\n\n TRAINING")
+        print("\n\nSUMMARY of EPOCH = {:2.0f}".format(epoch+1))
         if USE_SUPERVISION:
-            print("epoch={:2.0f} : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - total_fmap_loss:{:.2f}".
-                format(epoch+1, giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch, (gb_train+pos_pixel_train)/steps_per_epoch))
+            print("Training   : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - total_fmap_loss:{:6.2f}".
+                format(giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch, (gb_train+pos_pixel_train)/steps_per_epoch))
         else:
-            print("epoch={:2.0f} : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f}".
-                format(epoch+1, giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch))
+            print("Training   : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f}".
+                format(giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch))
         
         #If we do not have testing dataset, we save weights for every epoch
         if len(testset) == 0:
@@ -233,12 +237,11 @@ def main():
         num_testset = len(testset)
         giou_val, conf_val, prob_val, total_val, gb_val, pos_pixel_val, detection_loss = 0, 0, 0, 0, 0, 0, 0
         current_step = 0
-        print(" VALIDATION ")
         for image_data, target in testset:
             results = validate_step(image_data, target)
             if USE_SUPERVISION:
                 FLAG_USE_BACKBONE_EVALUATION = True
-            print("Processing: {:5.0f}/{}".format(current_step, validate_steps_per_epoch))
+            sys.stdout.write("\rProcessing: {:5.0f}/{}".format(current_step, validate_steps_per_epoch))
             current_step += 1
             giou_val += results[0]
             conf_val += results[1]
@@ -261,12 +264,12 @@ def main():
         validate_writer.flush()
         if USE_SUPERVISION:
             # print validate summary data 
-            print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f} - total_fmap_loss:{:.2f}\n\n".
-                format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, (gb_val+pos_pixel_val)/num_testset))
+            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f} - total_fmap_loss:{:6.2f}\n".
+                format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, (gb_val+pos_pixel_val)/num_testset))
         else:
             # print validate summary data 
-            print("epoch={:2.0f} : giou_val_loss:{:7.2f} - conf_val_loss:{:7.2f} - prob_val_loss:{:7.2f} - total_val_loss:{:7.2f}\n\n".
-                format(epoch+1, giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset))
+            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f}\n".
+                format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset))
 
         if not USE_SUPERVISION:
             detection_loss = total_val
