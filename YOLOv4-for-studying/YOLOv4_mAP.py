@@ -10,8 +10,8 @@
 
 
 import os
-
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import sys
 import numpy as np
 import tensorflow as tf
 from YOLOv4_dataset import Dataset
@@ -60,10 +60,10 @@ def all_points_interpolation_AP(prec, rec):
 def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, TEST_INPUT_SIZE=TEST_INPUT_SIZE, 
             CLASSES_PATH=YOLO_COCO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH):
     if USE_PRIMARY_EVALUATION_METRIC:
-        MIN_OVERLAP_RANGE = np.arange(0.5, 1., 0.05)
+        MIN_OVERLAP_RANGE = np.array([50+i*5 for i in range(10)], dtype=np.int32)
         print(f"\n Calculating primary mAP (0.5:0.95)... \n")
     else:
-        MIN_OVERLAP_RANGE = np.array([0.5])   #value to define true/false positive
+        MIN_OVERLAP_RANGE = np.array([50])   #value to define true/false positive
         print(f"\n Calculating mAP50... \n")
 
     CLASS_NAMES = read_class_names(CLASSES_PATH)
@@ -142,8 +142,8 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         #post process for prediction bboxes
         pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
         pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
-        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, 0.35)#score_threshold)  #remove invalid and low score bboxes
-        pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, method='nms', iou_threshold=0.5))#iou_threshold))                 #remove bboxes for same object in specific class 
+        pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
+        pred_bboxes = tf.convert_to_tensor(nms(pred_bboxes, method='nms', iou_threshold=iou_threshold))                 #remove bboxes for same object in specific class 
 
         if EVALUATION_DATASET_TYPE == "VISDRONE":
             bboxes = tf.cast(bboxes, dtype=tf.float64)
@@ -185,7 +185,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         # cv2.destroyAllWindows()
         # continue
 
-        print("Loaded image ", index)
+        sys.stdout.write("\rLoaded image: {}".format(index))
        
         #Save each prediction bbox to list for specific class
         for pred_bbox in pred_bboxes:
@@ -202,7 +202,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     
     times_ms = sum(times)/len(times) * 1000
     fps = 1000 / times_ms
-    print("\nFinished extracting ground truth bboxes from dataset... \n")
+    print("\nFinished extracting ground truth bboxes and prediction bboxes... \n")
 
     #save list of predictions for specific class with descending order of confidence score
     for class_name in gt_class_names:
@@ -215,7 +215,8 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     with open(mAP_PATH, 'w') as results_file:
         results_file.write("#   EVALUATION RESULTS   # \n\n")
         sum_mAP = 0.0
-        for index, MIN_OVERLAP in enumerate(MIN_OVERLAP_RANGE):
+        for index, MIN_OVERLAP_100 in enumerate(MIN_OVERLAP_RANGE):
+            MIN_OVERLAP = MIN_OVERLAP_100/100
             sum_AP = 0.0
             results_file.write("# AP and precision/recall per class: IoU threshold = {:.2f} \n".format(MIN_OVERLAP))
             # count_true_positives = {}
@@ -291,7 +292,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                 
                 # print("'{}' AP = {:0.4f}\n".format(class_name, ap))
                 #print result of class AP into result file
-                text = "{0:.3f}%".format(ap * 100) + " = " + class_name + " AP" + str(MIN_OVERLAP) + " \n" 
+                text = "{0:.3f}%".format(ap * 100) + " = " + class_name + " AP" + str(MIN_OVERLAP_100) + " \n" 
                 # rounded_prec = ['%.3f' % x for x in prec]
                 # rounded_rec = ['%.3f' % x for x in rec]
                 # results_file.write(text + "\n Precision: " + str(rounded_prec)
@@ -302,13 +303,13 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                 else:
                     AP_dictionary[class_name].append(ap)
 
-                if MIN_OVERLAP == MIN_OVERLAP_RANGE[0] or MIN_OVERLAP == MIN_OVERLAP_RANGE[5]:
+                if MIN_OVERLAP_100 == 50 or MIN_OVERLAP_100 == 75:
                     print(text)
 
             #Calculate mAP and print result
-            results_file.write(f'\n# mAP{int(MIN_OVERLAP*100)} of all classes\n')
+            results_file.write(f'\n# mAP{MIN_OVERLAP_100} of all classes\n')
             mAP = sum_AP / num_gt_classes
-            text = "mAP{} = {:.2f}%  \n".format(int(MIN_OVERLAP*100), mAP*100)
+            text = "mAP{} = {:.2f}%  \n".format(MIN_OVERLAP_100, mAP*100)
             results_file.write(text + "\n")
             print(text)
             sum_mAP += mAP

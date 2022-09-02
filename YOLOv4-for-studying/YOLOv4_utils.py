@@ -119,12 +119,16 @@ input: (3) image, target_size, gt_boxes(opt)
 output: new image padded the resized old image 
 obj:    create image to put into YOLO model
 ##################################'''
-def image_preprocess(image, target_size, gt_boxes=None):
+def image_preprocess(image, target_size, gt_boxes=None, sizex2_flag=False):
     target_size_w, target_size_h = target_size
     image_h, image_w, _ = image.shape   
     resize_ratio = min(target_size_w/image_w, target_size_h/image_h)                      #resize ratio of the larger coordinate into 416
     new_image_w, new_image_h = int(resize_ratio*image_w), int(resize_ratio*image_h)
-    image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
+    
+    if sizex2_flag:
+        image_resized = cv2.resize(image, (new_image_w, new_image_h))#,interpolation=cv2.INTER_CUBIC)                     #the original image is resized into 416 x smaller coordinate
+    else:
+        image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
 
     image_padded = np.full(shape=[target_size_h, target_size_w, 3], fill_value=128.0)
     dw, dh = (target_size_w - new_image_w) // 2, (target_size_h - new_image_h) // 2

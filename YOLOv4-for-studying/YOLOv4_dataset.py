@@ -114,7 +114,7 @@ class Dataset(object):
             bboxes = bboxes[bbox_mask]
 
         if USE_SUPERVISION:
-            image_x2 = image_preprocess(np.copy(image), self.input_size_x2)
+            image_x2 = image_preprocess(np.copy(image), self.input_size_x2, sizex2_flag=True)       #flag to use BICUBIC Interpolation
 
         #preprocess, bboxes as (xmin, ymin, xmax, ymax)
         image, bboxes = image_preprocess(image, self.input_size, bboxes)
