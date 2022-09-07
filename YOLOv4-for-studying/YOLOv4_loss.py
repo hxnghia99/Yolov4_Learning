@@ -79,7 +79,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         #global loss
         # gb_loss = tf.norm(fmap_teacher - fmap_student, ord=2, axis=-1)
         gb_loss = tf.square(fmap_teacher - fmap_student)
-        gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3]) / tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel
+        gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3])) #/ tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel in hxwxc
         #positive object loss
         flag_pos_obj = np.zeros(fmap_teacher.shape)
         num_channels = fmap_teacher.shape[-1]
@@ -107,7 +107,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         pos_obj_loss = (fmap_teacher - fmap_student) * tf.cast(flag_pos_obj, tf.float32)
         # pos_obj_loss = (fmap_teacher - fmap_student)[flag_pos_obj]
         # pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))
-        pos_obj_loss = tf.reduce_sum(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2, 3]) / list_num_pos_pixel) / num_fmap_w_pos_pixel
+        pos_obj_loss = tf.reduce_sum(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2, 3])) / num_fmap_w_pos_pixel #/ list_num_pos_pixel) / num_fmap_w_pos_pixel
         # pos_obj_loss = tf.divide(pos_obj_loss, tf.cast(batch_size, tf.float32))
 
     if fmap_teacher!=None:
