@@ -76,7 +76,7 @@ def main():
     validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
 
     def weight_sharing_origin_to_backbone(dest, src):
-        for i in range(400):
+        for i in range(NUM_TEACHER_LAYERS):
             dest.weights[i].assign(np.array(src.weights[i]))
         # print("Finished sharing!")
 
@@ -136,7 +136,7 @@ def main():
                 tf.summary.scalar("training_loss/prob_loss", prob_loss, step=global_steps)
                 if USE_SUPERVISION:
                     tf.summary.scalar("training_loss/gb_loss", gb_loss, step=global_steps)
-                    tf.summary.scalar("training_loss/pos_pixel_poss", pos_pixel_loss, step=global_steps)
+                    tf.summary.scalar("training_loss/pos_pixel_loss", pos_pixel_loss, step=global_steps)
             training_writer.flush()     
         
         if USE_SUPERVISION:

@@ -18,7 +18,7 @@ MODEL_BRANCH_TYPE               = ["P2", "P5m"]
 USE_FTT_P2                      = True
 USE_FTT_P3                      = False
 USE_FTT_P4                      = False
-LAMDA_FMAP_LOSS                 = 10.0
+LAMDA_FMAP_LOSS                 = 0.1
 USE_SUPERVISION                 = False     #when True, use at least 1 FTT module
 BACKBONE_DILATION               = True
 """
@@ -27,9 +27,17 @@ MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - HR_P5       =             P0          |           P5
     - HR_P4       =             P0          |           P4
     - HR_P3       =             P0          |           P3
-    - HR_P5_P0    =             P(-1)       |           P5
-    - HR_P2_P5    =             P2          |           P5m
+    - HR_P5_P(-1) =             P(-1)       |           P5
+    - HR_P5_P2    =             P2          |           P5m
 """
+NUM_TEACHER_LAYERS              = 460
+if USE_FTT_P2:
+    NUM_TEACHER_LAYERS          = 460
+    if USE_FTT_P3:
+        NUM_TEACHER_LAYERS      = 520
+        if USE_FTT_P4:
+            NUM_TEACHER_LAYERS  = 580
+
 
 # ["COCO", "LG", "VISDRONE"]
 MAKE_EVALUATION                 = False
@@ -50,8 +58,8 @@ OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
 
-TRAIN_BATCH_SIZE                = 16
-TEST_BATCH_SIZE                 = 16
+TRAIN_BATCH_SIZE                = 24
+TEST_BATCH_SIZE                 = 24
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
@@ -224,6 +232,6 @@ if MAKE_EVALUATION:
         VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-visdrone'
         VALIDATE_MAP_RESULT_PATH    = "YOLOv4-for-studying/mAP/results-visdrone.txt"    
 
-# EVALUATION_WEIGHT_FILE = "YOLOv4-for-studying/yolov4_992x992_origin/YOLOv4_custom"
+# EVALUATION_WEIGHT_FILE = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_Original"
 # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test.txt"  
 # PREDICTION_WEIGHT_FILE      = "YOLOv4-for-studying/yolov4_992x992_origin/YOLOv4_custom"
