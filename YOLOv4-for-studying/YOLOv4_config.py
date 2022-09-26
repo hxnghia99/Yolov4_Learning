@@ -9,6 +9,8 @@
 #===============================================================#
 
 
+import numpy as np
+
 """ ------ IMPORTANT SETTING ------ """
 # ["COCO", "LG", "VISDRONE"]
 TRAINING_DATASET_TYPE           = "LG"
@@ -18,9 +20,13 @@ MODEL_BRANCH_TYPE               = ["P2", "P5m"]
 USE_FTT_P2                      = True
 USE_FTT_P3                      = False
 USE_FTT_P4                      = False
-LAMDA_FMAP_LOSS                 = 0.1
-USE_SUPERVISION                 = False     #when True, use at least 1 FTT module
+LAMDA_FMAP_LOSS                 = 1.0
+USE_SUPERVISION                 = True     #when True, use at least 1 FTT module
 BACKBONE_DILATION               = True
+#Modify BN
+DISTILLATION_FLAG               = True     #enable teacher_version, student_version
+TEACHER_TRAINING_MODE           = False
+
 """
 MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - original    =             P3n         |           P5n
@@ -30,14 +36,10 @@ MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - HR_P5_P(-1) =             P(-1)       |           P5
     - HR_P5_P2    =             P2          |           P5m
 """
-NUM_TEACHER_LAYERS              = 460
-if USE_FTT_P2:
-    NUM_TEACHER_LAYERS          = 460
-    if USE_FTT_P3:
-        NUM_TEACHER_LAYERS      = 520
-        if USE_FTT_P4:
-            NUM_TEACHER_LAYERS  = 580
 
+
+FTT_P2_LAYERS_RANGE             = np.arange(462, 495)
+TEACHER_LAYERS_RANGE            = np.arange(462)
 
 # ["COCO", "LG", "VISDRONE"]
 MAKE_EVALUATION                 = False
@@ -58,8 +60,8 @@ OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
 
-TRAIN_BATCH_SIZE                = 24
-TEST_BATCH_SIZE                 = 24
+TRAIN_BATCH_SIZE                = 2
+TEST_BATCH_SIZE                 = 2
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"

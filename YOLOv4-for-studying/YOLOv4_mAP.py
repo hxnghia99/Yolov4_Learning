@@ -330,7 +330,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
 if __name__ == '__main__':
     weights_file = EVALUATION_WEIGHT_FILE
-    yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH)
+    yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE)
     if USE_CUSTOM_WEIGHTS:
         if EVALUATION_DATASET_TYPE == "COCO":

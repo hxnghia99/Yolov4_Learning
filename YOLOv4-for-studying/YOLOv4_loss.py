@@ -9,8 +9,6 @@
 #===============================================================#
 
 
-
-from tkinter import N
 import tensorflow as tf
 from YOLOv4_config import *
 from YOLOv4_utils import *

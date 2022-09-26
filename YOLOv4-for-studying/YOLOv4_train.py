@@ -46,10 +46,13 @@ def main():
     
     #Create Darkent53 model and load pretrained weights
     if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
-        Darknet = YOLOv4_Model(CLASSES_PATH=YOLO_COCO_CLASS_PATH)
+        Darknet = YOLOv4_Model(CLASSES_PATH=YOLO_COCO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
         load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
     #Create YOLO model
-    yolo = YOLOv4_Model(training=True, CLASSES_PATH=YOLO_CLASS_PATH)
+    yolo = YOLOv4_Model(training=True, CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG) 
+    
+
+
     if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
         for i, l in enumerate(Darknet.layers):
             layer_weights = l.get_weights()
@@ -64,85 +67,172 @@ def main():
 
     if USE_SUPERVISION:
         #yolov4 backbone network
-        yolo_backbone = create_YOLOv4_backbone(dilation=BACKBONE_DILATION)
+        yolo_backbone = create_YOLOv4_backbone(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG)
         FLAG_USE_BACKBONE_EVALUATION = False
 
     #Create Adam optimizers
-    optimizer = tf.keras.optimizers.Adam()
+    optimizer = tf.keras.optimizers.Adam(beta_1=0.9, beta_2=0.999, epsilon=1e-8)
     
     #Create log folder and summary
     if os.path.exists(TRAIN_LOGDIR): shutil.rmtree(TRAIN_LOGDIR)
     training_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'training/')
     validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
-
+    
+    
     def weight_sharing_origin_to_backbone(dest, src):
-        for i in range(NUM_TEACHER_LAYERS):
-            dest.weights[i].assign(np.array(src.weights[i]))
+        for i in TEACHER_LAYERS_RANGE:                                #462 layers + 5 MaxPool2D (due to dilation conv)
+            temp_t = i
+            if i >= 11:                                         
+                temp_t = temp_t +1
+            if i >= 49:
+                temp_t = temp_t + 1
+            if i >= 98:
+                temp_t = temp_t + 1
+            if i >= 213:
+                temp_t = temp_t + 1
+            if i >= 328:
+                temp_t = temp_t + 1
+            if dest.layers[temp_t].get_weights() != []:
+                dest.layers[temp_t].set_weights(src.layers[i].get_weights())
         # print("Finished sharing!")
 
-    #Create training function for each batch
-    def train_step(image_data, target):
-        if USE_SUPERVISION:
-            weight_sharing_origin_to_backbone(yolo_backbone, yolo)
-            fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1])
-            image_data = image_data[0]
-            fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
-
-        with tf.GradientTape() as tape:
-            pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
-            giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
-            num_scales = len(YOLO_SCALE_OFFSET)
-            #calculate loss at each scale  
-            for i in range(num_scales): 
-                if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                    conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
-                    fmap_teacher = fmap_backbone[i]
-                    loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
-                else:
-                    conv, pred = pred_result[i*2], pred_result[i*2+1]
-                    loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
-                giou_loss += loss_items[0]
-                conf_loss += loss_items[1]
-                prob_loss += loss_items[2]
-                if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                    gb_loss += loss_items[3]
-                    pos_pixel_loss += loss_items[4]
-            #calculate total of loss
+    if not DISTILLATION_FLAG:
+        #Create training function for each batch
+        def train_step(image_data, target):
             if USE_SUPERVISION:
-                total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss
-            else:   
-                total_loss = giou_loss + conf_loss + prob_loss 
-            #backpropagate gradients
-            gradients = tape.gradient(total_loss, yolo.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, yolo.trainable_variables))
-            # update learning rate
-            if global_steps < warmup_steps:
-                lr = global_steps / warmup_steps * TRAIN_LR_INIT
-            else:
-                lr = TRAIN_LR_END + 0.5 * (TRAIN_LR_INIT - TRAIN_LR_END)*(
-                    (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))    
-            optimizer.lr.assign(lr.numpy())
-            #increase global steps 
-            global_steps.assign_add(1)
+                weight_sharing_origin_to_backbone(yolo_backbone, yolo)
+                fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1], training=TEACHER_TRAINING_MODE)
+                image_data = image_data[0]
+                fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
 
-             # writing summary data
-            with training_writer.as_default():
-                tf.summary.scalar("lr", optimizer.lr, step=global_steps)
-                tf.summary.scalar("training_loss/total_loss", total_loss, step=global_steps)
-                tf.summary.scalar("training_loss/giou_loss", giou_loss, step=global_steps)
-                tf.summary.scalar("training_loss/conf_loss", conf_loss, step=global_steps)
-                tf.summary.scalar("training_loss/prob_loss", prob_loss, step=global_steps)
+            with tf.GradientTape(persistent=False) as tape:
+                pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
+                giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
+                num_scales = len(YOLO_SCALE_OFFSET)
+                #calculate loss at each scale  
+                for i in range(num_scales): 
+                    if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                        conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
+                        fmap_teacher = fmap_backbone[i]
+                        loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
+                    else:
+                        conv, pred = pred_result[i*2], pred_result[i*2+1]
+                        loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
+                    giou_loss += loss_items[0]
+                    conf_loss += loss_items[1]
+                    prob_loss += loss_items[2]
+                    if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                        gb_loss += loss_items[3]
+                        pos_pixel_loss += loss_items[4]
+                #calculate total of loss
                 if USE_SUPERVISION:
-                    tf.summary.scalar("training_loss/gb_loss", gb_loss, step=global_steps)
-                    tf.summary.scalar("training_loss/pos_pixel_loss", pos_pixel_loss, step=global_steps)
-            training_writer.flush()     
-        
-        if USE_SUPERVISION:
-            return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy()
-        else:
-            return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
+                    total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss
+                else:   
+                    total_loss = giou_loss + conf_loss + prob_loss 
+                
+                gradients = tape.gradient(total_loss, yolo.trainable_variables)
+                optimizer.apply_gradients(zip(gradients, yolo.trainable_variables))
+
+                # update learning rate
+                if global_steps < warmup_steps:
+                    lr = global_steps / warmup_steps * TRAIN_LR_INIT
+                else:
+                    lr = TRAIN_LR_END + 0.5 * (TRAIN_LR_INIT - TRAIN_LR_END)*(
+                        (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))    
+                optimizer.lr.assign(lr.numpy())
+                #increase global steps 
+                global_steps.assign_add(1)
+
+                # writing summary data
+                with training_writer.as_default():
+                    tf.summary.scalar("lr", optimizer.lr, step=global_steps)
+                    tf.summary.scalar("training_loss/total_loss", total_loss, step=global_steps)
+                    tf.summary.scalar("training_loss/giou_loss", giou_loss, step=global_steps)
+                    tf.summary.scalar("training_loss/conf_loss", conf_loss, step=global_steps)
+                    tf.summary.scalar("training_loss/prob_loss", prob_loss, step=global_steps)
+                    if USE_SUPERVISION:
+                        tf.summary.scalar("training_loss/gb_loss", gb_loss, step=global_steps)
+                        tf.summary.scalar("training_loss/pos_pixel_loss", pos_pixel_loss, step=global_steps)
+                training_writer.flush()   
+
+            if USE_SUPERVISION:
+                return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy()
+            else:
+                return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
+    else:
+        #Create training function for each batch
+        def train_step(image_data, target):
+            if USE_SUPERVISION:
+                imagex2_data = image_data[1]
+                image_data = image_data[0]
+
+            with tf.GradientTape(persistent=False) as tape:
+                pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
+                
+                with tape.stop_recording():
+                    if USE_SUPERVISION:
+                        weight_sharing_origin_to_backbone(yolo_backbone, yolo)
+                        fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(imagex2_data, training=TEACHER_TRAINING_MODE)
+                        fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
+            
+                giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
+                num_scales = len(YOLO_SCALE_OFFSET)
+                #calculate loss at each scale  
+                for i in range(num_scales): 
+                    if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                        conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
+                        fmap_teacher = fmap_backbone[i]
+                        loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
+                    else:
+                        conv, pred = pred_result[i*2], pred_result[i*2+1]
+                        loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH)
+                    giou_loss += loss_items[0]
+                    conf_loss += loss_items[1]
+                    prob_loss += loss_items[2]
+                    if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                        gb_loss += loss_items[3]
+                        pos_pixel_loss += loss_items[4]
+                #calculate total of loss
+                if USE_SUPERVISION:
+                    total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss
+                else:   
+                    total_loss = giou_loss + conf_loss + prob_loss 
+                
+                gradients = tape.gradient(total_loss, yolo.trainable_variables)
+                optimizer.apply_gradients(zip(gradients, yolo.trainable_variables))
+                
+                # update learning rate
+                if global_steps < warmup_steps:
+                    lr = global_steps / warmup_steps * TRAIN_LR_INIT
+                else:
+                    lr = TRAIN_LR_END + 0.5 * (TRAIN_LR_INIT - TRAIN_LR_END)*(
+                        (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))    
+                optimizer.lr.assign(lr.numpy())
+                #increase global steps 
+                global_steps.assign_add(1)
+
+                # writing summary data
+                with training_writer.as_default():
+                    tf.summary.scalar("lr", optimizer.lr, step=global_steps)
+                    tf.summary.scalar("training_loss/total_loss", total_loss, step=global_steps)
+                    tf.summary.scalar("training_loss/giou_loss", giou_loss, step=global_steps)
+                    tf.summary.scalar("training_loss/conf_loss", conf_loss, step=global_steps)
+                    tf.summary.scalar("training_loss/prob_loss", prob_loss, step=global_steps)
+                    if USE_SUPERVISION:
+                        tf.summary.scalar("training_loss/gb_loss", gb_loss, step=global_steps)
+                        tf.summary.scalar("training_loss/pos_pixel_loss", pos_pixel_loss, step=global_steps)
+                training_writer.flush()   
+
+            if USE_SUPERVISION:
+                return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy()
+            else:
+                return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
+
+
 
 
     #Create validation function after each epoch
@@ -150,7 +240,7 @@ def main():
         if USE_SUPERVISION and not FLAG_USE_BACKBONE_EVALUATION:
             weight_sharing_origin_to_backbone(yolo_backbone, yolo)
         if USE_SUPERVISION:
-            fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1])
+            fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1], training=False)
             image_data = image_data[0]
             fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
    
@@ -183,8 +273,7 @@ def main():
             total_loss = giou_loss + conf_loss + prob_loss 
             return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
-    best_val_loss = 1000 # should be large at start
-    #For each epoch, do training and validating
+    best_val_loss = 100000 # should be large at start
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
         giou_train, conf_train, prob_train, total_train, gb_train, pos_pixel_train = 0, 0, 0, 0, 0, 0

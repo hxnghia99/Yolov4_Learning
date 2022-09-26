@@ -71,6 +71,9 @@ def load_yolov4_weights(model, weights_file):
                 bn_weights = np.fromfile(wf, dtype=np.float32, count=4 * filters)           
                 # bn weights in model:       [gamma, beta, mean, variance]
                 bn_weights = bn_weights.reshape((4, filters))[[1, 0, 2, 3]]                   #swap rows
+                if DISTILLATION_FLAG:
+                    temp = np.zeros((2, filters))
+                    bn_weights = np.concatenate([bn_weights, temp], axis=0)
                 bn_layer = model.get_layer(bn_layer_name)
                 j += 1
             else:
