@@ -207,18 +207,16 @@ def main():
     warmup_steps = TRAIN_WARMUP_EPOCHS * steps_per_epoch
     total_steps = TRAIN_EPOCHS * steps_per_epoch
     
-    #Create Darkent53 model and load pretrained weights
-    if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
-        Darknet = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
-        load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
-    #Create YOLO model
-    yolo_student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG) 
-    
     # yolo_student_layers_range = np.arange(len(yolo_student.layers))  #FTT_P3: 472, FTT_P2: 495
     # ftt_layers_range = np.arange(462, 495)                           #439,         462  
     # yolo_teacher_layers_range = np.setdiff1d(yolo_student_layers_range, ftt_layers_range)   
 
+    #Create Darkent53 model and load pretrained weights
     if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
+        Darknet = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
+        load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
+        #Create YOLO model
+        yolo_student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG) 
         for i, l in enumerate(Darknet.layers):
             layer_weights = l.get_weights()
             if layer_weights != []:
@@ -226,6 +224,20 @@ def main():
                     yolo_student.layers[i].set_weights(layer_weights)
                 except:
                     print("skipping", yolo_student.layers[i].name)
+
+    elif TRAIN_FROM_CHECKPOINT:
+        yolo_original = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
+        yolo_original.load_weights(PREDICTION_WEIGHT_FILE)
+
+        #Create YOLO model
+        yolo_student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
+
+        for i in TEACHER_LAYERS_RANGE:                                 #--> Check layer order
+            if yolo_student.layers[i].get_weights() != []:
+                yolo_student.layers[i].set_weights(yolo_original.layers[i].get_weights())
+
+    # for i in TEACHER_LAYERS_RANGE:                         #--> Check layer order
+    #     yolo_student.layers[i].trainable = False
 
     if USE_SUPERVISION:
         #yolov4 backbone network
