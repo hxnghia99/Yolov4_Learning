@@ -232,7 +232,7 @@ def main():
         #Create YOLO model
         yolo_student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
 
-        for i in TEACHER_LAYERS_RANGE:                                 #--> Check layer order
+        for i in STUDENT_LAYERS_RANGE:                                 #--> Check layer order
             if yolo_student.layers[i].get_weights() != []:
                 yolo_student.layers[i].set_weights(yolo_original.layers[i].get_weights())
 

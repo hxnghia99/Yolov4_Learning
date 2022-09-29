@@ -40,6 +40,7 @@ MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
 
 FTT_P2_LAYERS_RANGE             = np.arange(462, 495)
 TEACHER_LAYERS_RANGE            = np.arange(462)
+STUDENT_LAYERS_RANGE            = np.arange(495)
 
 # ["COCO", "LG", "VISDRONE"]
 MAKE_EVALUATION                 = False
@@ -60,8 +61,8 @@ OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
 
-TRAIN_BATCH_SIZE                = 2
-TEST_BATCH_SIZE                 = 2
+TRAIN_BATCH_SIZE                = 24
+TEST_BATCH_SIZE                 = 24
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"

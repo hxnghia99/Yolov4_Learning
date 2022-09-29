@@ -273,7 +273,7 @@ def main():
             total_loss = giou_loss + conf_loss + prob_loss 
             return giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
 
-    best_val_loss = 100000 # should be large at start
+    best_val_loss = float('inf') # should be large at start
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
         giou_train, conf_train, prob_train, total_train, gb_train, pos_pixel_train = 0, 0, 0, 0, 0, 0
@@ -353,11 +353,11 @@ def main():
         validate_writer.flush()
         if USE_SUPERVISION:
             # print validate summary data 
-            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f} - total_fmap_loss:{:6.2f}\n".
+            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f} - total_fmap_loss:{:6.2f}".
                 format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, (gb_val+pos_pixel_val)/num_testset))
         else:
             # print validate summary data 
-            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f}\n".
+            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f}".
                 format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset))
 
         if not USE_SUPERVISION:
@@ -370,6 +370,7 @@ def main():
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = detection_loss/num_testset
+            print("Save best weights at epoch = ", epoch, end="\n")
     if USE_SUPERVISION:
         FLAG_USE_BACKBONE_EVALUATION = False
 
