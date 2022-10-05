@@ -22,9 +22,9 @@ USE_FTT_P3                      = False
 USE_FTT_P4                      = False
 LAMDA_FMAP_LOSS                 = 1.0
 USE_SUPERVISION                 = True     #when True, use at least 1 FTT module
-BACKBONE_DILATION               = True
+BACKBONE_DILATION               = False
 #Modify BN
-DISTILLATION_FLAG               = True     #enable teacher_version, student_version
+DISTILLATION_FLAG               = False     #enable teacher_version, student_version
 TEACHER_TRAINING_MODE           = False
 
 """

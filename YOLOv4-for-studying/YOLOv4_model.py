@@ -293,7 +293,7 @@ def FTT_module(p_lr, p_hr, num_channels, dilation=False):       #(p_lr, p_hr, c)
 
 
 #Add neck layers to CSPDarknet53 and create YOLOv4 model
-def YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=False, student_ver=False):
+def YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=False, student_ver=False, dilation=False):
     # Create CSPDarknet53 network and 3 backbone features at large, medium and small scale
     if MODEL_BRANCH_TYPE[1] == "P5n":
         route_3, route_4, conv = CSPDarknet53(input_layer)
@@ -304,67 +304,70 @@ def YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=False, student_ver=False
     elif MODEL_BRANCH_TYPE[1] == "P3":
         route_0, route_1, route_2, conv = CSPDarknet53(input_layer)   
     elif MODEL_BRANCH_TYPE[1] == "P5m":
-        route_2, route_3, route_4, conv = CSPDarknet53(input_layer, teacher_ver=teacher_ver, student_ver=student_ver)
-
+        route_2, route_3, route_4, conv = CSPDarknet53(input_layer, teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)
+        backbone_P2, backbone_P3, backbone_P4, backbone_P5 = route_2, route_3, route_4, conv
     """ PANet bottom up layers """
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 1
         if not USE_FTT_P4:
             route_5 = conv                                              #output: 13 x 13 x 512      
-            conv = convolutional(conv, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver)                #output: 13 x 13 x 256      #415 +3x2(above+below)->421
+            fmap_t5 = route_5
+            conv = convolutional(conv, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                #output: 13 x 13 x 256      #415 +3x2(above+below)->421
             conv = UpSampling2D()(conv)                                 #output: 26 x 26 x 256      #422                                 
-            route_4 = convolutional(route_4, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver)          #output: 26 x 26 x 256
+            route_4 = convolutional(route_4, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)          #output: 26 x 26 x 256
             conv = tf.concat([route_4, conv], axis=-1)                  #output: 26 x 26 x 512      #423
         else:
-            conv = FTT_module(conv, route_4, 512)                                                                                   #415 +33->448
+            conv = FTT_module(conv, route_4, 512, dilation=dilation)                                                                                   #415 +33->448
         fmap_P4 = conv
         #Compress information of feature maps
-        conv = convolutional(conv, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver)                                                #423 +3->426 
-        conv = convolutional(conv, (3, 3, 256, 512), teacher_ver=teacher_ver, student_ver=student_ver)                                                #426 +3->429
-        conv = convolutional(conv, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver)                                                #429 +3->432
-        conv = convolutional(conv, (3, 3, 256, 512), teacher_ver=teacher_ver, student_ver=student_ver)                    #output: 26 x 26 x 512      #432 +3->435
+        conv = convolutional(conv, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                                                #423 +3->426 
+        conv = convolutional(conv, (3, 3, 256, 512), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                                                #426 +3->429
+        conv = convolutional(conv, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                                                #429 +3->432
+        conv = convolutional(conv, (3, 3, 256, 512), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                    #output: 26 x 26 x 512      #432 +3->435
         # fmap_P4 = conv      
-        conv = convolutional(conv, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver)                    #output: 26 x 26 x 256      #435 +3->438
-    
+        conv = convolutional(conv, (1, 1, 512, 256), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                    #output: 26 x 26 x 256      #435 +3->438
+        fmap_t4 = conv
+
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P4" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 2
         if not USE_FTT_P3:
             route_4 = conv                                               #output: 26 x 26 x 256     
-            conv = conv = convolutional(conv, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver)          #output: 26 x 26 x 128     #438 +3x2(above+below)->444
+            conv = conv = convolutional(conv, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)          #output: 26 x 26 x 128     #438 +3x2(above+below)->444
             conv = UpSampling2D()(conv)                                  #output: 52 x 52 x 128     #445                 
-            route_3 = convolutional(route_3, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver)           #output: 52 x 52 x 128
+            route_3 = convolutional(route_3, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)           #output: 52 x 52 x 128
+            fmap_t3 = conv
             conv = tf.concat([route_3, conv], axis=-1)                   #output: 52 x 52 x 256     #446
         else:
             conv = FTT_module(conv, route_3, 256)
         fmap_P3 = conv  
         #Compress information of feature maps
-        conv = convolutional(conv, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver)                                                #446 +3->449
-        conv = convolutional(conv, (3, 3, 128, 256), teacher_ver=teacher_ver, student_ver=student_ver)                                                #449 +3->452
-        conv = convolutional(conv, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver)                                                #452 +3->455
-        conv = convolutional(conv, (3, 3, 128, 256), teacher_ver=teacher_ver, student_ver=student_ver)                     #output: 52 x 52 x 256     #455 +3->458
+        conv = convolutional(conv, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                                                #446 +3->449
+        conv = convolutional(conv, (3, 3, 128, 256), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                                                #449 +3->452
+        conv = convolutional(conv, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                                                #452 +3->455
+        conv = convolutional(conv, (3, 3, 128, 256), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                     #output: 52 x 52 x 256     #455 +3->458
         # fmap_P3 = conv  
-        conv = convolutional(conv, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver)                     #output: 52 x 52 x 128     #458 +3->461
-
+        conv = convolutional(conv, (1, 1, 256, 128), teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)                     #output: 52 x 52 x 128     #458 +3->461
+        fmap_t3 = conv
 
     """ Additional upsampling: to resolution P2 """
     if  MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 3
         if not USE_FTT_P2:
             route_3 = conv                                                #output: 52 x 52 x 128
-            conv = convolutional(conv, (1, 1, 128, 64))                   #output: 52 x 52 x 64
+            conv = convolutional(conv, (1, 1, 128, 64), dilation=dilation)                   #output: 52 x 52 x 64
             conv = UpSampling2D()(conv)                                   #output: 104 x 104 x 64                                       
-            route_2 = convolutional(route_2, (1, 1, 128, 64))             #output: 104 x 104 x 64
+            route_2 = convolutional(route_2, (1, 1, 128, 64), dilation=dilation)             #output: 104 x 104 x 64
             conv = tf.concat([route_2, conv], axis=-1)                    #output: 104 x 104 x 128
         else:
-            conv = FTT_module(conv, route_2, 128)                                                   #461 +33->494
+            conv = FTT_module(conv, route_2, 128, dilation=dilation)                                                   #461 +33->494
         fmap_P2 = conv    
         #Compress information of feature maps
-        conv = convolutional(conv, (1, 1, 128, 64))
-        conv = convolutional(conv, (3, 3, 64, 128))
-        conv = convolutional(conv, (1, 1, 128, 64))
-        conv = convolutional(conv, (3, 3, 64, 128))
+        conv = convolutional(conv, (1, 1, 128, 64), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
+        conv = convolutional(conv, (1, 1, 128, 64), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
         # fmap_P2 = conv
-        conv = convolutional(conv, (1, 1, 128, 64))                       #output: 104 x 104 x 64
+        conv = convolutional(conv, (1, 1, 128, 64), dilation=dilation)                       #output: 104 x 104 x 64
 
 
 
@@ -539,36 +542,37 @@ def YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=False, student_ver=False
 
     elif MODEL_BRANCH_TYPE[0] == "P2":
         route_2 = conv
-        conv = convolutional(conv, (3, 3, 64, 128))
-        conv_sbbox = convolutional(conv, (1, 1, 128, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
-
-        conv = convolutional(route_2, (3, 3, 64, 128), downsample=True)
+        conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
+        conv_sbbox = convolutional(conv, (1, 1, 128, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
+        
+        conv = convolutional(route_2, (3, 3, 64, 128), downsample=True, dilation=dilation)
         conv = tf.concat([conv, route_3], axis=-1)
 
-        conv = convolutional(conv, (1, 1, 256, 128))
-        conv = convolutional(conv, (3, 3, 128, 256))
-        conv = convolutional(conv, (1, 1, 256, 128))
-        conv = convolutional(conv, (3, 3, 128, 256))
-        conv = convolutional(conv, (1, 1, 256, 128))
+        conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 128, 256), dilation=dilation)
+        conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 128, 256), dilation=dilation)
+        conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)
 
         route_3 = conv
         conv = convolutional(conv, (3, 3, 128, 256))
-        conv_mbbox = convolutional(conv, (1, 1, 256, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+        conv_mbbox = convolutional(conv, (1, 1, 256, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
 
-        conv = convolutional(route_3, (3, 3, 128, 256), downsample=True)
+        conv = convolutional(route_3, (3, 3, 128, 256), downsample=True, dilation=dilation)
         conv = tf.concat([conv, route_4], axis=-1)
 
-        conv = convolutional(conv, (1, 1, 512, 256))
-        conv = convolutional(conv, (3, 3, 256, 512))
-        conv = convolutional(conv, (1, 1, 512, 256))
-        conv = convolutional(conv, (3, 3, 256, 512))
-        conv = convolutional(conv, (1, 1, 512, 256))
+        conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 256, 512), dilation=dilation)
+        conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)
+        conv = convolutional(conv, (3, 3, 256, 512), dilation=dilation)
+        conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)
 
+        route_4 = conv
         conv = convolutional(conv, (3, 3, 256, 512))
-        conv_lbbox = convolutional(conv, (1, 1, 512, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
+        conv_lbbox = convolutional(conv, (1, 1, 512, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
 
         if USE_SUPERVISION:
-            return [conv_sbbox, conv_mbbox, conv_lbbox], [fmap_P2, fmap_P3, fmap_P4]
+            return [conv_sbbox, conv_mbbox, conv_lbbox], [fmap_P2, fmap_P3, fmap_P4]#, fmap_t3, fmap_t4,fmap_t5, backbone_P2, backbone_P3, backbone_P4, backbone_P5]
         else:
             return [conv_sbbox, conv_mbbox, conv_lbbox]
 
@@ -608,7 +612,7 @@ def decode(conv_output, NUM_CLASS, i=0):
     return tf.concat([pred_xywh, pred_conf, pred_prob], axis=-1)
 
 
-def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH, teacher_ver=False, student_ver=False):
+def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH, teacher_ver=False, student_ver=False, dilation=False):
     #Read coco class names file
     class_names = {}
     with open(CLASSES_PATH, 'r') as data:
@@ -618,9 +622,9 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
     #Create input layer
     input_layer = Input([None, None, input_channel])
     if USE_SUPERVISION:
-        conv_tensors, student_fmaps = YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=teacher_ver, student_ver=student_ver)
+        conv_tensors, student_fmaps = YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)
     else:
-        conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS)
+        conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation, student_ver=student_ver)
 
     output_tensors = []
     for i, conv_tensor in enumerate(conv_tensors):                              #small bboxes -> medium -> large

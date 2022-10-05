@@ -207,6 +207,24 @@ def main():
     warmup_steps = TRAIN_WARMUP_EPOCHS * steps_per_epoch
     total_steps = TRAIN_EPOCHS * steps_per_epoch
     
+    def weight_sharing_origin_to_backbone(dest, src):
+        for i in TEACHER_LAYERS_RANGE:
+            temp_t = i
+            if USE_SUPERVISION:
+                if i >= 11:
+                    temp_t = temp_t +1
+                if i >= 49:
+                    temp_t = temp_t + 1
+                if i >= 98:
+                    temp_t = temp_t + 1
+                if i >= 213:
+                    temp_t = temp_t + 1
+                if i >= 328:
+                    temp_t = temp_t + 1
+            if dest.layers[temp_t].get_weights() != []:
+                dest.layers[temp_t].set_weights(src.layers[i].get_weights())
+
+
     # yolo_student_layers_range = np.arange(len(yolo_student.layers))  #FTT_P3: 472, FTT_P2: 495
     # ftt_layers_range = np.arange(462, 495)                           #439,         462  
     # yolo_teacher_layers_range = np.setdiff1d(yolo_student_layers_range, ftt_layers_range)   
@@ -226,8 +244,9 @@ def main():
                     print("skipping", yolo_student.layers[i].name)
 
     elif TRAIN_FROM_CHECKPOINT:
+        weight_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
         yolo_original = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
-        yolo_original.load_weights(PREDICTION_WEIGHT_FILE)
+        yolo_original.load_weights(weight_file)
 
         #Create YOLO model
         yolo_student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
@@ -236,13 +255,14 @@ def main():
             if yolo_student.layers[i].get_weights() != []:
                 yolo_student.layers[i].set_weights(yolo_original.layers[i].get_weights())
 
-    # for i in TEACHER_LAYERS_RANGE:                         #--> Check layer order
-    #     yolo_student.layers[i].trainable = False
+    for i in TEACHER_LAYERS_RANGE:                         #--> Check layer order
+        yolo_student.layers[i].trainable = False
 
     if USE_SUPERVISION:
         #yolov4 backbone network
         yolo_teacher = create_YOLOv4_teacher(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG)
-
+        weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
+    
     #Create Adam optimizers
     optimizer = tf.keras.optimizers.Adam()#beta_1=0.9, beta_2=0.999, epsilon=1e-8)
     
@@ -251,24 +271,9 @@ def main():
     training_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'training/')
     validate_writer = tf.summary.create_file_writer(TRAIN_LOGDIR+'validation/')
 
-    def weight_sharing_origin_to_backbone(dest, src):
-        for i in TEACHER_LAYERS_RANGE:
-            temp_t = i
-            if i >= 11:
-                temp_t = temp_t +1
-            if i >= 49:
-                temp_t = temp_t + 1
-            if i >= 98:
-                temp_t = temp_t + 1
-            if i >= 213:
-                temp_t = temp_t + 1
-            if i >= 328:
-                temp_t = temp_t + 1
-            if dest.layers[temp_t].get_weights() != []:
-                dest.layers[temp_t].set_weights(src.layers[i].get_weights())
+    
 
-
-    if not DISTILLATION_FLAG:
+    if DISTILLATION_FLAG:
         #Create training function for each batch
         def train_step(image_data, target):
             if USE_SUPERVISION:
@@ -329,7 +334,7 @@ def main():
         #Create training function for each batch
         def train_step(image_data, target):
             if USE_SUPERVISION:
-                weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
+                # weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
                 fmap_t_P3, fmap_t_P4, fmap_t_P5, _ = yolo_teacher(image_data[1], training=TEACHER_TRAINING_MODE)
                 fmap_teachers = [fmap_t_P3, fmap_t_P4, fmap_t_P5] 
                 image_data = image_data[0]
@@ -385,7 +390,7 @@ def main():
     def validate_step(image_data, target):
         # if USE_SUPERVISION and not FLAG_USE_BACKBONE_EVALUATION:   
         if USE_SUPERVISION:
-            weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
+            # weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
             fmap_t_P3, fmap_t_P4, fmap_t_P5, _ = yolo_teacher(image_data[1], training=False)
             image_data = image_data[0]
             fmap_teachers = [fmap_t_P3, fmap_t_P4, fmap_t_P5] 

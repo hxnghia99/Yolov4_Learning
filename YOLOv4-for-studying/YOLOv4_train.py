@@ -24,6 +24,9 @@ from YOLOv4_loss    import compute_loss
 from YOLOv4_utils   import load_yolov4_weights
 from YOLOv4_config  import *
 
+import logging
+tf.get_logger().setLevel(logging.ERROR)
+
 
 
 def main():
@@ -71,7 +74,7 @@ def main():
         FLAG_USE_BACKBONE_EVALUATION = False
 
     #Create Adam optimizers
-    optimizer = tf.keras.optimizers.Adam(beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+    optimizer = tf.keras.optimizers.Adam()#beta_1=0.9, beta_2=0.999, epsilon=1e-8)
     
     #Create log folder and summary
     if os.path.exists(TRAIN_LOGDIR): shutil.rmtree(TRAIN_LOGDIR)
@@ -163,18 +166,14 @@ def main():
                 return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy()
     else:
         #Create training function for each batch
-        def train_step(image_data, target):
-            if USE_SUPERVISION:
-                imagex2_data = image_data[1]
-                image_data = image_data[0]
-
+        def train_step(image_data, target, epoch):
             with tf.GradientTape(persistent=False) as tape:
-                pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
+                pred_result = yolo(image_data[0], training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
                 
                 with tape.stop_recording():
                     if USE_SUPERVISION:
                         weight_sharing_origin_to_backbone(yolo_backbone, yolo)
-                        fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(imagex2_data, training=TEACHER_TRAINING_MODE)
+                        fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1], training=TEACHER_TRAINING_MODE)
                         fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
             
                 giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
@@ -197,7 +196,8 @@ def main():
                         gb_loss += loss_items[3]
                         pos_pixel_loss += loss_items[4]
                 #calculate total of loss
-                if USE_SUPERVISION:
+                if USE_SUPERVISION:# and epoch <= 25:
+                    # total_loss =(giou_loss + conf_loss + prob_loss) * (epoch + 1)/ TRAIN_EPOCHS + (gb_loss + pos_pixel_loss) * (TRAIN_EPOCHS-epoch-1) / TRAIN_EPOCHS
                     total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss
                 else:   
                     total_loss = giou_loss + conf_loss + prob_loss 
@@ -278,7 +278,7 @@ def main():
         #Get a batch of training data to train
         giou_train, conf_train, prob_train, total_train, gb_train, pos_pixel_train = 0, 0, 0, 0, 0, 0
         for image_data, target in trainset:
-            results = train_step(image_data, target)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
+            results = train_step(image_data, target, epoch)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
             current_step = results[0] % steps_per_epoch
             if USE_SUPERVISION:
                 sys.stdout.write("\rEpoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:8.4f} - conf_loss={:10.4f} - prob_loss={:8.4f} - total_loss={:10.4f} - fmap_loss={:8.4f}"
@@ -370,7 +370,7 @@ def main():
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = detection_loss/num_testset
-            print("Save best weights at epoch = ", epoch, end="\n")
+            print("Save best weights at epoch = ", epoch+1, end="\n")
     if USE_SUPERVISION:
         FLAG_USE_BACKBONE_EVALUATION = False
 

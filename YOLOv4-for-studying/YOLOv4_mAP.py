@@ -329,6 +329,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
 
 if __name__ == '__main__':
+    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2_load-best-weights-nFTT-P2_load-weights-fmap-P2/yolov4_lg_transfer"
     weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE)
@@ -337,6 +338,13 @@ if __name__ == '__main__':
             load_yolov4_weights(yolo, weights_file)
         else:
             yolo.load_weights(weights_file) # use custom weights   
+    
+    # yolot = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
+    # temp = len(yolo.weights)
+    # for i in range(temp):
+    #     yolot.weights[i].assign(yolo.weights[i])
+        
+
     get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
             CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)
 
