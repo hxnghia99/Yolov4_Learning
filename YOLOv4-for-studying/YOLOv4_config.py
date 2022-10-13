@@ -21,7 +21,7 @@ USE_FTT_P2                      = True
 USE_FTT_P3                      = False
 USE_FTT_P4                      = False
 LAMDA_FMAP_LOSS                 = 1.0
-USE_SUPERVISION                 = True     #when True, use at least 1 FTT module
+USE_SUPERVISION                 = False     #when True, use at least 1 FTT module
 BACKBONE_DILATION               = False
 #Modify BN
 DISTILLATION_FLAG               = False     #enable teacher_version, student_version
@@ -61,8 +61,8 @@ OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
 
-TRAIN_BATCH_SIZE                = 24
-TEST_BATCH_SIZE                 = 24
+TRAIN_BATCH_SIZE                = 12
+TEST_BATCH_SIZE                 = 12
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
@@ -121,7 +121,7 @@ TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according valida
 TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 50
+TRAIN_EPOCHS                    = 100
 TRAIN_LR_END                    = 1e-6
 if MODEL_BRANCH_TYPE[0] == "P(-1)":
     TRAIN_LR_INIT               = 2e-3
@@ -146,8 +146,10 @@ elif TRAINING_DATASET_TYPE == "LG":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
     # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
     # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
-    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
+    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
+    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
+    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_5k.txt"
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/validate_700.txt"
     RELATIVE_PATH               = 'E:/dataset/TOTAL/'
     PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
     
@@ -210,7 +212,8 @@ if MAKE_EVALUATION:
         RELATIVE_PATH               = 'E:/dataset/TOTAL/'
         PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET' 
         YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
+        # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
+        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/evaluate_1300.txt" 
         if EVALUATE_TRANSFER:
             EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
             # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_original_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
