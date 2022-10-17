@@ -23,6 +23,7 @@ from YOLOv4_model   import YOLOv4_Model, create_YOLOv4_backbone
 from YOLOv4_loss    import compute_loss
 from YOLOv4_utils   import load_yolov4_weights
 from YOLOv4_config  import *
+from YOLOv4_Fmap_train import create_YOLOv4_student
 
 import logging
 tf.get_logger().setLevel(logging.ERROR)
@@ -54,7 +55,19 @@ def main():
     #Create YOLO model
     yolo = YOLOv4_Model(training=True, CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG) 
     
+    
+    
+    # yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer")
+    
+    # fmap_yolo = create_YOLOv4_student()
+    # fmap_yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_test2/yolov4_lg_transfer")
 
+    # temp = range(len(fmap_yolo.layers))
+    # for i in temp:
+    #     if yolo.layers[i].get_weights() != []:
+    #         yolo.layers[i].set_weights(fmap_yolo.layers[i].get_weights())
+
+        # yolo.layers[i].trainable=False
 
     if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
         for i, l in enumerate(Darknet.layers):
@@ -101,7 +114,7 @@ def main():
 
     if not DISTILLATION_FLAG:
         #Create training function for each batch
-        def train_step(image_data, target):
+        def train_step(image_data, target, epoch):
             if USE_SUPERVISION:
                 weight_sharing_origin_to_backbone(yolo_backbone, yolo)
                 fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1], training=TEACHER_TRAINING_MODE)
@@ -367,7 +380,8 @@ def main():
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(detection_loss/num_testset))
             yolo.save_weights(save_directory)
         if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset:
-            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
+            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_valid-loss-{detection_loss/num_testset:.2f}")
+            save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = detection_loss/num_testset
             print("Save best weights at epoch = ", epoch+1, end="\n")

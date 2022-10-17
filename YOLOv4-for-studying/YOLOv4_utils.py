@@ -110,6 +110,7 @@ def Load_YOLOv4_Model():
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH)
     if USE_LOADED_WEIGHT:
         YOLOv4_weights = PREDICTION_WEIGHT_FILE
+        # YOLOv4_weights = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
         if TRAINING_DATASET_TYPE == "COCO":
             load_yolov4_weights(yolo, YOLOv4_weights)
         else:

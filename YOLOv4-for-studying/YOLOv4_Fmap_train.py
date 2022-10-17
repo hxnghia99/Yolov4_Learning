@@ -255,14 +255,16 @@ def main():
             if yolo_student.layers[i].get_weights() != []:
                 yolo_student.layers[i].set_weights(yolo_original.layers[i].get_weights())
 
-    for i in TEACHER_LAYERS_RANGE:                         #--> Check layer order
-        yolo_student.layers[i].trainable = False
 
     if USE_SUPERVISION:
         #yolov4 backbone network
         yolo_teacher = create_YOLOv4_teacher(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG)
         weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
-    
+
+        # for i in TEACHER_LAYERS_RANGE:                         #--> Check layer order
+        #     yolo_student.layers[i].trainable = False
+        #     yolo_teacher.layers[i].trainable = False
+
     #Create Adam optimizers
     optimizer = tf.keras.optimizers.Adam()#beta_1=0.9, beta_2=0.999, epsilon=1e-8)
     

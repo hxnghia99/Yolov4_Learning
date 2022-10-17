@@ -31,17 +31,13 @@ mish = lambda x: x * tf.math.tanh(tf.math.softplus(x))
 #filters_shape contains (filter width, filter height, filter channel, filter num)
 def convolutional(input_layer, filters_shape, downsample=False, activate=True, bn=True, activate_type='leaky', dilation=False, teacher_ver=False, student_ver=False):
     #add zero-padding when downsampling
-    if downsample:
+    if downsample and not dilation:
         input_layer = ZeroPadding2D(((1, 0), (1, 0)))(input_layer)                  #To create the exact size from computation
         padding = 'valid'
         strides = 2
-        if dilation:
-            dilation_rate = 1
     else:
         strides = 1
         padding = 'same'
-        if dilation:
-            dilation_rate = 2
     #add the 2D convolutional layer to the input_layer
     conv_layer = Conv2D(  filters       =   filters_shape[-1],          
                     kernel_size         =   filters_shape[0],
@@ -51,7 +47,7 @@ def convolutional(input_layer, filters_shape, downsample=False, activate=True, b
                     kernel_regularizer  =   L2(0.0001),                             #L2 regularizer: smaller weights -> simpler model
                     kernel_initializer  =   tf.random_normal_initializer(stddev=0.01),
                     bias_initializer    =   tf.constant_initializer(0.),
-                    dilation_rate       =   1 if not dilation else dilation_rate)(input_layer)
+                    dilation_rate       =   1 if not dilation else 2)(input_layer)
     #add batch normalization layer after convolution layer
     if bn:
         conv_layer = BatchNormalization(teacher_version=teacher_ver, student_version=student_ver)(conv_layer)
@@ -62,7 +58,7 @@ def convolutional(input_layer, filters_shape, downsample=False, activate=True, b
         elif activate_type =='mish':
             conv_layer = mish(conv_layer)
     if dilation and downsample:
-        conv_layer = MaxPool2D(pool_size=(2,2), strides=1, padding='same')(conv_layer)
+        conv_layer = MaxPool2D(pool_size=(2,2), strides=2, padding='same')(conv_layer)
     return conv_layer
 
 
@@ -235,15 +231,20 @@ def CSPDarknet53(input_data, dilation=False, teacher_ver=False, student_ver=Fals
         # Concatenation
         input_data = tf.concat([input_data, route], axis=-1)                                            #output: 13 x 13 x 1024                         #388
         input_data = convolutional(input_data, (1, 1, 1024, 1024), activate_type='mish', dilation=dilation, teacher_ver=teacher_ver, student_ver=student_ver)                #output: 13 x 13 x 1024      #388 +5->393            #72
-
+        route_5 = input_data
         #Compress information of feature map
         input_data = convolutional(input_data, (1, 1, 1024, 512), dilation=dilation, teacher_ver=teacher_ver, student_ver=student_ver)                                       #output: 13 x 13 x 512       #393 +3->396
         input_data = convolutional(input_data, (3, 3, 512, 1024), dilation=dilation, teacher_ver=teacher_ver, student_ver=student_ver)                                       #output: 13 x 13 x 1024      #396 +3->399
         input_data = convolutional(input_data, (1, 1, 1024, 512), dilation=dilation, teacher_ver=teacher_ver, student_ver=student_ver)                                       #output: 13 x 13 x 512       #399 +3->402
         #SPP block
-        max_pooling_1 = MaxPool2D(pool_size=13, padding='SAME', strides=1)(input_data)                                                                  #403
-        max_pooling_2 = MaxPool2D(pool_size=9, padding='SAME', strides=1)(input_data)                                                                   #404
-        max_pooling_3 = MaxPool2D(pool_size=5, padding='SAME', strides=1)(input_data)                                                                   #405
+        if not dilation:
+            max_pooling_1 = MaxPool2D(pool_size=13, padding='SAME', strides=1)(input_data)                                                                  #403
+            max_pooling_2 = MaxPool2D(pool_size=9, padding='SAME', strides=1)(input_data)                                                                   #404
+            max_pooling_3 = MaxPool2D(pool_size=5, padding='SAME', strides=1)(input_data)    
+        else:
+            max_pooling_1 = MaxPool2D(pool_size=25, padding='SAME', strides=1)(input_data)                                                                  #403
+            max_pooling_2 = MaxPool2D(pool_size=17, padding='SAME', strides=1)(input_data)                                                                   #404
+            max_pooling_3 = MaxPool2D(pool_size=9, padding='SAME', strides=1)(input_data)                                                                 #405
         input_data = tf.concat([max_pooling_1, max_pooling_2, max_pooling_3, input_data], axis=-1)      #output: 13 x 13 x 2048                         #406
         input_data = convolutional(input_data, (1, 1, 2048, 512), dilation=dilation, teacher_ver=teacher_ver, student_ver=student_ver)                                                                    #406 +3->409
         input_data = convolutional(input_data, (3, 3, 512, 1024), dilation=dilation, teacher_ver=teacher_ver, student_ver=student_ver)                                                                    #409 +3->412
@@ -293,7 +294,7 @@ def FTT_module(p_lr, p_hr, num_channels, dilation=False):       #(p_lr, p_hr, c)
 
 
 #Add neck layers to CSPDarknet53 and create YOLOv4 model
-def YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=False, student_ver=False, dilation=False):
+def YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=False, student_ver=False, dilation=False, dilation_bb=False):
     # Create CSPDarknet53 network and 3 backbone features at large, medium and small scale
     if MODEL_BRANCH_TYPE[1] == "P5n":
         route_3, route_4, conv = CSPDarknet53(input_layer)
@@ -304,8 +305,8 @@ def YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=False, student_ver=False
     elif MODEL_BRANCH_TYPE[1] == "P3":
         route_0, route_1, route_2, conv = CSPDarknet53(input_layer)   
     elif MODEL_BRANCH_TYPE[1] == "P5m":
-        route_2, route_3, route_4, conv = CSPDarknet53(input_layer, teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)
-        backbone_P2, backbone_P3, backbone_P4, backbone_P5 = route_2, route_3, route_4, conv
+        route_2, route_3, route_4, conv = CSPDarknet53(input_layer, teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation_bb)
+        # backbone_P2, backbone_P3, backbone_P4, backbone_P5 = route_2, route_3, route_4, conv
     """ PANet bottom up layers """
     if MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m":
         #upsampling 1
@@ -612,7 +613,7 @@ def decode(conv_output, NUM_CLASS, i=0):
     return tf.concat([pred_xywh, pred_conf, pred_prob], axis=-1)
 
 
-def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH, teacher_ver=False, student_ver=False, dilation=False):
+def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_PATH, teacher_ver=False, student_ver=False, dilation=False, dilation_bb=False):
     #Read coco class names file
     class_names = {}
     with open(CLASSES_PATH, 'r') as data:
@@ -622,9 +623,9 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
     #Create input layer
     input_layer = Input([None, None, input_channel])
     if USE_SUPERVISION:
-        conv_tensors, student_fmaps = YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation)
+        conv_tensors, student_fmaps = YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=teacher_ver, student_ver=student_ver, dilation=dilation, dilation_bb=dilation_bb)
     else:
-        conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation, student_ver=student_ver)
+        conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation, student_ver=student_ver, dilation_bb=dilation_bb)
 
     output_tensors = []
     for i, conv_tensor in enumerate(conv_tensors):                              #small bboxes -> medium -> large
