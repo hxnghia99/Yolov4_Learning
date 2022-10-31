@@ -44,8 +44,16 @@ STUDENT_LAYERS_RANGE            = np.arange(495)
 
 # ["COCO", "LG", "VISDRONE"]
 MAKE_EVALUATION                 = False
-EVALUATION_DATASET_TYPE         = "LG"
+EVALUATION_DATASET_TYPE         = TRAINING_DATASET_TYPE
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
+EVALUATION_SIZE                 = "all"
+"""
+Evaluation size for different-sized objects in image size 640x480:
+      Value         Details
+    - small     : < 32x32 pixels
+    - medium    : 32x32 < ... < 96x96 pixels
+    - large     : > 96x96 pixels
+"""
 """ ---------------------------------"""
 
 #Important initial settings
@@ -121,7 +129,7 @@ TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according valida
 TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 100
+TRAIN_EPOCHS                    = 60
 TRAIN_LR_END                    = 1e-6
 if MODEL_BRANCH_TYPE[0] == "P(-1)":
     TRAIN_LR_INIT               = 2e-3
@@ -223,7 +231,7 @@ if MAKE_EVALUATION:
             # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_HR_P3_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
         
         VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-lg'
-        VALIDATE_MAP_RESULT_PATH    = "YOLOv4-for-studying/mAP/results-lg.txt"
+        VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-lg-{EVALUATION_SIZE}.txt"
 
     elif EVALUATION_DATASET_TYPE == "VISDRONE":
         RELATIVE_PATH               = ""
@@ -236,7 +244,7 @@ if MAKE_EVALUATION:
             EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
 
         VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-visdrone'
-        VALIDATE_MAP_RESULT_PATH    = "YOLOv4-for-studying/mAP/results-visdrone.txt"    
+        VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-visdrone-{EVALUATION_SIZE}.txt"    
 
 # EVALUATION_WEIGHT_FILE = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_Original"
 # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test.txt"  

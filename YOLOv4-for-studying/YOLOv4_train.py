@@ -53,12 +53,13 @@ def main():
         Darknet = YOLOv4_Model(CLASSES_PATH=YOLO_COCO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
         load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
     #Create YOLO model
-    yolo = YOLOv4_Model(training=True, CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG) 
+    yolo = YOLOv4_Model(training=True, CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG, Modified_model=False) 
     
     
     
     # yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer")
-    
+    # yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_from_scratch_224x128/epoch-57_valid-loss-50480.06/yolov4_lg_from_scratch")
+
     # fmap_yolo = create_YOLOv4_student()
     # fmap_yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_test2/yolov4_lg_transfer")
 
@@ -83,9 +84,11 @@ def main():
 
     if USE_SUPERVISION:
         #yolov4 backbone network
-        yolo_backbone = create_YOLOv4_backbone(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG)
+        yolo_backbone = create_YOLOv4_backbone(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG, CLASSES_PATH=YOLO_CLASS_PATH)
         FLAG_USE_BACKBONE_EVALUATION = False
+        yolo_backbone.load_weights("./YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_448x256_Original_new-dataset/yolov4_lg_transfer")
 
+    # yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_224x128_P5_nFTT_P2/yolov4_lg_transfer")
     #Create Adam optimizers
     optimizer = tf.keras.optimizers.Adam()#beta_1=0.9, beta_2=0.999, epsilon=1e-8)
     
@@ -116,8 +119,8 @@ def main():
         #Create training function for each batch
         def train_step(image_data, target, epoch):
             if USE_SUPERVISION:
-                weight_sharing_origin_to_backbone(yolo_backbone, yolo)
-                fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1], training=TEACHER_TRAINING_MODE)
+                # weight_sharing_origin_to_backbone(yolo_backbone, yolo)
+                _,_,_,fmap_bb_P3, fmap_bb_P4, fmap_bb_P5 = yolo_backbone(image_data[1], training=TEACHER_TRAINING_MODE)
                 image_data = image_data[0]
                 fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
 
@@ -128,7 +131,7 @@ def main():
                 #calculate loss at each scale  
                 for i in range(num_scales): 
                     if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and True) or (i==2 and True)):
                         conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                         fmap_teacher = fmap_backbone[i]
                         loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -139,7 +142,7 @@ def main():
                     conf_loss += loss_items[1]
                     prob_loss += loss_items[2]
                     if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and True) or (i==2 and True)):
                         gb_loss += loss_items[3]
                         pos_pixel_loss += loss_items[4]
                 #calculate total of loss
@@ -185,8 +188,8 @@ def main():
                 
                 with tape.stop_recording():
                     if USE_SUPERVISION:
-                        weight_sharing_origin_to_backbone(yolo_backbone, yolo)
-                        fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1], training=TEACHER_TRAINING_MODE)
+                        # weight_sharing_origin_to_backbone(yolo_backbone, yolo)
+                        _,_,_,fmap_bb_P3, fmap_bb_P4, fmap_bb_P5= yolo_backbone(image_data[1], training=TEACHER_TRAINING_MODE)
                         fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
             
                 giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
@@ -194,7 +197,7 @@ def main():
                 #calculate loss at each scale  
                 for i in range(num_scales): 
                     if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and True) or (i==2 and True)):
                         conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                         fmap_teacher = fmap_backbone[i]
                         loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -205,7 +208,7 @@ def main():
                     conf_loss += loss_items[1]
                     prob_loss += loss_items[2]
                     if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and True) or (i==2 and True)):
                         gb_loss += loss_items[3]
                         pos_pixel_loss += loss_items[4]
                 #calculate total of loss
@@ -250,10 +253,10 @@ def main():
 
     #Create validation function after each epoch
     def validate_step(image_data, target):
-        if USE_SUPERVISION and not FLAG_USE_BACKBONE_EVALUATION:
-            weight_sharing_origin_to_backbone(yolo_backbone, yolo)
+        # if USE_SUPERVISION and not FLAG_USE_BACKBONE_EVALUATION:
+            # weight_sharing_origin_to_backbone(yolo_backbone, yolo)
         if USE_SUPERVISION:
-            fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, _ = yolo_backbone(image_data[1], training=False)
+            _,_,_,fmap_bb_P3, fmap_bb_P4, fmap_bb_P5 = yolo_backbone(image_data[1], training=False)
             image_data = image_data[0]
             fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
    
@@ -263,7 +266,7 @@ def main():
         #calculate loss at each each
         for i in range(grid):
             if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-            # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+            # if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and True) or (i==2 and True)):
                 conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
                 fmap_teacher = fmap_backbone[i]
                 loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -274,7 +277,7 @@ def main():
             conf_loss += loss_items[1]
             prob_loss += loss_items[2]
             if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-            # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+            # if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and True) or (i==2 and True)):
                 gb_loss += loss_items[3]
                 pos_pixel_loss += loss_items[4]
 
@@ -379,12 +382,18 @@ def main():
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(detection_loss/num_testset))
             yolo.save_weights(save_directory)
-        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset:
+        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset and epoch>=30:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_valid-loss-{detection_loss/num_testset:.2f}")
             save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = detection_loss/num_testset
             print("Save best weights at epoch = ", epoch+1, end="\n")
+        if (epoch+1) == TRAIN_EPOCHS:
+            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}")
+            save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
+            yolo.save_weights(save_directory)
+            print("Save weights at last epoch = ", epoch+1, end="\n")
+
     if USE_SUPERVISION:
         FLAG_USE_BACKBONE_EVALUATION = False
 

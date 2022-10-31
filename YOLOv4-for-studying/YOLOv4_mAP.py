@@ -79,7 +79,36 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     gt_counter_per_class = {}
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
-        _, gt_bboxes = dataset.parse_annotation(annotation, mAP=True)
+        original_image, gt_bboxes = dataset.parse_annotation(annotation, mAP=True)
+        original_h, original_w, _ = original_image.shape
+        
+        if EVALUATION_SIZE == "all":
+            pass
+        elif EVALUATION_SIZE == "small":  
+            temp = []
+            for gt_bbox in gt_bboxes:
+                width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
+                height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
+                if (width * height <= 32**2):
+                    temp.append(gt_bbox)
+            gt_bboxes = np.array(temp)
+        elif EVALUATION_SIZE == "medium":
+            temp = []
+            for gt_bbox in gt_bboxes:
+                width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
+                height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
+                if (width * height > 32**2 and width * height <=96**2):
+                    temp.append(gt_bbox)
+            gt_bboxes = np.array(temp)
+  
+        elif EVALUATION_SIZE == "large":
+            temp = []
+            for gt_bbox in gt_bboxes:
+                width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
+                height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
+                if (width * height > 96**2 ):
+                    temp.append(gt_bbox)
+            gt_bboxes = np.array(temp)
 
         #eliminate ignored region class and "other" class
         if EVALUATION_DATASET_TYPE == "VISDRONE":
@@ -329,7 +358,9 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
 
 if __name__ == '__main__':
-    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2_load-best-weights-nFTT-P2_load-weights-fmap-P2/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_224x128_P5_nFTT_P2_new-dataset/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-53_valid-loss-14.34/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-60/yolov4_lg_transfer"
     weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE)
@@ -338,8 +369,7 @@ if __name__ == '__main__':
             load_yolov4_weights(yolo, weights_file)
         else:
             yolo.load_weights(weights_file) # use custom weights   
-    
-    # yolot = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
+    # yolot = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG, dilation_bb=True)
     # temp = len(yolo.weights)
     # for i in range(temp):
     #     yolot.weights[i].assign(yolo.weights[i])

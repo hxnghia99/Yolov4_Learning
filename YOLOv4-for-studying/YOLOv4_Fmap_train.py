@@ -37,37 +37,38 @@ def compute_loss(i, gt_bboxes, fmap_student=None, fmap_teacher=None):
         # gb_loss = tf.norm(fmap_teacher - fmap_student, ord=2, axis=-1)
         gb_loss = tf.square(fmap_teacher - fmap_student)
         gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3])) #/ tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel in hxwxc
-        #positive object loss
-        flag_pos_obj = np.zeros(fmap_teacher.shape)
-        num_channels = fmap_teacher.shape[-1]
-        list_num_pos_pixel = []
-        num_fmap_w_pos_pixel = 0
-        for k in range(batch_size):         #each image
-            num_pos_pixel = 0
-            for j in range(YOLO_MAX_BBOX_PER_SCALE):    #each gt bbox
-                if np.multiply.reduce(gt_bboxes[k,j][2:4]) != 0:        #gt_bboxes: xywh
-                    gt_bbox = np.concatenate([gt_bboxes[k,j][:2]-gt_bboxes[k,j][2:4]*0.5, gt_bboxes[k,j][:2]+gt_bboxes[k,j][2:4]*0.5], axis=-1).astype(np.int32)
-                    xmin, ymin = np.array(gt_bbox[0:2] / YOLO_SCALE_OFFSET[i]).astype(np.int32)
-                    xmax, ymax = np.ceil(gt_bbox[2:4] / YOLO_SCALE_OFFSET[i]).astype(np.int32)
+        
+        # #positive object loss
+        # flag_pos_obj = np.zeros(fmap_teacher.shape)
+        # num_channels = fmap_teacher.shape[-1]
+        # list_num_pos_pixel = []
+        # num_fmap_w_pos_pixel = 0
+        # for k in range(batch_size):         #each image
+        #     num_pos_pixel = 0
+        #     for j in range(YOLO_MAX_BBOX_PER_SCALE):    #each gt bbox
+        #         if np.multiply.reduce(gt_bboxes[k,j][2:4]) != 0:        #gt_bboxes: xywh
+        #             gt_bbox = np.concatenate([gt_bboxes[k,j][:2]-gt_bboxes[k,j][2:4]*0.5, gt_bboxes[k,j][:2]+gt_bboxes[k,j][2:4]*0.5], axis=-1).astype(np.int32)
+        #             xmin, ymin = np.array(gt_bbox[0:2] / YOLO_SCALE_OFFSET[i]).astype(np.int32)
+        #             xmax, ymax = np.ceil(gt_bbox[2:4] / YOLO_SCALE_OFFSET[i]).astype(np.int32)
 
-                    num_pos_pixel += (ymax-ymin)*(xmax-xmin)*num_channels
-                    temp = np.ones([ymax-ymin, xmax-xmin, num_channels])
-                    flag_pos_obj[k][ymin:ymax, xmin:xmax, :] = temp
-            if num_pos_pixel==0:
-                num_pos_pixel=1
-            else:
-                num_fmap_w_pos_pixel+=1  
-            list_num_pos_pixel.append(num_pos_pixel)
-        if num_fmap_w_pos_pixel == 0:
-            num_fmap_w_pos_pixel=1
-        num_fmap_w_pos_pixel = tf.cast(num_fmap_w_pos_pixel, tf.float32)
-        list_num_pos_pixel = tf.cast(np.array(list_num_pos_pixel), tf.float32)
-        flag_pos_obj = np.array(flag_pos_obj, dtype=np.bool_)
-        pos_obj_loss = (fmap_teacher - fmap_student) * tf.cast(flag_pos_obj, tf.float32)
-        # pos_obj_loss = (fmap_teacher - fmap_student)[flag_pos_obj]
-        # pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))
-        pos_obj_loss = tf.reduce_sum(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2, 3])) / num_fmap_w_pos_pixel #/ list_num_pos_pixel) / num_fmap_w_pos_pixel
-        # pos_obj_loss = tf.Variable(0.0)
+        #             num_pos_pixel += (ymax-ymin)*(xmax-xmin)*num_channels
+        #             temp = np.ones([ymax-ymin, xmax-xmin, num_channels])
+        #             flag_pos_obj[k][ymin:ymax, xmin:xmax, :] = temp
+        #     if num_pos_pixel==0:
+        #         num_pos_pixel=1
+        #     else:
+        #         num_fmap_w_pos_pixel+=1  
+        #     list_num_pos_pixel.append(num_pos_pixel)
+        # if num_fmap_w_pos_pixel == 0:
+        #     num_fmap_w_pos_pixel=1
+        # num_fmap_w_pos_pixel = tf.cast(num_fmap_w_pos_pixel, tf.float32)
+        # list_num_pos_pixel = tf.cast(np.array(list_num_pos_pixel), tf.float32)
+        # flag_pos_obj = np.array(flag_pos_obj, dtype=np.bool_)
+        # pos_obj_loss = (fmap_teacher - fmap_student) * tf.cast(flag_pos_obj, tf.float32)
+        # # pos_obj_loss = (fmap_teacher - fmap_student)[flag_pos_obj]
+        # # pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))
+        # pos_obj_loss = tf.reduce_sum(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2, 3])) / num_fmap_w_pos_pixel #/ list_num_pos_pixel) / num_fmap_w_pos_pixel
+        pos_obj_loss = tf.Variable(0.0)
         # pos_obj_loss = tf.divide(pos_obj_loss, tf.cast(batch_size, tf.float32))
 
     if fmap_teacher!=None:
@@ -207,29 +208,29 @@ def main():
     warmup_steps = TRAIN_WARMUP_EPOCHS * steps_per_epoch
     total_steps = TRAIN_EPOCHS * steps_per_epoch
     
-    def weight_sharing_origin_to_backbone(dest, src):
-        for i in TEACHER_LAYERS_RANGE:
-            temp_t = i
-            if USE_SUPERVISION:
-                if i >= 11:
-                    temp_t = temp_t +1
-                if i >= 49:
-                    temp_t = temp_t + 1
-                if i >= 98:
-                    temp_t = temp_t + 1
-                if i >= 213:
-                    temp_t = temp_t + 1
-                if i >= 328:
-                    temp_t = temp_t + 1
-            if dest.layers[temp_t].get_weights() != []:
-                dest.layers[temp_t].set_weights(src.layers[i].get_weights())
+    # def weight_sharing_origin_to_backbone(dest, src):
+    #     for i in TEACHER_LAYERS_RANGE:
+    #         temp_t = i
+    #         if USE_SUPERVISION:
+    #             if i >= 11:
+    #                 temp_t = temp_t +1
+    #             if i >= 49:
+    #                 temp_t = temp_t + 1
+    #             if i >= 98:
+    #                 temp_t = temp_t + 1
+    #             if i >= 213:
+    #                 temp_t = temp_t + 1
+    #             if i >= 328:
+    #                 temp_t = temp_t + 1
+    #         if dest.layers[temp_t].get_weights() != []:
+    #             dest.layers[temp_t].set_weights(src.layers[i].get_weights())
 
 
     # yolo_student_layers_range = np.arange(len(yolo_student.layers))  #FTT_P3: 472, FTT_P2: 495
     # ftt_layers_range = np.arange(462, 495)                           #439,         462  
     # yolo_teacher_layers_range = np.setdiff1d(yolo_student_layers_range, ftt_layers_range)   
 
-    #Create Darkent53 model and load pretrained weights
+    #Create Darknet53 model and load pretrained weights
     if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
         Darknet = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
         load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
@@ -245,22 +246,29 @@ def main():
 
     elif TRAIN_FROM_CHECKPOINT:
         weight_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
-        yolo_original = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
+        yolo_original = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG, Modified_model=False)
         yolo_original.load_weights(weight_file)
 
         #Create YOLO model
-        yolo_student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
+        # yolo_student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
+        yolo_student = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG, Modified_model=True, training=True)
 
-        for i in STUDENT_LAYERS_RANGE:                                 #--> Check layer order
+        for i in range(550):  #640                               #--> Check layer order
             if yolo_student.layers[i].get_weights() != []:
                 yolo_student.layers[i].set_weights(yolo_original.layers[i].get_weights())
-
+            
+            yolo_student.layers[i].trainable=False
+        # for i in range(779):
+        #     yolo_student.weights[i].assign(yolo_original.weights[i])
+            
 
     if USE_SUPERVISION:
         #yolov4 backbone network
-        yolo_teacher = create_YOLOv4_teacher(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG)
-        weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
+        # yolo_teacher = create_YOLOv4_teacher(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG)
+        # weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
 
+        yolo_teacher = create_YOLOv4_backbone(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG, CLASSES_PATH=YOLO_CLASS_PATH)
+        yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_448x256_Original_new-dataset/yolov4_lg_transfer")
         # for i in TEACHER_LAYERS_RANGE:                         #--> Check layer order
         #     yolo_student.layers[i].trainable = False
         #     yolo_teacher.layers[i].trainable = False
@@ -287,7 +295,7 @@ def main():
                 fmap_students = [fmap_s_P3, fmap_s_P4, fmap_s_P5]
                 with tape.stop_recording():
                     if USE_SUPERVISION:
-                        weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
+                        # weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
                         fmap_t_P3, fmap_t_P4, fmap_t_P5, _ = yolo_teacher(imagex2_data, training=TEACHER_TRAINING_MODE)
                         fmap_teachers = [fmap_t_P3, fmap_t_P4, fmap_t_P5] 
 
@@ -337,12 +345,12 @@ def main():
         def train_step(image_data, target):
             if USE_SUPERVISION:
                 # weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
-                fmap_t_P3, fmap_t_P4, fmap_t_P5, _ = yolo_teacher(image_data[1], training=TEACHER_TRAINING_MODE)
-                fmap_teachers = [fmap_t_P3, fmap_t_P4, fmap_t_P5] 
+                _,_,_,fmap_bb_P3, fmap_bb_P4, fmap_bb_P5 = yolo_teacher(image_data[1], training=False)
+                fmap_teachers = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
                 image_data = image_data[0]
 
             with tf.GradientTape(persistent=False) as tape:
-                fmap_s_P3, fmap_s_P4, fmap_s_P5, _  = yolo_student(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
+                _,_,_,_,_,_, fmap_s_P3, fmap_s_P4, fmap_s_P5  = yolo_student(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
                 fmap_students = [fmap_s_P3, fmap_s_P4, fmap_s_P5]
 
                 gb_loss=pos_pixel_loss=0
@@ -393,11 +401,11 @@ def main():
         # if USE_SUPERVISION and not FLAG_USE_BACKBONE_EVALUATION:   
         if USE_SUPERVISION:
             # weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
-            fmap_t_P3, fmap_t_P4, fmap_t_P5, _ = yolo_teacher(image_data[1], training=False)
+            _,_,_,fmap_bb_P3, fmap_bb_P4, fmap_bb_P5 = yolo_teacher(image_data[1], training=False)
+            fmap_teachers = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
             image_data = image_data[0]
-            fmap_teachers = [fmap_t_P3, fmap_t_P4, fmap_t_P5] 
 
-        fmap_s_P3, fmap_s_P4, fmap_s_P5, _  = yolo_student(image_data, training=False)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
+        _,_,_,_,_,_, fmap_s_P3, fmap_s_P4, fmap_s_P5  = yolo_student(image_data, training=False)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
         fmap_students = [fmap_s_P3, fmap_s_P4, fmap_s_P5]
 
         gb_loss=pos_pixel_loss=0
@@ -418,7 +426,7 @@ def main():
             return total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy()
 
 
-    best_val_loss = 100000 # should be large at start
+    best_val_loss = float('inf') # should be large at start
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
         total_train, gb_train, pos_pixel_train = 0, 0, 0
@@ -485,10 +493,17 @@ def main():
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(detection_loss/num_testset))
             yolo_student.save_weights(save_directory)
-        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset:
-            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME)
+        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset and epoch>=30:
+            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_valid-loss-{detection_loss/num_testset:.2f}")
+            save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
             yolo_student.save_weights(save_directory)
             best_val_loss = detection_loss/num_testset
+            print("Save best weights at epoch = ", epoch+1, end="\n")
+        if (epoch+1) == TRAIN_EPOCHS:
+            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}")
+            save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
+            yolo_student.save_weights(save_directory)
+            print("Save weights at last epoch = ", epoch+1, end="\n")
     # if USE_SUPERVISION:
         # FLAG_USE_BACKBONE_EVALUATION = False
 

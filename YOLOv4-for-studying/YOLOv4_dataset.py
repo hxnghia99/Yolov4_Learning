@@ -132,7 +132,7 @@ class Dataset(object):
         label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
                             for i in range(self.num_output_levels)]
         bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(self.num_output_levels)]
-        bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)
+        bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)     
         #For each bbox, find the good anchors
         for bbox in bboxes:
             bbox_coordinates = bbox[:4]
@@ -166,7 +166,11 @@ class Dataset(object):
                     label[i][row, column, iou_mask, 5:] = smooth_onehot #class probabilities
                     has_positive_flag = True
                     #store true bboxes at scale i
-                    bboxes_xywh[i][bboxes_idx[i], :4]   = bbox_xywh
+                    if TRAINING_DATASET_TYPE == "VISDRONE":
+                        bboxes_id = int(bboxes_idx[i] % self.max_bbox_per_scale)
+                        bboxes_xywh[i][bboxes_id, :4]   = bbox_xywh
+                    else:
+                        bboxes_xywh[i][bboxes_idx[i], :4]   = bbox_xywh
                     bboxes_idx[i] += 1
             #If not have positive anchor, select one with the best iou 
             if not has_positive_flag:
@@ -180,7 +184,11 @@ class Dataset(object):
                 label[best_scale_idx][row, column, best_anchor_idx, 4]  = 1.0
                 label[best_scale_idx][row, column, best_anchor_idx, 5:] = smooth_onehot
                 #store true bbox corresponding to the above label bbox
-                bboxes_xywh[best_scale_idx][bboxes_idx[best_scale_idx], :4] = bbox_xywh
+                if TRAINING_DATASET_TYPE == "VISDRONE":
+                    bboxes_id = int(bboxes_idx[best_scale_idx] % self.max_bbox_per_scale)
+                    bboxes_xywh[best_scale_idx][bboxes_id, :4] = bbox_xywh
+                else:
+                    bboxes_xywh[best_scale_idx][bboxes_idx[best_scale_idx], :4] = bbox_xywh
                 bboxes_idx[best_scale_idx] += 1
         #Get label at each scale
         label_sbboxes, label_mbboxes, label_lbboxes = label

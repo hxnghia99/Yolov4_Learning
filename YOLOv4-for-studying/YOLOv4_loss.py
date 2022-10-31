@@ -13,6 +13,13 @@ import tensorflow as tf
 from YOLOv4_config import *
 from YOLOv4_utils import *
 
+
+# from numpy import hstack
+# from numpy.random import normal
+# from sklearn.mixture import GaussianMixture
+# from matplotlib import pyplot
+
+
 #Compute YOLOv4 loss for each scale using reference code
 def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS_PATH, fmap_student=None, fmap_teacher=None):
     label       = tf.convert_to_tensor(label)
@@ -71,6 +78,22 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
     conf_loss = tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4]))
     prob_loss = tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4]))
 
+    # max_iou         = tf.reshape(max_iou[0], (output_size_h*output_size_w*3,1))
+    
+    # pred_prob       = tf.reshape(tf.reduce_max(pred[:, :, :, :, 5:][0], axis=-1),(output_size_h*output_size_w*3,1))
+    # pred_conf       = tf.reshape(pred_conf[0], (output_size_h*output_size_w*3,1))
+    # conf_score      = tf.math.multiply(pred_conf, pred_prob)
+
+    # X = hstack((max_iou, conf_score))
+    # pyplot.hist(X, bins=50, density=True)
+    
+
+    # model = GaussianMixture(n_components=2, init_params='random')
+    # model.fit(X)
+
+    # yhat = model.predict(X)
+    # pyplot.show()
+    # print(yhat[:100])
 
     #if use featuremap teacher to teach feature map student
     if fmap_teacher != None:
@@ -78,6 +101,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # gb_loss = tf.norm(fmap_teacher - fmap_student, ord=2, axis=-1)
         gb_loss = tf.square(fmap_teacher - fmap_student)
         gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3])) #/ tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel in hxwxc
+        
         #positive object loss
         flag_pos_obj = np.zeros(fmap_teacher.shape)
         num_channels = fmap_teacher.shape[-1]
@@ -107,6 +131,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))
         pos_obj_loss = tf.reduce_sum(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2, 3])) / num_fmap_w_pos_pixel #/ list_num_pos_pixel) / num_fmap_w_pos_pixel
         # pos_obj_loss = tf.divide(pos_obj_loss, tf.cast(batch_size, tf.float32))
+        # pos_obj_loss = tf.Variable(0.0)
 
     if fmap_teacher!=None:
         return giou_loss, conf_loss, prob_loss, LAMDA_FMAP_LOSS*gb_loss, LAMDA_FMAP_LOSS*pos_obj_loss
