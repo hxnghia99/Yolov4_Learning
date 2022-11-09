@@ -9,6 +9,9 @@
 #===============================================================#
 
 
+#YOLOv4-HR + 224x128 + COCO-weights + anchors-#5 + dataset-5k-v2 + epoch-50
+
+
 import numpy as np
 
 """ ------ IMPORTANT SETTING ------ """
@@ -46,7 +49,7 @@ STUDENT_LAYERS_RANGE            = np.arange(495)
 MAKE_EVALUATION                 = False
 EVALUATION_DATASET_TYPE         = TRAINING_DATASET_TYPE
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
-EVALUATION_SIZE                 = "all"
+EVALUATION_SIZE                 = ["small"]#, "medium"]
 """
 Evaluation size for different-sized objects in image size 640x480:
       Value         Details
@@ -107,18 +110,18 @@ elif MODEL_BRANCH_TYPE[0] == "P2":
 # YOLO_ANCHORS                    = [[[6, 8], [10, 17], [18, 12]],
 #                                    [[16, 27], [31, 19], [27, 39]],
 #                                    [[54, 30], [47, 57], [96, 77]]]
-# Visdrone anchors 992x640
-YOLO_ANCHORS                    = [[[6, 8], [16, 11], [10, 18]],            #224x128
-                                   [[17, 27], [28, 17], [28, 40]],
-                                   [[47, 27], [52, 52], [96, 75]]]
+# # Visdrone anchors 992x640
+# YOLO_ANCHORS                    = [[[6, 8], [16, 11], [10, 18]],            #224x128
+#                                    [[17, 27], [28, 17], [28, 40]],
+#                                    [[47, 27], [52, 52], [96, 75]]]
 # # Visdrone anchors 544x352 only for sliced images
 # YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
 #                                    [[16, 28], [29, 18], [27, 43]],
 #                                    [[53, 29], [60, 60], [123, 97]]]
-# # Visdrone anchors 416x416 only for sliced images
-# YOLO_ANCHORS                    = [[[7, 9], [10, 18], [21, 14]],
-#                                    [[16, 28], [38, 23], [25, 42]],
-#                                    [[69, 38], [45, 67], [111, 95]]]
+# Visdrone anchors 416x416 only for sliced images
+YOLO_ANCHORS                    = [[[7, 9], [10, 18], [21, 14]],
+                                   [[16, 28], [38, 23], [25, 42]],
+                                   [[69, 38], [45, 67], [111, 95]]]
 
 
 
@@ -129,7 +132,7 @@ TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according valida
 TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 60
+TRAIN_EPOCHS                    = 50
 TRAIN_LR_END                    = 1e-6
 if MODEL_BRANCH_TYPE[0] == "P(-1)":
     TRAIN_LR_INIT               = 2e-3
@@ -231,7 +234,7 @@ if MAKE_EVALUATION:
             # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_HR_P3_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
         
         VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-lg'
-        VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-lg-{EVALUATION_SIZE}.txt"
+        VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-lg.txt"
 
     elif EVALUATION_DATASET_TYPE == "VISDRONE":
         RELATIVE_PATH               = ""
@@ -244,7 +247,7 @@ if MAKE_EVALUATION:
             EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
 
         VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-visdrone'
-        VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-visdrone-{EVALUATION_SIZE}.txt"    
+        VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-visdrone.txt"    
 
 # EVALUATION_WEIGHT_FILE = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_Original"
 # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test.txt"  

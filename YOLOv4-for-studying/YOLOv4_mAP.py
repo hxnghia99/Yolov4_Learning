@@ -77,38 +77,14 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
     #Count the total of ground truth objects for each class
     gt_counter_per_class = {}
+    gt_counter_per_class_small = {}
+    gt_counter_per_class_medium = {}
+    gt_counter_per_class_large = {}
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
         original_image, gt_bboxes = dataset.parse_annotation(annotation, mAP=True)
         original_h, original_w, _ = original_image.shape
-        
-        if EVALUATION_SIZE == "all":
-            pass
-        elif EVALUATION_SIZE == "small":  
-            temp = []
-            for gt_bbox in gt_bboxes:
-                width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
-                height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
-                if (width * height <= 32**2):
-                    temp.append(gt_bbox)
-            gt_bboxes = np.array(temp)
-        elif EVALUATION_SIZE == "medium":
-            temp = []
-            for gt_bbox in gt_bboxes:
-                width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
-                height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
-                if (width * height > 32**2 and width * height <=96**2):
-                    temp.append(gt_bbox)
-            gt_bboxes = np.array(temp)
-  
-        elif EVALUATION_SIZE == "large":
-            temp = []
-            for gt_bbox in gt_bboxes:
-                width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
-                height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
-                if (width * height > 96**2 ):
-                    temp.append(gt_bbox)
-            gt_bboxes = np.array(temp)
+
 
         #eliminate ignored region class and "other" class
         if EVALUATION_DATASET_TYPE == "VISDRONE":
@@ -140,11 +116,147 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         #saving grouth truth bboxes for each image
         with open(f'{ground_truth_dir_path}/{str(index)}_ground_truth.json', 'w') as outfile:
             json.dump(gt_bboxes_json_data, outfile)
+    
+
+        gt_counter_per_class_according_to_size = []
+        for size in EVALUATION_SIZE:
+            #Create gt_bboxes for small objects
+            if size == "small":
+                temp = []
+                for gt_bbox in gt_bboxes:
+                    width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
+                    height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
+                    if (width * height <= 32**2):
+                        temp.append(gt_bbox)
+                gt_bboxes_small = np.array(temp)
+            
+                #eliminate ignored region class and "other" class
+                if EVALUATION_DATASET_TYPE == "VISDRONE":
+                    bbox_mask = np.logical_and(gt_bboxes_small[:,4]>-0.5, gt_bboxes_small[:,4]<9.5)
+                    gt_bboxes_small = gt_bboxes_small[bbox_mask]
+
+                num_gt_bboxes = len(gt_bboxes_small)
+                if len(gt_bboxes_small) == 0:
+                    gt_coordinates  = []
+                    gt_classes      = []
+                else:
+                    gt_coordinates  = gt_bboxes_small[:,:4]
+                    gt_classes      = gt_bboxes_small[:, 4]
+                
+                #Create data of one ground truth bbox to save
+                gt_bboxes_json_data = []
+                for i in range(num_gt_bboxes):
+                    class_name = CLASS_NAMES[gt_classes[i]]
+                    xmin, ymin, xmax, ymax = list(map(str, gt_coordinates[i]))
+                    bbox = xmin + " " + ymin + " " + xmax + " " + ymax
+                    used_list = [False] * 10
+                    gt_bboxes_json_data.append({"class_name": class_name, "bbox": bbox, "used": used_list})
+
+                    #increase count for specific class
+                    if class_name in gt_counter_per_class_small:
+                        gt_counter_per_class_small[class_name] += 1
+                    else:
+                        gt_counter_per_class_small[class_name] = 1
+                #saving grouth truth bboxes for each image
+                with open(f'{ground_truth_dir_path}/{str(index)}_ground_truth_{size}.json', 'w') as outfile:
+                    json.dump(gt_bboxes_json_data, outfile)
+            
+
+            #Create gt_bboxes for medium objects
+            if size == "medium":
+                temp = []
+                for gt_bbox in gt_bboxes:
+                    width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
+                    height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
+                    if (width * height > 32**2 and width * height <=96**2):
+                        temp.append(gt_bbox)
+                gt_bboxes_medium = np.array(temp)
+            
+                #eliminate ignored region class and "other" class
+                if EVALUATION_DATASET_TYPE == "VISDRONE":
+                    bbox_mask = np.logical_and(gt_bboxes_medium[:,4]>-0.5, gt_bboxes_medium[:,4]<9.5)
+                    gt_bboxes_medium = gt_bboxes_medium[bbox_mask]
+
+                num_gt_bboxes = len(gt_bboxes_medium)
+                if len(gt_bboxes_medium) == 0:
+                    gt_coordinates  = []
+                    gt_classes      = []
+                else:
+                    gt_coordinates  = gt_bboxes_medium[:,:4]
+                    gt_classes      = gt_bboxes_medium[:, 4]
+                
+                #Create data of one ground truth bbox to save
+                gt_bboxes_json_data = []
+                for i in range(num_gt_bboxes):
+                    class_name = CLASS_NAMES[gt_classes[i]]
+                    xmin, ymin, xmax, ymax = list(map(str, gt_coordinates[i]))
+                    bbox = xmin + " " + ymin + " " + xmax + " " + ymax
+                    used_list = [False] * 10
+                    gt_bboxes_json_data.append({"class_name": class_name, "bbox": bbox, "used": used_list})
+
+                    #increase count for specific class
+                    if class_name in gt_counter_per_class_medium:
+                        gt_counter_per_class_medium[class_name] += 1
+                    else:
+                        gt_counter_per_class_medium[class_name] = 1
+                #saving grouth truth bboxes for each image
+                with open(f'{ground_truth_dir_path}/{str(index)}_ground_truth_{size}.json', 'w') as outfile:
+                    json.dump(gt_bboxes_json_data, outfile)
+
+
+            #Create gt_bboxes for large objects
+            if size == "large":
+                temp = []
+                for gt_bbox in gt_bboxes:
+                    width = (gt_bbox[2] - gt_bbox[0] + 1) * 640 / original_w    #transform into width and height in image size 640x480
+                    height = (gt_bbox[3] - gt_bbox[1] + 1) * 480 / original_h
+                    if (width * height > 96**2 ):
+                        temp.append(gt_bbox)
+                gt_bboxes_large = np.array(temp)
+    
+                #eliminate ignored region class and "other" class
+                if EVALUATION_DATASET_TYPE == "VISDRONE":
+                    bbox_mask = np.logical_and(gt_bboxes_large[:,4]>-0.5, gt_bboxes_large[:,4]<9.5)
+                    gt_bboxes_large = gt_bboxes_large[bbox_mask]
+
+                num_gt_bboxes = len(gt_bboxes_large)
+                if len(gt_bboxes_large) == 0:
+                    gt_coordinates  = []
+                    gt_classes      = []
+                else:
+                    gt_coordinates  = gt_bboxes_large[:,:4]
+                    gt_classes      = gt_bboxes_large[:, 4]
+                
+                #Create data of one ground truth bbox to save
+                gt_bboxes_json_data = []
+                for i in range(num_gt_bboxes):
+                    class_name = CLASS_NAMES[gt_classes[i]]
+                    xmin, ymin, xmax, ymax = list(map(str, gt_coordinates[i]))
+                    bbox = xmin + " " + ymin + " " + xmax + " " + ymax
+                    used_list = [False] * 10
+                    gt_bboxes_json_data.append({"class_name": class_name, "bbox": bbox, "used": used_list})
+
+                    #increase count for specific class
+                    if class_name in gt_counter_per_class_large:
+                        gt_counter_per_class_large[class_name] += 1
+                    else:
+                        gt_counter_per_class_large[class_name] = 1
+                #saving grouth truth bboxes for each image
+                with open(f'{ground_truth_dir_path}/{str(index)}_ground_truth_{size}.json', 'w') as outfile:
+                    json.dump(gt_bboxes_json_data, outfile)
+
+    
+    for size in EVALUATION_SIZE:
+        gt_counter_per_class_according_to_size.append(locals()["gt_counter_per_class_"+size])
+
     #Get class names in total of testset and the number of classes
     gt_class_names = list(gt_counter_per_class.keys())
     gt_class_names = sorted(gt_class_names)
     num_gt_classes = len(gt_class_names)
     
+
+    
+
     #Calculate average FPS and store prediction bboxes to a list of specific classes
     times = []
     json_pred = [[] for _ in range(num_gt_classes)]
@@ -238,6 +350,8 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         json_pred[gt_class_names.index(class_name)].sort(key=lambda x: float(x['confidence']), reverse=True)
         with open(f'{ground_truth_dir_path}/{class_name}_predictions.json', 'w') as outfile:
             json.dump(json_pred[gt_class_names.index(class_name)], outfile)
+
+
 
     #Calculate each AP and mAP of the model, then print out result
     AP_dictionary = {}
@@ -353,14 +467,133 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                 text = "{0:.2f}%".format(AP * 100) + " = " + class_name + " AP" 
                 results_file.write(text + "\n")
                 print(text)
+            print("\n\n")
 
-        return mAP*100
+    for size_idx, size in enumerate(EVALUATION_SIZE):
+        print(f'{size.upper()} EVALUATION')
+        #Calculate each AP and mAP of the model, then print out result
+        AP_dictionary = {}
+        with open(mAP_PATH, 'a') as results_file:
+            results_file.write(f'\n\n# {size.upper()}-OBJECT EVALUATION RESULTS   # \n\n')
+            sum_mAP = 0.0
+            for index, MIN_OVERLAP_100 in enumerate(MIN_OVERLAP_RANGE):
+                MIN_OVERLAP = MIN_OVERLAP_100/100
+                sum_AP = 0.0
+                results_file.write("# AP and precision/recall per class: IoU threshold = {:.2f} \n".format(MIN_OVERLAP))
+                # count_true_positives = {}
+                #Calculate AP of specific class and print out result
+                for class_name in gt_class_names:
+                    # count_true_positives[class_name] = 0
+                    #Load predictions
+                    predictions_file = f'{ground_truth_dir_path}/{class_name}_predictions.json'
+                    predictions_data = json.load(open(predictions_file))
+                    num_predictions = len(predictions_data)
+                    true_positive = [0] * num_predictions
+                    false_positive = [0] * num_predictions
+                    #With each prediction, read all gt_bboxes in prediction's image and select the object with maximum overlap
+                    for idx, prediction in enumerate(predictions_data):
+                        pred_coordinates = np.array([float(x) for x in prediction['bbox'].split()])
+                        overlap_max = -1
+                        gt_match    = -1
+                        #Load ground truth file of the prediction
+                        file_id = prediction['file_id']
+                        gt_file = f'{ground_truth_dir_path}/{str(file_id)}_ground_truth_{size}.json'
+                        ground_truth_data = json.load(open(gt_file))                            #all gt_bboxes in an image
+                        #Go through all gt_bboxes and select the best overlap with prediction regarding to same class
+                        for obj in ground_truth_data:
+                            if obj['class_name'] == class_name:
+                                gt_coordinates = np.array([float(x) for x in obj['bbox'].split()])
+                                intersection = np.array([np.max((gt_coordinates[0], pred_coordinates[0])),
+                                                        np.max((gt_coordinates[1], pred_coordinates[1])),
+                                                        np.min((gt_coordinates[2], pred_coordinates[2])),
+                                                        np.min((gt_coordinates[3], pred_coordinates[3]))])
+                                intersect_w, intersect_h = intersection[2:] - intersection[:2]
+                                if intersect_w > 0 and intersect_h > 0:
+                                    overlap = bboxes_iou_from_minmax(gt_coordinates[np.newaxis,:], pred_coordinates[np.newaxis,:])
+                                    if overlap > overlap_max:
+                                        overlap_max = overlap
+                                        gt_match = obj
+                        #assign prediction as true positive/false positive
+                        if overlap_max > MIN_OVERLAP:
+                            #true positive
+                            if not bool(gt_match['used'][index]):
+                                true_positive[idx] = 1
+                                gt_match['used'][index] = True
+                                # count_true_positives[class_name] += 1
+                                #update the 'used' state for the gt bbox
+                                with open(gt_file, 'w') as f:
+                                    f.write(json.dumps(ground_truth_data))
+                            #false positive
+                            else:
+                                false_positive[idx] = 1
+                        #false positive
+                        else:
+                            false_positive[idx] = 1
+                    
+                    #Calculate accumulated TP and FP for each class
+                    accumulated_value = 0
+                    for idx, value in enumerate(true_positive):
+                        true_positive[idx] += accumulated_value
+                        accumulated_value += value
+                    accumulated_value = 0
+                    for idx, value in enumerate(false_positive):
+                        false_positive[idx] += accumulated_value
+                        accumulated_value += value
+                    #Calculate precision and precall for each class
+                    prec = [0] * num_predictions
+                    for idx in range(len(prec)):
+                        prec[idx] = float(true_positive[idx]) / (false_positive[idx] + true_positive[idx])
+                    rec = [0] * num_predictions
+                    for idx in range(len(rec)):
+                        rec[idx] = float(true_positive[idx]) / gt_counter_per_class_according_to_size[size_idx][class_name]
+                    
+                    #calculate AP
+                    ap = all_points_interpolation_AP(prec, rec)
+                    sum_AP += ap
+                    
+                    # print("'{}' AP = {:0.4f}\n".format(class_name, ap))
+                    #print result of class AP into result file
+                    text = "{0:.3f}%".format(ap * 100) + " = " + class_name + " AP" + str(MIN_OVERLAP_100) + " \n" 
+                    # rounded_prec = ['%.3f' % x for x in prec]
+                    # rounded_rec = ['%.3f' % x for x in rec]
+                    # results_file.write(text + "\n Precision: " + str(rounded_prec)
+                    #                         + "\n Recall   : " + str(rounded_rec) + "\n\n")
+                    results_file.write(text)
+                    if class_name not in AP_dictionary:
+                        AP_dictionary[class_name] = [ap]
+                    else:
+                        AP_dictionary[class_name].append(ap)
+
+                    if MIN_OVERLAP_100 == 50 or MIN_OVERLAP_100 == 75:
+                        print(text)
+
+                #Calculate mAP and print result
+                results_file.write(f'\n# mAP{MIN_OVERLAP_100} of all classes\n')
+                mAP = sum_AP / num_gt_classes
+                text = "mAP{} = {:.2f}%  \n".format(MIN_OVERLAP_100, mAP*100)
+                results_file.write(text + "\n")
+                print(text)
+                sum_mAP += mAP
+            if USE_PRIMARY_EVALUATION_METRIC:
+                results_file.write(f'\n#  mAP50:95 of all classes\n')    
+                mAP = sum_mAP / len(MIN_OVERLAP_RANGE)
+                text = "mAP50:95 = {:.3f}% , {:.2f} FPS \n".format(mAP*100, fps)
+                results_file.write(text + "\n")
+                print(text)
+                for class_name in gt_class_names:
+                    AP = sum(AP_dictionary[class_name]) / len(MIN_OVERLAP_RANGE)
+                    text = "{0:.2f}%".format(AP * 100) + " = " + class_name + " AP" 
+                    results_file.write(text + "\n")
+                    print(text)
+                print("\n\n")
+
+        
 
 
 if __name__ == '__main__':
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_224x128_P5_nFTT_P2_new-dataset/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-53_valid-loss-14.34/yolov4_lg_transfer"
-    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-60/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-50/yolov4_lg_transfer"
     weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE)
