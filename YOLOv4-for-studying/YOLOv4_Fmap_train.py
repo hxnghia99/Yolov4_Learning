@@ -33,10 +33,18 @@ def compute_loss(i, gt_bboxes, fmap_student=None, fmap_teacher=None):
     batch_size = tf.shape(gt_bboxes)[0]
     #if use featuremap teacher to teach feature map student
     if fmap_teacher != None:
+        
+        teacher_xy = fmap_teacher[:,:,:,:, 0:2]   
+        teacher_wh = fmap_teacher[:,:,:,:, 2:4] / 2
+        teacher_conf = fmap_teacher[:,:,:,:, 4:5]
+        teacher_prob = fmap_teacher[:,:,:,:, 5:]
+        
+        fmap_teacher = tf.concat([teacher_xy, teacher_wh, teacher_conf, teacher_prob], axis=-1)
+        
         #global loss
         # gb_loss = tf.norm(fmap_teacher - fmap_student, ord=2, axis=-1)
         gb_loss = tf.square(fmap_teacher - fmap_student)
-        gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3])) #/ tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel in hxwxc
+        gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3,4])) #/ tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel in hxwxc
         
         # #positive object loss
         # flag_pos_obj = np.zeros(fmap_teacher.shape)
@@ -235,7 +243,7 @@ def main():
         Darknet = create_YOLOv4_student(student_ver=DISTILLATION_FLAG)
         load_yolov4_weights(Darknet, CSPDarknet_weights) # use darknet weights
         #Create YOLO model
-        yolo_student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG) 
+        yolo_student = YOLOv4_Model(training=True, CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG, Modified_model=False) 
         for i, l in enumerate(Darknet.layers):
             layer_weights = l.get_weights()
             if layer_weights != []:
@@ -268,7 +276,7 @@ def main():
         # weight_sharing_origin_to_backbone(yolo_teacher, yolo_student)
 
         yolo_teacher = create_YOLOv4_backbone(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG, CLASSES_PATH=YOLO_CLASS_PATH)
-        yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_448x256_Original_new-dataset/yolov4_lg_transfer")
+        yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-62_lg_dataset_transfer_448x256/epoch-41_valid-loss-14.10/yolov4_lg_transfer")
         # for i in TEACHER_LAYERS_RANGE:                         #--> Check layer order
         #     yolo_student.layers[i].trainable = False
         #     yolo_teacher.layers[i].trainable = False
@@ -304,7 +312,7 @@ def main():
                 #calculate loss at each scale  
                 for i in range(num_scales): 
                     if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==0 and True) or (i==1 and True) or (i==2 and True)):
                         fmap_student = fmap_students[i]
                         fmap_teacher = fmap_teachers[i]
                         loss_items = compute_loss(i, target[i][1], fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -358,7 +366,7 @@ def main():
                 #calculate loss at each scale  
                 for i in range(num_scales): 
                     if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-                    # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+                    # if USE_SUPERVISION and ((i==0 and True) or (i==1 and True) or (i==2 and True)):
                         fmap_student = fmap_students[i]
                         fmap_teacher = fmap_teachers[i]
                         loss_items = compute_loss(i, target[i][1], fmap_teacher=fmap_teacher, fmap_student=fmap_student)
@@ -413,7 +421,7 @@ def main():
             #calculate loss at each scale  
         for i in range(num_scales): 
             if USE_SUPERVISION and ((i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
-            # if USE_SUPERVISION and ((i==2 and USE_FTT_P2) or (i==2 and USE_FTT_P3) or (i==2 and USE_FTT_P4)):
+            # if USE_SUPERVISION and ((i==0 and True) or (i==1 and True) or (i==2 and True)):
                 fmap_student = fmap_students[i]
                 fmap_teacher = fmap_teachers[i]
                 loss_items = compute_loss(i, target[i][1], fmap_teacher=fmap_teacher, fmap_student=fmap_student)

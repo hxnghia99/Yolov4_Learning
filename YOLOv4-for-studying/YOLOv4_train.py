@@ -86,7 +86,7 @@ def main():
         #yolov4 backbone network
         yolo_backbone = create_YOLOv4_backbone(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG, CLASSES_PATH=YOLO_CLASS_PATH)
         FLAG_USE_BACKBONE_EVALUATION = False
-        yolo_backbone.load_weights("./YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_448x256_Original_new-dataset/yolov4_lg_transfer")
+        yolo_backbone.load_weights("./YOLOv4-for-studying/checkpoints/Num-62_lg_dataset_transfer_448x256/epoch-41_valid-loss-14.10/yolov4_lg_transfer")
 
     # yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_224x128_P5_nFTT_P2/yolov4_lg_transfer")
     #Create Adam optimizers

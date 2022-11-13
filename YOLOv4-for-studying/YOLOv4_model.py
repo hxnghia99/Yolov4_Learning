@@ -663,7 +663,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS, teacher_ver=False, student_ver=False
 
 #Define function used to change the output tensor to the information of (bbox, confidence, class)
 # i represents for the grid scales: (0,1,2) <--> (large, medium, small)
-def decode(conv_output, NUM_CLASS, i=0):
+def decode(conv_output, NUM_CLASS, i=0, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOLO_ANCHORS=YOLO_ANCHORS):
     conv_shape       = tf.shape(conv_output)                # shape [batch_size, output_size, output_size, 255]           
     batch_size       = conv_shape[0]
     output_size_h      = conv_shape[1]
@@ -710,11 +710,13 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
         conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation, student_ver=student_ver, dilation_bb=dilation_bb, Modified_model=Modified_model)
 
     output_tensors = []
+    # student_fmaps = []
     for i, conv_tensor in enumerate(conv_tensors):                              #small bboxes -> medium -> large
         pred_tensor = decode(conv_tensor, NUM_CLASS, i)
         if training:                                                           
             output_tensors.append(conv_tensor)
         output_tensors.append(pred_tensor)                                      #shape [3 or 6, batch_size, output_size, output_size, 3, 85]
+        # student_fmaps.append(conv_tensor)
     if training and USE_SUPERVISION:
         for temp in student_fmaps:
             output_tensors.append(temp)
@@ -806,7 +808,7 @@ def create_YOLOv4_backbone(input_channel=3, dilation=False, teacher_ver=False, s
     conv_lbbox = convolutional(conv, (1, 1, 1024, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
     conv_lbbox_decoded = decode(conv_lbbox, NUM_CLASS, i=2)
 
-    output_tensors = [conv_sbbox, conv_mbbox, conv_lbbox, fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
+    output_tensors = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, conv_sbbox, conv_mbbox, conv_lbbox]
     YOLOv4_backbone = tf.keras.Model(input_layer, output_tensors)
     return YOLOv4_backbone
 
