@@ -14,14 +14,14 @@ import sys
 from YOLOv4_config import *
 from YOLOv4_utils import *
 
-file_path = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
+file_path = "YOLOv4-for-studying/dataset/LG_DATASET/evaluate_1300.txt"
 
 
 num_obj     = [[0, 0, 0],[0, 0, 0],[0, 0, 0]]     # vehicle as 0, pedestrian as 1, cyclist as 2 --- small as 0, medium as 1, large as 2
 
 
 
-def check_ground_truth(list_gt):
+def check_ground_truth(list_gt, path=None):
     global num_obj
     for gt_bbox in list_gt:
         width, height = gt_bbox[2]-gt_bbox[0]+1, gt_bbox[3]-gt_bbox[1]+1
@@ -31,6 +31,8 @@ def check_ground_truth(list_gt):
             num_obj[gt_bbox[4]][1] += 1
         else:
             num_obj[gt_bbox[4]][2] += 1
+            if gt_bbox[4] == 1:
+                print(path)
         
 
 
@@ -51,7 +53,7 @@ with open(file_path, "r") as f1:
 
         _, ground_truth = image_preprocess(original_image, [640, 480], np.array(ground_truth))
 
-        check_ground_truth(ground_truth)
+        check_ground_truth(ground_truth, image_path)
 
         sys.stdout.write(f'\rLoaded images : {i}')
 

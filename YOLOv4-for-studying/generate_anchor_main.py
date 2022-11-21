@@ -62,8 +62,8 @@ def load_bbox(annotation, WIDTH, HEIGHT):
     return save_bbox
 
 
-def IoU_Estimate():
-    annot_path = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
+def IoU_Estimate(path):
+    annot_path = path
     INPUT_SIZE = [416, 416]
     WIDTH = INPUT_SIZE[0]
     HEIGHT = INPUT_SIZE[1]
@@ -112,4 +112,5 @@ def IoU_Estimate():
 
 
 if __name__ == "__main__":
-    IoU_Estimate()
+    path = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
+    IoU_Estimate(path)

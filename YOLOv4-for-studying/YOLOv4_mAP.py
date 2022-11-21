@@ -591,18 +591,18 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
 
 if __name__ == '__main__':
-    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_224x128_P5_nFTT_P2_new-dataset/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-53_valid-loss-14.34/yolov4_lg_transfer"
-    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-50/yolov4_lg_transfer"
-    weights_file = EVALUATION_WEIGHT_FILE
-    yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
+    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-46_valid-loss-14.58/yolov4_lg_transfer"
+    # weights_file = EVALUATION_WEIGHT_FILE
+    yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH)
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE)
     if USE_CUSTOM_WEIGHTS:
         if EVALUATION_DATASET_TYPE == "COCO":
             load_yolov4_weights(yolo, weights_file)
         else:
             yolo.load_weights(weights_file) # use custom weights   
-    # yolot = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG, dilation_bb=True)
+    # yolot = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, dilation_bb=True)
     # temp = len(yolo.weights)
     # for i in range(temp):
     #     yolot.weights[i].assign(yolo.weights[i])

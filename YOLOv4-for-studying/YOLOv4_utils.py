@@ -46,13 +46,13 @@ def load_yolov4_weights(model, weights_file):
         j = 0
         for i in range(range1):
             if (MODEL_BRANCH_TYPE[1] == "P5" or MODEL_BRANCH_TYPE[1] == "P5n" or MODEL_BRANCH_TYPE[1] == "P5m") and i == 78: 
-                print("\n Load backbone weights to P5 layer and SPP block ... \n")
+                print("\n Load backbone weights upto P5 layer and SPP block to Darknet model ... \n")
                 break
             elif MODEL_BRANCH_TYPE[1] == "P4" and i == 59:
-                print("\n Load backbone weights to P4 layer ... \n")
+                print("\n Load backbone weights upto P4 layer to Darknet model ... \n")
                 break
             elif MODEL_BRANCH_TYPE[1] == "P3" and i == 38:
-                print("\n Load backbone weights to P3 layer ... \n")
+                print("\n Load backbone weights upto P3 layer to Darknet model ... \n")
                 break
 
             #Get name of convolutional layer
@@ -71,9 +71,6 @@ def load_yolov4_weights(model, weights_file):
                 bn_weights = np.fromfile(wf, dtype=np.float32, count=4 * filters)           
                 # bn weights in model:       [gamma, beta, mean, variance]
                 bn_weights = bn_weights.reshape((4, filters))[[1, 0, 2, 3]]                   #swap rows
-                if DISTILLATION_FLAG:
-                    temp = np.zeros((2, filters))
-                    bn_weights = np.concatenate([bn_weights, temp], axis=0)
                 bn_layer = model.get_layer(bn_layer_name)
                 j += 1
             else:
@@ -101,16 +98,14 @@ output: YOLOv4 model
 obj:    select GPU, create YOLOv3 model and load pretrained weights
 ######################################################################'''
 #Config using GPU and create YOLOv3_Model with loaded parameters
-def Load_YOLOv4_Model():
+def Load_YOLOv4_Model(YOLOv4_weights):
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if len(gpus) > 0:
         print(f'GPUs {gpus}')
         try: tf.config.experimental.set_memory_growth(gpus[0], True)
         except RuntimeError: pass
-    yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH)
+    yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, training=False)
     if USE_LOADED_WEIGHT:
-        # YOLOv4_weights = PREDICTION_WEIGHT_FILE
-        YOLOv4_weights = "YOLOv4-for-studying/checkpoints/Num-62_lg_dataset_transfer_448x256/epoch-41_valid-loss-14.10/yolov4_lg_transfer"
         if TRAINING_DATASET_TYPE == "COCO":
             load_yolov4_weights(yolo, YOLOv4_weights)
         else:
@@ -357,19 +352,10 @@ def nms(bboxes, iou_threshold, sigma=0.3, method='nms'):
             best_bboxes.append(best_bbox)
             cls_bboxes = np.delete(cls_bboxes, max_conf_bbox_idx, axis=0)   #remove best bbox from list of bboxes
             iou = bboxes_iou_from_minmax(best_bbox[np.newaxis, :4], cls_bboxes[:, :4])  #calculate list of iou between best bbox and other bboxes
-            
-            if USE_NMS_CENTER_D:
-                """ TESTING """
-                center_d = nms_center_d(best_bbox[np.newaxis, :4], cls_bboxes[:, :4])
-                """#########"""
-
             weight = np.ones(len(iou), dtype=np.float32)                    
             assert method in ['nms', 'soft-nms']
             if method == 'nms':
                 iou_mask = np.array(iou > iou_threshold)
-                if USE_NMS_CENTER_D:
-                    center_d_mask = np.array(center_d < 5)
-                    iou_mask = np.logical_or(iou_mask, center_d_mask)
                 weight[iou_mask] = 0.0                      #mask to detele bboxes predicting same objects          
             if method == 'soft-nms':
                 weight = np.exp(-(1.0 * iou**2 / sigma))    #bigger iou -> smaller weight

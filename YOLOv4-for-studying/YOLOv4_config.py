@@ -8,8 +8,8 @@
 #                                                               #
 #===============================================================#
 
-
-#YOLOv4-HR + 224x128 + COCO-weights + anchors-#5 + dataset-5k-v2 + epoch-50
+# TRAINING INFORMATION
+#YOLOv4-SR + 224x128 + COCO-weights + anchors-#5 + dataset-5k-v2 + epoch-50 + supervision-teacher-num-62 + detection-loss(teacher-wh/1)-with-frgnd-bkgnd-respond-from-teacher-and-GT-combination
 
 
 import numpy as np
@@ -24,16 +24,16 @@ USE_FTT_P2                      = True
 USE_FTT_P3                      = False
 USE_FTT_P4                      = False
 LAMDA_FMAP_LOSS                 = 1.0
-USE_SUPERVISION                 = False     #when True, use at least 1 FTT module
-BACKBONE_DILATION               = False
-#Modify BN
-DISTILLATION_FLAG               = False     #enable teacher_version, student_version
-TEACHER_TRAINING_MODE           = False
+USE_SUPERVISION                 = True                         #when True, use at least 1 FTT module --> create teacher model
+TEACHER_DILATION                = True                         #teacher uses dilation convolution or not
+TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION     #teacher uses weights from student or fixed pretrained weights
+
 
 """
 MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - original    =             P3n         |           P5n
     - HR_P5       =             P0          |           P5
+
     - HR_P4       =             P0          |           P4
     - HR_P3       =             P0          |           P3
     - HR_P5_P(-1) =             P(-1)       |           P5
@@ -60,9 +60,7 @@ Evaluation size for different-sized objects in image size 640x480:
 """ ---------------------------------"""
 
 #Important initial settings
-USE_CIOU_LOSS                   = False
 EVALUATE_ORIGINAL_SIZE          = False
-USE_NMS_CENTER_D                = False
 USE_PRIMARY_EVALUATION_METRIC   = True         #calculate mAP0.5:0.95
 
 #Slicing patch techniques setting: Only for Visdrone dataset
@@ -119,9 +117,9 @@ elif MODEL_BRANCH_TYPE[0] == "P2":
 #                                    [[16, 28], [29, 18], [27, 43]],
 #                                    [[53, 29], [60, 60], [123, 97]]]
 # Visdrone anchors 416x416 only for sliced images
-YOLO_ANCHORS                    = [[[7, 9], [10, 18], [21, 14]],
+YOLO_ANCHORS                    = np.array([[[7, 9], [10, 18], [21, 14]],
                                    [[16, 28], [38, 23], [25, 42]],
-                                   [[69, 38], [45, 67], [111, 95]]]
+                                   [[69, 38], [45, 67], [111, 95]]])
 
 
 

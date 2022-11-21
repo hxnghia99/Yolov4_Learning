@@ -23,169 +23,177 @@ from YOLOv4_model import *
 
 #Compute YOLOv4 loss for each scale using reference code
 def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS_PATH, fmap_student=None, fmap_teacher=None):
-    # label       = tf.convert_to_tensor(label)
-    # # gt_bboxes   = tf.convert_to_tensor(gt_bboxes)
     NUM_CLASSES = len(read_class_names(CLASSES_PATH))
-    # pred_shape  = tf.shape(pred)
-    # batch_size  = pred_shape[0]
-    # output_size_h = pred_shape[1]
-    # output_size_w = pred_shape[2]
-    # input_size_h = tf.Variable(TRAIN_INPUT_SIZE[1], dtype=tf.float32)
-    # input_size_w = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
+    label       = tf.convert_to_tensor(label)
+    gt_bboxes   = tf.convert_to_tensor(gt_bboxes)
+    pred_shape  = tf.shape(pred)
+    batch_size  = pred_shape[0]
+    output_size_h = pred_shape[1]
+    output_size_w = pred_shape[2]
+    input_size_h = tf.Variable(TRAIN_INPUT_SIZE[1], dtype=tf.float32)
+    input_size_w = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
+    
+    #change shape of raw convolutional output
+    conv = tf.reshape(conv, (batch_size, output_size_h, output_size_w, ANCHORS_PER_GRID_CELL, 5 + NUM_CLASSES)) #shape [batch, output size, output size, 3, 85]
+    #get individual data:
+    # 1) raw convolutional output
+    conv_conf_raw       = conv[:, :, :, :, 4:5]
+    conv_prob_raw       = conv[:, :, :, :, 5:]
+    # 2) prediction
+    pred_xywh           = pred[:, :, :, :, :4]
+    pred_conf           = pred[:, :, :, :, 4:5]
+    # 3) label
+    label_xywh          = label[:, :, :, :, :4]
+    label_respond       = label[:, :, :, :, 4:5]                  #shape [batch, output size, output size, 3, 1]
+    label_prob          = label[:, :, :, :, 5:]
     
     
-    # #change shape of raw convolutional output
-    # conv = tf.reshape(conv, (batch_size, output_size_h, output_size_w, ANCHORS_PER_GRID_CELL, 5 + NUM_CLASSES)) #shape [batch, output size, output size, 3, 85]
-    # #get individual data:
-    # # 1) raw convolutional output
-    # conv_conf_raw       = conv[:, :, :, :, 4:5]
-    # conv_prob_raw       = conv[:, :, :, :, 5:]
-    # # 2) prediction
-    # pred_xywh           = pred[:, :, :, :, :4]
-    # pred_conf           = pred[:, :, :, :, 4:5]
-    # # 3) label
-    # label_xywh          = label[:, :, :, :, :4]
-    # label_respond       = label[:, :, :, :, 4:5]                  #shape [batch, output size, output size, 3, 1]
-    # label_prob          = label[:, :, :, :, 5:]
+    # *** Calculate giou loss from prediction and label ***
+    giou = tf.expand_dims(bboxes_giou_from_xywh(pred_xywh, label_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]
+    bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size_h * input_size_w)
+    giou_loss = label_respond * bbox_loss_scale * (1 - giou)  
     
-    # if not USE_CIOU_LOSS:
-    #     # *** Calculate giou loss from prediction and label ***
-    #     giou = tf.expand_dims(bboxes_giou_from_xywh(pred_xywh, label_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]
-    #     bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size_h * input_size_w)
-    #     giou_loss = label_respond * bbox_loss_scale * (1 - giou)  
-    # else:
-    #     # # *** Calculate ciou loss from prediction and label ***
-    #     # ciou = tf.expand_dims(bboxes_ciou_from_xywh(pred_xywh, label_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]
-    #     # bbox_loss_scale = 2.0 - 1.0 * label_xywh[:, :, :, :, 2:3] * label_xywh[:, :, :, :, 3:4] / (input_size_h * input_size_w)
-    #     # giou_loss = label_respond * bbox_loss_scale * (1 - ciou)
-    #     pass
     
-    # # *** Calculate confidence score loss for grid cell containing objects and background ***
-    # ious = bboxes_iou_from_xywh(pred_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
-    # #              shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
-    # max_iou = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
-    # bkgrd_respond = (1 - label_respond) * tf.cast(max_iou < YOLO_LOSS_IOU_THRESHOLD, tf.float32)
-    # conf_focal = tf.pow(label_respond - pred_conf, 2) 
-    # conf_loss = conf_focal * (
-    #                 label_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=label_respond, logits=conv_conf_raw)
-    #                 +
-    #                 bkgrd_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=label_respond, logits=conv_conf_raw)
-    # )
+    # *** Calculate confidence score loss for grid cell containing objects and background ***
+    ious = bboxes_iou_from_xywh(pred_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
+    #              shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
+    max_iou = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
+    bkgrd_respond = (1 - label_respond) * tf.cast(max_iou < YOLO_LOSS_IOU_THRESHOLD, tf.float32)
+    conf_focal = tf.pow(label_respond - pred_conf, 2) 
+    conf_loss = conf_focal * (
+                    label_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=label_respond, logits=conv_conf_raw)
+                    +
+                    bkgrd_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=label_respond, logits=conv_conf_raw)
+    )
 
-    # # *** Calculate class probability loss ***
-    # prob_loss = label_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=label_prob, logits=conv_prob_raw)
+    # *** Calculate class probability loss ***
+    prob_loss = label_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=label_prob, logits=conv_prob_raw)
 
-    # giou_loss = tf.reduce_mean(tf.reduce_sum(giou_loss, axis=[1,2,3,4]))
-    # conf_loss = tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4]))
-    # prob_loss = tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4]))
+    giou_loss = tf.reduce_mean(tf.reduce_sum(giou_loss, axis=[1,2,3,4]))
+    conf_loss = tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4]))
+    prob_loss = tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4]))
 
+
+
+#**** TESTING ****
     # max_iou         = tf.reshape(max_iou[0], (output_size_h*output_size_w*3,1))
-    
     # pred_prob       = tf.reshape(tf.reduce_max(pred[:, :, :, :, 5:][0], axis=-1),(output_size_h*output_size_w*3,1))
     # pred_conf       = tf.reshape(pred_conf[0], (output_size_h*output_size_w*3,1))
     # conf_score      = tf.math.multiply(pred_conf, pred_prob)
-
     # X = hstack((max_iou, conf_score))
     # pyplot.hist(X, bins=50, density=True)
-    
-
     # model = GaussianMixture(n_components=2, init_params='random')
     # model.fit(X)
-
     # yhat = model.predict(X)
     # pyplot.show()
     # print(yhat[:100])
 
+
     #if use featuremap teacher to teach feature map student
     if fmap_teacher != None:
-        # #global loss
-        # # gb_loss = tf.norm(fmap_teacher - fmap_student, ord=2, axis=-1)
-        # gb_loss = tf.square(fmap_teacher - fmap_student)
-        # gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3])) #/ tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel in hxwxc
+        """ FEATURE MAP DIFFERENCE LOSS """
+        #global loss
+        gb_loss = tf.square(fmap_teacher - fmap_student)
+        gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3])) #/ tf.cast((tf.shape(gb_loss)[1]*tf.shape(gb_loss)[2]*tf.shape(gb_loss)[3]), tf.float32))  #each pixel in hxwxc
+        #positive object loss
+        flag_pos_obj = np.zeros(fmap_teacher.shape)
+        num_channels = fmap_teacher.shape[-1]
+        list_num_pos_pixel = []
+        num_fmap_w_pos_pixel = 0
+        for k in range(batch_size):         #each image
+            num_pos_pixel = 0
+            for j in range(YOLO_MAX_BBOX_PER_SCALE):    #each gt bbox
+                if np.multiply.reduce(gt_bboxes[k,j][2:4]) != 0:        #gt_bboxes: xywh
+                    gt_bbox = np.concatenate([gt_bboxes[k,j][:2]-gt_bboxes[k,j][2:4]*0.5, gt_bboxes[k,j][:2]+gt_bboxes[k,j][2:4]*0.5], axis=-1).astype(np.int32)
+                    xmin, ymin, xmax, ymax = np.array(gt_bbox / YOLO_SCALE_OFFSET[i]).astype(np.int32)
+                    num_pos_pixel += (ymax-ymin)*(xmax-xmin)*num_channels
+                    temp = np.ones([ymax-ymin, xmax-xmin, num_channels])
+                    flag_pos_obj[k][ymin:ymax, xmin:xmax, :] = temp
+            if num_pos_pixel==0:
+                num_pos_pixel=1
+            else:
+                num_fmap_w_pos_pixel+=1  
+            list_num_pos_pixel.append(num_pos_pixel)
+        if num_fmap_w_pos_pixel == 0:
+            num_fmap_w_pos_pixel=1
+        num_fmap_w_pos_pixel = tf.cast(num_fmap_w_pos_pixel, tf.float32)
+        list_num_pos_pixel = tf.cast(np.array(list_num_pos_pixel), tf.float32)
+        flag_pos_obj = np.array(flag_pos_obj, dtype=np.bool)
+        pos_obj_loss = (fmap_teacher - fmap_student) * tf.cast(flag_pos_obj, tf.float32)
+        pos_obj_loss = tf.reduce_sum(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2, 3])) / num_fmap_w_pos_pixel #/ list_num_pos_pixel) / num_fmap_w_pos_pixel
+        # gb_loss = tf.Variable(0.0)
+        # pos_obj_loss = tf.Variable(0.0)
+
+
+
+        # """ Distillation-loss-1: Detection loss with teacher prediction as soft label """
+        # conv_shape      = tf.shape(fmap_teacher)  
+        # batch_size      = conv_shape[0]
+        # output_size_h   = conv_shape[1]
+        # output_size_w   = conv_shape[2]
+        # input_size_h    = tf.Variable(TRAIN_INPUT_SIZE[1], dtype=tf.float32)
+        # input_size_w    = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
+        # yolo_scale_offset       = [8, 16, 32]
+        # yolo_anchors            = YOLO_ANCHORS * 1
+        # decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
+        # decode_fmap_student     = decode(fmap_student, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #understand student output as prediction in x2 image
+
+        # # """ Combine teacher prediction and hard label """
+        # # label                   = tf.Variable(label, tf.float32)
+        # # label_respond           = label[:,:,:,:,4]
+        # # label[:, :, :, :, :4]     = label[:, :, :, :, :4] * 2
+        # # decode_fmap_teacher = np.array(decode_fmap_teacher, np.float32)
+        # # for batch in range(batch_size):
+        # #     for h in range(output_size_h):
+        # #         for w in range(output_size_w):
+        # #             for anchor_id in range(3):
+        # #                 if label[batch][h][w][anchor_id][4] == 1:
+        # #                     decode_fmap_teacher[batch][h][w][anchor_id][0:4] = label[batch][h][w][anchor_id][0:4]
+        # # decode_fmap_teacher     = tf.cast(decode_fmap_teacher, tf.float32)
         
-        # #positive object loss
-        # flag_pos_obj = np.zeros(fmap_teacher.shape)
-        # num_channels = fmap_teacher.shape[-1]
-        # list_num_pos_pixel = []
-        # num_fmap_w_pos_pixel = 0
-        # for k in range(batch_size):         #each image
-        #     num_pos_pixel = 0
-        #     for j in range(YOLO_MAX_BBOX_PER_SCALE):    #each gt bbox
-        #         if np.multiply.reduce(gt_bboxes[k,j][2:4]) != 0:        #gt_bboxes: xywh
-        #             gt_bbox = np.concatenate([gt_bboxes[k,j][:2]-gt_bboxes[k,j][2:4]*0.5, gt_bboxes[k,j][:2]+gt_bboxes[k,j][2:4]*0.5], axis=-1).astype(np.int32)
-        #             xmin, ymin, xmax, ymax = np.array(gt_bbox / YOLO_SCALE_OFFSET[i]).astype(np.int32)
-        #             num_pos_pixel += (ymax-ymin)*(xmax-xmin)*num_channels
-        #             temp = np.ones([ymax-ymin, xmax-xmin, num_channels])
-        #             flag_pos_obj[k][ymin:ymax, xmin:xmax, :] = temp
-        #     if num_pos_pixel==0:
-        #         num_pos_pixel=1
-        #     else:
-        #         num_fmap_w_pos_pixel+=1  
-        #     list_num_pos_pixel.append(num_pos_pixel)
-        # if num_fmap_w_pos_pixel == 0:
-        #     num_fmap_w_pos_pixel=1
-        # num_fmap_w_pos_pixel = tf.cast(num_fmap_w_pos_pixel, tf.float32)
-        # list_num_pos_pixel = tf.cast(np.array(list_num_pos_pixel), tf.float32)
-        # flag_pos_obj = np.array(flag_pos_obj, dtype=np.bool)
-        # pos_obj_loss = (fmap_teacher - fmap_student) * tf.cast(flag_pos_obj, tf.float32)
-        # # pos_obj_loss = (fmap_teacher - fmap_student)[flag_pos_obj]
-        # # pos_obj_loss = tf.reduce_sum(tf.norm(pos_obj_loss, ord=1, axis=-1))
-        # pos_obj_loss = tf.reduce_sum(tf.reduce_sum(tf.square(pos_obj_loss), axis=[1, 2, 3])) / num_fmap_w_pos_pixel #/ list_num_pos_pixel) / num_fmap_w_pos_pixel
-        # # pos_obj_loss = tf.divide(pos_obj_loss, tf.cast(batch_size, tf.float32))
-        # # pos_obj_loss = tf.Variable(0.0)
+        # scores                  = decode_fmap_teacher[:,:,:,:,4:5] * tf.math.reduce_max(decode_fmap_teacher[:,:,:,:,5:], axis=-1, keepdims=True)
+        # frgrd_respond_1         = tf.cast(scores >= 0.5, tf.float32)
+        # teacher_xywh            = decode_fmap_teacher[:, :, :, :, :4] / 2.0
+        # ious                    = bboxes_iou_from_xywh(teacher_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
+        # #                           shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
+        # max_iou                 = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
+        # frgrd_respond_2         = tf.cast(max_iou >= 0.5, tf.float32)
+        # frgrd_respond           = tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32)
+        # bkgrd_respond           = (1 - frgrd_respond) * tf.cast(max_iou < 0.5, tf.float32)
+        # conf_flag               = tf.cast(tf.math.logical_or(tf.cast(frgrd_respond,tf.bool), tf.cast(bkgrd_respond,tf.bool)),tf.float32)
 
-        conv_shape      = tf.shape(fmap_teacher)  
-        batch_size      = conv_shape[0]
-        output_size_h   = conv_shape[1]
-        output_size_w   = conv_shape[2]
-        input_size_h    = tf.Variable(TRAIN_INPUT_SIZE[1], dtype=tf.float32)
-        input_size_w    = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
+        # fmap_teacher = tf.reshape(fmap_teacher, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASSES))
+        # fmap_student = tf.reshape(fmap_student, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASSES))
+        # #Having 4 fmaps: fmap_student + decode_fmap_student, fmap_teacher + decode_fmap_teacher
         
-        yolo_scale_offset       = [8, 16, 32]
-        decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, YOLO_ANCHORS*2)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
-        scores                  = decode_fmap_teacher[:,:,:,:,4:5] * tf.math.reduce_max(decode_fmap_teacher[:,:,:,:,5:], axis=-1, keepdims=True)
-        frgrd_respond           = tf.cast(scores >= 0.5, tf.float32)
-        teacher_xywh            = decode_fmap_teacher[:, :, :, :, :4] / 2.0
-        ious = bboxes_iou_from_xywh(teacher_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
-        #              shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
-        max_iou = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
-        bkgrd_respond = (1 - frgrd_respond) * tf.cast(max_iou < 0.5, tf.float32)
-        conf_flag = tf.cast(tf.math.logical_or(tf.cast(frgrd_respond,tf.bool), tf.cast(bkgrd_respond,tf.bool)),tf.float32)
-
-        decode_fmap_student     = decode(fmap_student, NUM_CLASSES, i, yolo_scale_offset, YOLO_ANCHORS*2)
+        # #GIoU loss
+        # student_pred_xywh = decode_fmap_student[:, :, :, :, :4]
+        # teacher_pred_xywh = decode_fmap_teacher[:, :, :, :, :4]
+        # giou = tf.expand_dims(bboxes_giou_from_xywh(student_pred_xywh, teacher_pred_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]
+        # bbox_loss_scale = 2.0 - 1.0 * teacher_pred_xywh[:, :, :, :, 2:3] * teacher_pred_xywh[:, :, :, :, 3:4] / (input_size_h * input_size_w * 4)
+        # giou_loss = frgrd_respond * bbox_loss_scale * (1 - giou)
         
-        fmap_teacher = tf.reshape(fmap_teacher, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASSES))
-        fmap_student = tf.reshape(fmap_student, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASSES))
-        #fmap_student + decode_fmap_student, fmap_teacher + decode_fmap_teacher
-        
+        # #Confidence score loss
+        # student_raw_conf    = fmap_student[:,:,:,:,4:5]
+        # student_pred_conf   = decode_fmap_student[:,:,:,:,4:5]
+        # teacher_pred_conf   = decode_fmap_teacher[:,:,:,:,4:5]
+        # conf_focal = tf.pow(teacher_pred_conf - student_pred_conf, 2) 
+        # conf_loss = conf_flag * conf_focal * tf.nn.sigmoid_cross_entropy_with_logits(labels=teacher_pred_conf, logits=student_raw_conf)
 
-        #GIoU loss
-        student_pred_xywh = decode_fmap_student[:, :, :, :, :4]
-        teacher_pred_xywh = decode_fmap_teacher[:, :, :, :, :4]
-        giou = tf.expand_dims(bboxes_giou_from_xywh(student_pred_xywh, teacher_pred_xywh), axis=-1)    #shape [batch, output size, output size, 3, 1]
-        bbox_loss_scale = 2.0 - 1.0 * teacher_pred_xywh[:, :, :, :, 2:3] * teacher_pred_xywh[:, :, :, :, 3:4] / (input_size_h * input_size_w * 4)
-        giou_loss = frgrd_respond * bbox_loss_scale * (1 - giou)
-        
-        #Confidence score loss
-        student_raw_conf    = fmap_student[:,:,:,:,4:5]
-        student_pred_conf   = decode_fmap_student[:,:,:,:,4:5]
-        teacher_pred_conf   = decode_fmap_teacher[:,:,:,:,4:5]
-        conf_focal = tf.pow(teacher_pred_conf - student_pred_conf, 2) 
-        conf_loss = conf_flag * conf_focal * tf.nn.sigmoid_cross_entropy_with_logits(labels=teacher_pred_conf, logits=student_raw_conf)
+        # #Class probability loss
+        # student_raw_prob    = fmap_student[:,:,:,:,5:]
+        # teacher_pred_prob   = decode_fmap_teacher[:,:,:,:,5:]
+        # prob_loss           = frgrd_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=teacher_pred_prob, logits=student_raw_prob)
 
-        #Class probability loss
-        student_raw_prob    = fmap_student[:,:,:,:,5:]
-        teacher_pred_prob   = decode_fmap_teacher[:,:,:,:,5:]
-        prob_loss           = frgrd_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=teacher_pred_prob, logits=student_raw_prob)
+        # giou_loss = tf.reduce_mean(tf.reduce_sum(giou_loss, axis=[1,2,3,4]))
+        # conf_loss = tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4]))
+        # prob_loss = tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4]))
+        # gb_loss = tf.Variable(0.0)
+        # pos_obj_loss = tf.Variable(0.0)
 
 
-        giou_loss = tf.reduce_mean(tf.reduce_sum(giou_loss, axis=[1,2,3,4]))
-        conf_loss = tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4]))
-        prob_loss = tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4]))
-        gb_loss = tf.Variable(0.0)
-        pos_obj_loss = tf.Variable(0.0)
 
-
+        # """ Distillation-loss-2: compare the pre-decoded output of teacher and student using sum-squared error """
         # conv_shape      = tf.shape(fmap_teacher)  
         # batch_size      = conv_shape[0]
         # output_size_h   = conv_shape[1]
@@ -218,13 +226,16 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # # fmap_student_2 = tf.concat([student_raw_dxdy, student_raw_dwdh, student_raw_conf, student_raw_prob], axis=-1)
 
         # yolo_scale_offset       = [8, 16, 32]
-        # decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, YOLO_ANCHORS*2)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
+        # yolo_anchors            = YOLO_ANCHORS * 1
+        # decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
         # scores                  = decode_fmap_teacher[:,:,:,:,4:5] * tf.math.reduce_max(decode_fmap_teacher[:,:,:,:,5:], axis=-1, keepdims=True)
-        # frgrd_respond           = tf.cast(scores >= 0.5, tf.float32)
+        # frgrd_respond_1         = tf.cast(scores >= 0.5, tf.float32)
         # teacher_xywh            = decode_fmap_teacher[:, :, :, :, :4] / 2.0
-        # ious = bboxes_iou_from_xywh(teacher_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
-        # #              shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
-        # max_iou = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
+        # ious                    = bboxes_iou_from_xywh(teacher_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
+        # #                           shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
+        # max_iou                 = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
+        # frgrd_respond_2         = tf.cast(max_iou >= 0.5, tf.float32)
+        # frgrd_respond           = tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32)
         # bkgrd_respond = (1 - frgrd_respond) * tf.cast(max_iou < 0.5, tf.float32)
         # conf_flag = tf.cast(tf.math.logical_or(tf.cast(frgrd_respond,tf.bool), tf.cast(bkgrd_respond,tf.bool)),tf.float32)
 
