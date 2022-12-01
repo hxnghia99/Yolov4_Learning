@@ -263,7 +263,7 @@ def CSPDarknet53(input_data, dilation=False):
 
 
 #Implementation of feature texture transfer (FTT model)
-def FTT_module(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_res=1):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
+def FTT_module(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_res=1 if USE_FTT_DEVELOPING_VERSION else 2):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
     #Extract detailed information from LR
     def content_extractor(conv, num_channels, iterations=num_res):
         for _ in range(iterations):
@@ -634,7 +634,8 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
         else:
             route_2 = conv
             # fmap_P2 = conv
-            fmap_P2 = convolutional(conv, (1, 1, 64, 128), dilation=dilation)   #adaptation layer
+            if USE_SUPERVISION:
+                fmap_P2 = convolutional(conv, (1, 1, 64, 128), dilation=dilation)   #adaptation layer
             conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
             conv_sbbox = convolutional(conv, (1, 1, 128, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
             
@@ -650,7 +651,8 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
 
             route_3 = conv
             # fmap_P3 = conv
-            fmap_P3 = convolutional(conv, (1, 1, 128, 256))     #adaptation layer
+            if USE_SUPERVISION:
+                fmap_P3 = convolutional(conv, (1, 1, 128, 256))     #adaptation layer
             conv = convolutional(conv, (3, 3, 128, 256))
             conv_mbbox = convolutional(conv, (1, 1, 256, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
 
@@ -664,7 +666,8 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
                 conv = convolutional(conv, (3, 3, 256, 512), dilation=dilation)
                 conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)
 
-            fmap_P4 = convolutional(conv, (1, 1, 256, 512))     #adaptation layer
+            if USE_SUPERVISION:
+                fmap_P4 = convolutional(conv, (1, 1, 256, 512))     #adaptation layer
             # fmap_P4 = conv
             conv = convolutional(conv, (3, 3, 256, 512))
             conv_lbbox = convolutional(conv, (1, 1, 512, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
@@ -803,7 +806,7 @@ def create_YOLOv4_backbone(input_channel=3, dilation=False, CLASSES_PATH=None):
     conv = convolutional(conv, (3, 3, 256, 512))
     conv = convolutional(conv, (1, 1, 512, 256))
 
-    
+    fmap_bb_P4= conv
     route_4 = conv
     conv = convolutional(conv, (3, 3, 256, 512))
     # fmap_bb_P4= conv
@@ -819,7 +822,8 @@ def create_YOLOv4_backbone(input_channel=3, dilation=False, CLASSES_PATH=None):
     conv = convolutional(conv, (1, 1, 1024, 512))
     conv = convolutional(conv, (3, 3, 512, 1024))
     conv = convolutional(conv, (1, 1, 1024, 512))
-
+    
+    fmap_bb_P5 = conv
     conv = convolutional(conv, (3, 3, 512, 1024))
     # fmap_bb_P5 = conv
     conv_lbbox = convolutional(conv, (1, 1, 1024, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
