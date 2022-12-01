@@ -171,9 +171,10 @@ def main():
         def train_step(image_data, target, epoch):
             if TRAINING_SHARING_WEIGHTS:
                 weight_sharing_origin_to_backbone(yolo_teacher, yolo)
-            _,_,_, fmap_bb_P3, fmap_bb_P4, fmap_bb_P5 = yolo_teacher(image_data[1], training=False)
+            fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, conv_P3, conv_P4, conv_P5 = yolo_teacher(image_data[1], training=False)
             image_data = image_data[0]
-            fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
+            fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
+            conv_backbone = [conv_P3, conv_P4, conv_P5] 
 
             with tf.GradientTape(persistent=False) as tape:
                 pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
@@ -183,9 +184,10 @@ def main():
                 for i in range(num_scales): 
                     # if (i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4):
                     if (i==0 and True) or (i==1 and True) or (i==2 and True):
-                        conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
+                        conv, pred, fmap_student, conv_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i], pred_result[9+i]
                         fmap_teacher = fmap_backbone[i]
-                        loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
+                        conv_teacher = conv_backbone[i]
+                        loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=conv_teacher, fmap_student=conv_student, fmap_student_mid=fmap_student, fmap_teacher_mid=fmap_teacher)
                     giou_loss       += loss_items[0]
                     conf_loss       += loss_items[1]
                     prob_loss       += loss_items[2]
@@ -223,9 +225,10 @@ def main():
         def validate_step(image_data, target):
             if TRAINING_SHARING_WEIGHTS:
                 weight_sharing_origin_to_backbone(yolo_teacher, yolo)
-            _,_,_, fmap_bb_P3, fmap_bb_P4, fmap_bb_P5 = yolo_teacher(image_data[1], training=False)
+            fmap_bb_P3, fmap_bb_P4, fmap_bb_P5, conv_P3, conv_P4, conv_P5 = yolo_teacher(image_data[1], training=False)
             image_data = image_data[0]
-            fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5] 
+            fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
+            conv_backbone = [conv_P3, conv_P4, conv_P5] 
     
             pred_result = yolo(image_data, training=False)
             giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
@@ -234,9 +237,10 @@ def main():
             for i in range(grid):
                 # if (i==0 and USE_FTT_P2) or (i==1 and USE_FTT_P3) or (i==2 and USE_FTT_P4):
                 if (i==0 and True) or (i==1 and True) or (i==2 and True):
-                    conv, pred, fmap_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i]
+                    conv, pred, fmap_student, conv_student = pred_result[i*2], pred_result[i*2+1], pred_result[6+i], pred_result[9+i]
                     fmap_teacher = fmap_backbone[i]
-                    loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=fmap_teacher, fmap_student=fmap_student)
+                    conv_teacher = conv_backbone[i]
+                    loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=conv_teacher, fmap_student=conv_student, fmap_student_mid=fmap_student, fmap_teacher_mid=fmap_teacher)
                 giou_loss       += loss_items[0]
                 conf_loss       += loss_items[1]
                 prob_loss       += loss_items[2]

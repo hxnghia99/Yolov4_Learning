@@ -9,7 +9,7 @@
 #===============================================================#
 
 # TRAINING INFORMATION
-#YOLOv4-SR + 224x128 + COCO-weights + anchors-#5 + dataset-5k-v2 + epoch-50 + supervision-teacher-num-62 + detection-loss(teacher-wh/1)-with-frgnd-bkgnd-respond-from-teacher-and-GT-combination
+#FTTv2.2 + distillation-only-score + distillate-paper-19-L1-only-FTT-P2
 
 
 import numpy as np
@@ -23,9 +23,10 @@ MODEL_BRANCH_TYPE               = ["P2", "P5m"]
 USE_FTT_P2                      = True
 USE_FTT_P3                      = False
 USE_FTT_P4                      = False
-LAMDA_FMAP_LOSS                 = 1.0
+USE_FTT_DEVELOPING_VERSION      = True
+LAMDA_FMAP_LOSS                 = 4.0
 USE_SUPERVISION                 = True                         #when True, use at least 1 FTT module --> create teacher model
-TEACHER_DILATION                = True                         #teacher uses dilation convolution or not
+TEACHER_DILATION                = False                         #teacher uses dilation convolution or not
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION     #teacher uses weights from student or fixed pretrained weights
 
 
@@ -33,7 +34,6 @@ TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION     #teacher uses we
 MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - original    =             P3n         |           P5n
     - HR_P5       =             P0          |           P5
-
     - HR_P4       =             P0          |           P4
     - HR_P3       =             P0          |           P3
     - HR_P5_P(-1) =             P(-1)       |           P5
@@ -119,7 +119,7 @@ elif MODEL_BRANCH_TYPE[0] == "P2":
 # Visdrone anchors 416x416 only for sliced images
 YOLO_ANCHORS                    = np.array([[[7, 9], [10, 18], [21, 14]],
                                    [[16, 28], [38, 23], [25, 42]],
-                                   [[69, 38], [45, 67], [111, 95]]])
+                                   [[69, 38], [45, 67], [111, 95]]]) / 2
 
 
 

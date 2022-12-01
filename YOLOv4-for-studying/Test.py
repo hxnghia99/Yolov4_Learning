@@ -28,8 +28,8 @@ text_by_line = "E:/dataset/TOTAL/train\images/frame_20210417_090930_00518_51.jpg
 # text_by_line = "E:/dataset/TOTAL/test\images/frame_20210501_100506_00371.jpg 155,694,293,781,1"
 # text_by_line = "E:/dataset/TOTAL/train\images/frame_20210425_120031_01203.jpg 1607,220,1737,330,1 1565,253,1705,361,1 1369,386,1544,482,1 359,304,630,723,1 490,829,634,1047,2 37,502,187,643,2"
 
-YOLOv4_weights = PREDICTION_WEIGHT_FILE
-# YOLOv4_weights = "YOLOv4-for-studying/checkpoints/Num-61_lg_dataset_transfer_224x128/epoch-37_valid-loss-13.67/yolov4_lg_transfer"
+# YOLOv4_weights = PREDICTION_WEIGHT_FILE
+YOLOv4_weights = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_P0/yolov4_lg_transfer"
 
 size = [224, 128]
 

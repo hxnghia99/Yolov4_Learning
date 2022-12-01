@@ -6,7 +6,7 @@ import numpy as np
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import matplotlib.pyplot as plt
-from YOLOv4_Fmap_train import *
+
 
 text_by_line = "E:/dataset/TOTAL/test\images/frame_20210424_095010_00681_51.jpg 1242,221,1415,335,0 28,509,146,661,0 1505,129,1735,258,0 760,425,951,550,0 753,314,948,432,0 1064,339,1305,486,0 1688,218,1920,356,0 1888,90,1919,180,0 277,183,317,231,1 319,90,358,133,1 338,276,408,325,2"
 RELATIVE_PATH               = "E:/dataset/TOTAL/"
@@ -33,55 +33,40 @@ image_data = image[np.newaxis, ...].astype(np.float32)
 imagex2_data = imagex2[np.newaxis,...].astype(np.float32)
 
 
-def weight_sharing_origin_to_backbone(dest, src):
-    for i in TEACHER_LAYERS_RANGE:
-        temp_t = i
-        if i >= 11:
-            temp_t = temp_t +1
-        if i >= 49:
-            temp_t = temp_t + 1
-        if i >= 98:
-            temp_t = temp_t + 1
-        if i >= 213:
-            temp_t = temp_t + 1
-        if i >= 328:
-            temp_t = temp_t + 1
-        if dest.layers[temp_t].get_weights() != []:
-            dest.layers[temp_t].set_weights(src.layers[i].get_weights())
-        # print("Finished sharing!")
+# def weight_sharing_origin_to_backbone(dest, src):
+#     for i in TEACHER_LAYERS_RANGE:
+#         temp_t = i
+#         if i >= 11:
+#             temp_t = temp_t +1
+#         if i >= 49:
+#             temp_t = temp_t + 1
+#         if i >= 98:
+#             temp_t = temp_t + 1
+#         if i >= 213:
+#             temp_t = temp_t + 1
+#         if i >= 328:
+#             temp_t = temp_t + 1
+#         if dest.layers[temp_t].get_weights() != []:
+#             dest.layers[temp_t].set_weights(src.layers[i].get_weights())
+#         # print("Finished sharing!")
 
 
-
-# #Create Darkent53 model and load pretrained weights
-# if not TRAIN_FROM_CHECKPOINT and TRAIN_TRANSFER:
-#     yolo_original = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, student_ver=DISTILLATION_FLAG)
-#     yolo_original.load_weights(PREDICTION_WEIGHT_FILE)
-
-# yolo_student_layers_range = np.arange(len(student.layers))  #FTT_P3: 472, FTT_P2: 495
-# ftt_layers_range = np.arange(462, 495)                           #439,         462  
-# yolo_teacher_layers_range = np.setdiff1d(yolo_student_layers_range, ftt_layers_range)   
-
-# #Create YOLO model
-# student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG) 
-
-# for i in np.concatenate([TEACHER_LAYERS_RANGE, FTT_P2_LAYERS_RANGE], axis=-1):
-#     if student.layers[i].get_weights() != []:
-#         student.layers[i].set_weights(yolo_original.layers[i].get_weights())
-
+student_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-45_valid-loss-17.71/yolov4_lg_transfer"
+teacher_weight = "YOLOv4-for-studying/checkpoints/Num-62_lg_dataset_transfer_448x256/epoch-41_valid-loss-14.10/yolov4_lg_transfer"
 
 #Create YOLO model
-student = create_YOLOv4_student(student_ver=DISTILLATION_FLAG) 
-student.load_weights(PREDICTION_WEIGHT_FILE)
+student = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, training=True)
+student.load_weights(student_weight)
 
-student_P2t, student_P3t, student_P4t, _ = student(image_data, training=False)
-student_P2, student_P3, student_P4 = [tf.math.reduce_mean(x, axis=-1, keepdims=False) for x in [student_P2t[0], student_P3t[0], student_P4t[0]]]
+_,_,_,_,_,_,mid_st_P2, mid_st_P3, mid_st_P4, out_st_P2, out_st_P3, out_st_P4  = student(image_data, training=False)
+student_P2, student_P3, student_P4 = [tf.math.reduce_mean(tf.math.top_k(x,k=20)[0], axis=-1, keepdims=False) for x in [mid_st_P2[0], mid_st_P3[0], mid_st_P4[0]]]
 # student_P2, student_P3, student_P4 = [x for x in [student_P2t[0][:,:,1], student_P3t[0][:,:,0], student_P4t[0][:,:,1]]]       #channel-wise
 
-teacher = create_YOLOv4_teacher(dilation=BACKBONE_DILATION, teacher_ver=DISTILLATION_FLAG)
-weight_sharing_origin_to_backbone(teacher, student)
+teacher = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
+teacher.load_weights(teacher_weight)
 
-teacher_P3t, teacher_P4t, teacher_P5t, _ = teacher(imagex2_data, training=False)
-teacher_P3, teacher_P4, teacher_P5 = [tf.math.reduce_mean(x, axis=-1, keepdims=False) for x in [teacher_P3t[0], teacher_P4t[0], teacher_P5t[0]]]
+mid_te_P3, mid_te_P4, mid_te_P5, out_te_P3, out_te_P4, out_te_P5 = teacher(imagex2_data, training=False)
+teacher_P3, teacher_P4, teacher_P5 = [tf.math.reduce_mean(tf.math.top_k(x,k=20)[0], axis=-1, keepdims=False) for x in [mid_te_P3[0], mid_te_P4[0], mid_te_P5[0]]]
 # teacher_P3, teacher_P4, teacher_P5 = [x for x in [teacher_P3t[0][:,:,1], teacher_P4t[0][:,:,1], teacher_P5t[0][:,:,1]]]   #channel-wise
 
 show_featuremap = True
