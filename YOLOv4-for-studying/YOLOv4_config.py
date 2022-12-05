@@ -9,7 +9,7 @@
 #===============================================================#
 
 # TRAINING INFORMATION
-#FTTv2.2 + distillation-only-score + distillate-paper-19-L1-only-FTT-P2
+#FTTv2.2 + distillation-only-score + distillate-paper-19-L1-norm-sorted-fmap
 
 
 import numpy as np
@@ -23,7 +23,7 @@ MODEL_BRANCH_TYPE               = ["P2", "P5m"]
 USE_FTT_P2                      = True
 USE_FTT_P3                      = False
 USE_FTT_P4                      = False
-USE_FTT_DEVELOPING_VERSION      = False
+USE_FTT_DEVELOPING_VERSION      = True
 LAMDA_FMAP_LOSS                 = 4.0
 USE_SUPERVISION                 = True                         #when True, use at least 1 FTT module --> create teacher model
 TEACHER_DILATION                = False                         #teacher uses dilation convolution or not

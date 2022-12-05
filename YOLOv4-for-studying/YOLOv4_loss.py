@@ -13,7 +13,7 @@ import tensorflow as tf
 from YOLOv4_config import *
 from YOLOv4_utils import *
 from YOLOv4_model import *
-
+import math
 
 # from numpy import hstack
 # from numpy.random import normal
@@ -128,13 +128,64 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
             fmin = tf.math.reduce_min(fmap)
             fmax = tf.math.reduce_max(fmap)
             return (fmap - fmin) / (fmax - fmin)
+        def gaussian_patch(size, sigma):
+            gauss = tf.Variable([math.exp(-(x-size//2)**2 / (2*sigma**2)) for x in range(size)])     #e**(-(x-m)**2/2*sigma**2)
+            return gauss / tf.math.reduce_sum(gauss)
+        def create_window(size, in_channel=1, out_channel=1, sigma=1.5):
+            _1d_window = tf.expand_dims(gaussian_patch(size, sigma=sigma), axis=-1)     #shape (11, 1)
+            _2d_window = tf.expand_dims(tf.expand_dims(tf.matmul(_1d_window, tf.transpose(_1d_window)), axis=-1), axis=-1) #shape (11, 11, 1, 1)
+            window = tf.broadcast_to(_2d_window, (size, size, in_channel, out_channel))
+            return window
+        
+        def ssim(input1, input2, val_range=255, size=11, window=None):
+            try:
+                batch_size, height, width, in_channels = tf.shape(input1)
+            except:
+                height, width, in_channels = tf.shape(input1)
+            
+            if window is None:
+                real_size = min(size, height, width)
+                window = create_window(real_size, out_channel=in_channels)      #shape (batch, size, size, channels)
+
+            #Calculate luminance params
+            mu1         = tf.nn.conv2d(input1, window, strides=1, padding="SAME")
+            mu2         = tf.nn.conv2d(input2, window, strides=1, padding="SAME")
+            
+            mu1_sq      = tf.square(mu1)        #for denominator
+            mu2_sq      = tf.square(mu2)
+            mu12        = mu1 * mu2             
+
+            #Caclulate contrast and structural components
+            sigma1_sq   = tf.nn.conv2d(tf.square(input1), window, strides=1, padding="SAME") - mu1_sq
+            sigma2_sq   = tf.nn.conv2d(tf.square(input2), window, strides=1, padding="SAME") - mu2_sq
+            sigma1      = tf.sqrt(sigma1_sq)
+            sigma2      = tf.sqrt(sigma2_sq)
+            sigma12     = tf.nn.conv2d(input1 * input2, window, strides=1, padding="SAME") - mu12
+
+            #Some constants for stability
+            C1 = (0.01 * val_range) ** 2    #may remove L later
+            C2 = (0.03 * val_range) ** 2
+            C3 = C2 / 2
+            
+            numerator1      = 2*mu1*mu2 + C1
+            numerator2      = 2*sigma1*sigma2 + C2
+            numerator3      = sigma12 + C3
+            denominator1    = mu1_sq + mu2_sq + C1
+            denominator2    = sigma1_sq + sigma2_sq + C2
+            denominator3    = sigma1 + sigma2 + C3
+
+            ssim_score = (numerator1 * numerator2 * numerator3)/(denominator1 * denominator2 * denominator3)
+
+            ret = tf.math.reduce_mean(ssim_score)
+            return ret
+
 
         """ Distillation-loss-1: Detection loss with teacher prediction as soft label """
         conv_shape      = tf.shape(fmap_teacher)  
         batch_size      = conv_shape[0]
         output_size_h   = conv_shape[1]
         output_size_w   = conv_shape[2]
-        output_size_c   = conv_shape[3]
+        fmap_size_c     = tf.shape(fmap_student_mid)[3]
         input_size_h    = tf.Variable(TRAIN_INPUT_SIZE[1], dtype=tf.float32)
         input_size_w    = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
         yolo_scale_offset       = [8, 16, 32]
@@ -197,10 +248,12 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
             gb_loss = tf.Variable(0.0)
         # elif fmap_teacher_mid != None and i==0:
         else:
-            fmap_student_mid = normalize_fmap(fmap_student_mid)
-            fmap_teacher_mid = normalize_fmap(fmap_teacher_mid)
-            gb_loss = tf.math.reduce_sum(tf.abs(fmap_teacher_mid - fmap_student_mid)) / tf.cast(batch_size*output_size_h*output_size_w*output_size_c, tf.float32)
-            # gb_loss = tf.reduce_mean(tf.reduce_sum(gb_loss, axis=[1,2,3]))
+            # fmap_student_mid = normalize_fmap(fmap_student_mid)
+            # fmap_teacher_mid = normalize_fmap(fmap_teacher_mid)
+            fmap_student_mid = tf.math.top_k(fmap_student_mid, k=fmap_size_c)[0]
+            fmap_teacher_mid = tf.math.top_k(fmap_teacher_mid, k=fmap_size_c)[0]
+            # gb_loss = tf.math.reduce_mean(tf.abs(fmap_teacher_mid - fmap_student_mid))
+            gb_loss = 1 - ssim(fmap_teacher_mid, fmap_student_mid)
         # else:
         #     gb_loss = tf.Variable(0.0)
         pos_obj_loss = tf.Variable(0.0)
