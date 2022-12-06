@@ -129,7 +129,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
             fmax = tf.math.reduce_max(fmap)
             return (fmap - fmin) / (fmax - fmin)
         def gaussian_patch(size, sigma):
-            gauss = tf.Variable([math.exp(-(x-size//2)**2 / (2*sigma**2)) for x in range(size)])     #e**(-(x-m)**2/2*sigma**2)
+            gauss = tf.Variable([math.exp(-tf.cast(x-size//2, tf.float32)**2 / (2.0*sigma**2)) for x in range(size)])     #e**(-(x-m)**2/2*sigma**2)
             return gauss / tf.math.reduce_sum(gauss)
         def create_window(size, in_channel=1, out_channel=1, sigma=1.5):
             _1d_window = tf.expand_dims(gaussian_patch(size, sigma=sigma), axis=-1)     #shape (11, 1)
