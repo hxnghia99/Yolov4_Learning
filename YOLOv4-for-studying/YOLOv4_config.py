@@ -9,7 +9,7 @@
 #===============================================================#
 
 # TRAINING INFORMATION
-#FTTv2.2 + distillation-only-score + distillate-paper-19-L1-norm-sorted-fmap
+#FTTv2.2 + distillation-only-score + distillate-SSIM-loss-normalized-fmap
 
 
 import numpy as np
@@ -24,7 +24,7 @@ USE_FTT_P2                      = True
 USE_FTT_P3                      = False
 USE_FTT_P4                      = False
 USE_FTT_DEVELOPING_VERSION      = True
-LAMDA_FMAP_LOSS                 = 4.0
+LAMDA_FMAP_LOSS                 = 100.0
 USE_SUPERVISION                 = True                         #when True, use at least 1 FTT module --> create teacher model
 TEACHER_DILATION                = False                         #teacher uses dilation convolution or not
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION     #teacher uses weights from student or fixed pretrained weights
@@ -46,7 +46,6 @@ TEACHER_LAYERS_RANGE            = np.arange(462)
 STUDENT_LAYERS_RANGE            = np.arange(495)
 
 # ["COCO", "LG", "VISDRONE"]
-MAKE_EVALUATION                 = False
 EVALUATION_DATASET_TYPE         = TRAINING_DATASET_TYPE
 EVALUATE_TRANSFER               = TRAIN_TRANSFER
 EVALUATION_SIZE                 = ["small"]#, "medium"]
@@ -154,11 +153,11 @@ if TRAINING_DATASET_TYPE == "COCO":
 elif TRAINING_DATASET_TYPE == "LG":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
     # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
-    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
+    # VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
     # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
-    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
+    # VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
     TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_5k.txt"
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/validate_700.txt"
+    VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/validate_700.txt"
     RELATIVE_PATH               = 'E:/dataset/TOTAL/'
     PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
     
@@ -206,46 +205,43 @@ TEST_SCORE_THRESHOLD            = 0.05
 TEST_IOU_THRESHOLD              = 0.5
 USE_CUSTOM_WEIGHTS              = True
 
-if MAKE_EVALUATION:
-    if EVALUATION_DATASET_TYPE == "COCO":
-        RELATIVE_PATH               = "./model_data/"  
-        PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset'
-        YOLO_CLASS_PATH             = YOLO_COCO_CLASS_PATH
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/coco/val2017.txt"
-        EVALUATION_WEIGHT_FILE      = YOLO_V4_COCO_WEIGHTS
 
-        VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-coco'
-        VALIDATE_MAP_RESULT_PATH    = "YOLOv4-for-studying/mAP/results_coco.txt"
+if EVALUATION_DATASET_TYPE == "COCO":
+    RELATIVE_PATH               = "./model_data/"  
+    PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset'
+    YOLO_CLASS_PATH             = YOLO_COCO_CLASS_PATH
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/coco/val2017.txt"
+    EVALUATION_WEIGHT_FILE      = YOLO_V4_COCO_WEIGHTS
 
-    elif EVALUATION_DATASET_TYPE == "LG":
-        RELATIVE_PATH               = 'E:/dataset/TOTAL/'
-        PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET' 
-        YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
-        # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/evaluate_1300.txt" 
-        if EVALUATE_TRANSFER:
-            EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
-            # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_original_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
-            # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_HR_P5_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
-        else:
-            EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
-            # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_HR_P3_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
-        
-        VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-lg'
-        VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-lg.txt"
+    VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-coco'
+    VALIDATE_MAP_RESULT_PATH    = "YOLOv4-for-studying/mAP/results_coco.txt"
 
-    elif EVALUATION_DATASET_TYPE == "VISDRONE":
-        RELATIVE_PATH               = ""
-        PREFIX_PATH                 = ""
-        YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"
-        if EVALUATE_TRANSFER:
-            EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
-        else:
-            EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
+elif EVALUATION_DATASET_TYPE == "LG":
+    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/evaluate_1300.txt" 
+    if EVALUATE_TRANSFER:
+        EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
+        # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_original_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
+        # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_HR_P5_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
+    else:
+        EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
+        # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_HR_P3_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
+    
+    VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-lg'
+    VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-lg.txt"
 
-        VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-visdrone'
-        VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-visdrone.txt"    
+elif EVALUATION_DATASET_TYPE == "VISDRONE":
+    RELATIVE_PATH               = ""
+    PREFIX_PATH                 = ""
+    YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"
+    if EVALUATE_TRANSFER:
+        EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
+    else:
+        EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_from_scratch_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_from_scratch"
+
+    VALIDATE_GT_RESULTS_DIR     = 'YOLOv4-for-studying/mAP/ground-truth-visdrone'
+    VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-visdrone.txt"    
 
 # EVALUATION_WEIGHT_FILE = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_Original"
 # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test.txt"  

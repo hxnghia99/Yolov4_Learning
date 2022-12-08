@@ -372,7 +372,7 @@ input: (8) image, bboxes as (coordinates, score, class), class name path
 output: image with bboxes and labels
 obj:    add bboxes and labels to original image
 ##################################'''
-def draw_bbox(image, bboxes, CLASSES_PATH=YOLO_COCO_CLASS_PATH, show_label=True, show_confidence=True, Text_colors='', rectangle_colors='', tracking=False):
+def draw_bbox(image, bboxes, CLASSES_PATH=YOLO_COCO_CLASS_PATH, show_label=True, show_confidence=True, Text_colors='', rectangle_colors='', tracking=False, show_grids=False):
     #Initial readings
     CLASS_NAMES = read_class_names(CLASSES_PATH)
     num_classes = len(CLASS_NAMES)
@@ -389,7 +389,7 @@ def draw_bbox(image, bboxes, CLASSES_PATH=YOLO_COCO_CLASS_PATH, show_label=True,
     #draw each bbox and label
     if (bboxes.shape[1] == 6):      #draw predicted bboxes
         for bbox in bboxes:
-            coordinates = np.array(bbox[:4], dtype=np.int32)
+            coordinates = np.array(bbox[:4], dtype=np.int32)        #xymin, xymax
             score = bbox[4]
             class_id = int(bbox[5])
             #select color
@@ -413,9 +413,28 @@ def draw_bbox(image, bboxes, CLASSES_PATH=YOLO_COCO_CLASS_PATH, show_label=True,
                 (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_COMPLEX_SMALL, fontScale=fontScale, thickness=bbox_thick)
                 cv2.rectangle(image, (x1, y1), (x1 + text_width, y1 - text_height - baseline), bbox_color, thickness=cv2.FILLED)
                 cv2.putText(image, label, (x1, y1-4), cv2.FONT_HERSHEY_COMPLEX_SMALL, fontScale=fontScale, color=label_color, thickness=bbox_thick, lineType=cv2.LINE_AA)
+    
+        if show_grids:
+            centers = [(int((x[2]+x[0])/2), int((x[3]+x[1])/2)) for x in bboxes]
+
+            w_list = np.array(np.array(range(0, YOLO_INPUT_SIZE[0], 4)) * image_w / YOLO_INPUT_SIZE[0], np.int32)[1:]
+            w_list = [[(x, 0), (x, image_h-1)] for x in w_list]
+
+            h_list = np.array(np.array(range(0, YOLO_INPUT_SIZE[1], 4)) * image_h / YOLO_INPUT_SIZE[1], np.int32)[1:]   
+            h_list = [[(0, x), (image_w-1, x)] for x in h_list]
+        
+            for x in w_list:
+                cv2.line(image, x[0], x[1], label_color, bbox_thick)
+            for x in h_list:
+                cv2.line(image, x[0], x[1], label_color, bbox_thick)
+            for x in centers:
+                cv2.circle(image, x, 2, bbox_color, bbox_thick*3)
+    
+    
+    
     elif (bboxes.shape[1] == 5):       #draw ground truth bboxes
         for bbox in bboxes:
-            coordinates = np.array(bbox[:4], dtype=np.int32)
+            coordinates = np.array(bbox[:4], dtype=np.int32)        #xymin, xymax
             class_id = int(bbox[4])
             #select color
             bbox_color = rectangle_colors if rectangle_colors != '' else rand_rectangle_colors[class_id]
@@ -437,6 +456,22 @@ def draw_bbox(image, bboxes, CLASSES_PATH=YOLO_COCO_CLASS_PATH, show_label=True,
                 (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_COMPLEX_SMALL, fontScale=fontScale, thickness=bbox_thick)
                 cv2.rectangle(image, (x1, y1), (x1 + text_width, y1 - text_height - baseline), bbox_color, thickness=cv2.FILLED)
                 cv2.putText(image, label, (x1, y1-4), cv2.FONT_HERSHEY_COMPLEX_SMALL, fontScale=fontScale, color=label_color, thickness=bbox_thick, lineType=cv2.LINE_AA)
+        if show_grids:
+            centers = [(int((x[2]+x[0])/2), int((x[3]+x[1])/2)) for x in bboxes]
+
+            w_list = np.array(np.array(range(0, YOLO_INPUT_SIZE[0], 4)) * image_w / YOLO_INPUT_SIZE[0], np.int32)[1:]
+            w_list = [[(x, 0), (x, image_h-1)] for x in w_list]
+
+            h_list = np.array(np.array(range(0, YOLO_INPUT_SIZE[1], 4)) * image_h / YOLO_INPUT_SIZE[1], np.int32)[1:]   
+            h_list = [[(0, x), (image_w-1, x)] for x in h_list]
+        
+            for x in w_list:
+                cv2.line(image, x[0], x[1], (0,255,255), bbox_thick)
+            for x in h_list:
+                cv2.line(image, x[0], x[1], (0,255,255), bbox_thick)
+            for x in centers:
+                cv2.circle(image, x, 2, (255,255,255), bbox_thick*3)
+
     return image
 
 

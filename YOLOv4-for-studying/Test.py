@@ -15,6 +15,28 @@ import cv2
 import numpy as np
 from YOLOv4_config import *
 from YOLOv4_utils import *
+from YOLOv4_dataset import *
+from YOLOv4_model import *
+
+
+def convert_into_original_size(array_bboxes, original_size): #array: shape [w, h, 3, 8]
+    input_size                  = [224, 128]
+    org_image_h, org_image_w    = original_size
+    if len(array_bboxes)!=0:
+        pred_xywh = array_bboxes[:,0:4]
+        # (x, y, w, h) --> (xmin, ymin, xmax, ymax) : size 416 x 416
+        pred_coor = np.concatenate([pred_xywh[:, :2] - pred_xywh[:, 2:] * 0.5,
+                                    pred_xywh[:, :2] + pred_xywh[:, 2:] * 0.5], axis=-1)
+        # prediction (xmin, ymin, xmax, ymax) -> prediction (xmin_org, ymin_org, xmax_org, ymax_org)
+        resize_ratio = min(input_size[0] / org_image_w, input_size[1] / org_image_h)
+        dw = (input_size[0] - resize_ratio * org_image_w) / 2                      #pixel position recalculation
+        dh = (input_size[1] - resize_ratio * org_image_h) / 2
+        pred_coor[:, 0::2] = 1.0 * (pred_coor[:, 0::2] - dw) / resize_ratio     #(pixel_pos - dw)/resize_ratio
+        pred_coor[:, 1::2] = 1.0 * (pred_coor[:, 1::2] - dh) / resize_ratio
+        array_orig_bboxes = np.concatenate([pred_coor, array_bboxes[:,4:5]], axis=-1)
+        return array_orig_bboxes
+    else:
+        return np.array([])
 
 RELATIVE_PATH               = "E:/dataset/TOTAL/"
 PREFIX_PATH                 = "C:/Users/Claw/VSCode_Gitrepo/Yolov4_Learning/YOLOv4-for-studying/dataset/LG_DATASET"
@@ -28,48 +50,141 @@ text_by_line = "E:/dataset/TOTAL/test\images\cyclist_223_171_53_30_11002_2020-11
 # text_by_line = "E:/dataset/TOTAL/test\images/frame_20210501_100506_00371.jpg 155,694,293,781,1"
 # text_by_line = "E:/dataset/TOTAL/train\images/frame_20210425_120031_01203.jpg 1607,220,1737,330,1 1565,253,1705,361,1 1369,386,1544,482,1 359,304,630,723,1 490,829,634,1047,2 37,502,187,643,2"
 
-# YOLOv4_weights = PREDICTION_WEIGHT_FILE
-YOLOv4_weights = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-45_valid-loss-17.65/yolov4_lg_transfer"
 
+compare_with_teacher = False
 size = [224, 128]
 
-text = text_by_line.split()
-bboxes = []
-for t in text:
-    if not t.replace(',', '').isnumeric():
-        temp_path   = os.path.relpath(t, RELATIVE_PATH)
-        temp_path   = os.path.join(PREFIX_PATH, temp_path)
-        image_path  = temp_path.replace('\\','/')
-    else:
-        t = list(map(int, t.split(',')))
-        bboxes.append(t)
-bboxes = np.array(bboxes)
-original_image = cv2.imread(image_path)
 
-image_data = image_preprocess(np.copy(original_image), np.array(size))
-image_data = image_data[np.newaxis,...]
-image_truth = draw_bbox(np.copy(original_image), bboxes, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
+test_1_image = Dataset("test", TEST_LABEL_GT=True)
+original_image, image_data, bboxes, label, resized_label = test_1_image.test_label_gt()
+original_h, original_w, _ = original_image.shape
+
+imagex2 = image_preprocess(np.copy(original_image), np.array(size)*2)
+imagex2_data = imagex2[np.newaxis,...].astype(np.float32)
+
+# text = text_by_line.split()
+# bboxes = []
+# for t in text:
+#     if not t.replace(',', '').isnumeric():
+#         temp_path   = os.path.relpath(t, RELATIVE_PATH)
+#         temp_path   = os.path.join(PREFIX_PATH, temp_path)
+#         image_path  = temp_path.replace('\\','/')
+#     else:
+#         t = list(map(int, t.split(',')))
+#         bboxes.append(t)
+# bboxes = np.array(bboxes)
+# original_image = cv2.imread(image_path)
+# image_data = image_preprocess(np.copy(original_image), np.array(size))
+
+image_truth             = draw_bbox(np.copy(original_image), bboxes, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
+image_label_sbboxes     = draw_bbox(np.copy(original_image), label[0], CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
+image_gt_sbboxes        = draw_bbox(np.copy(original_image), label[3], CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
 
 
-yolo = Load_YOLOv4_Model(YOLOv4_weights)
+student_weight = "YOLOv4-for-studying/checkpoints/Num-100_lg_dataset_transfer_224x128/epoch-43_valid-loss-16.82/yolov4_lg_transfer"
+teacher_weight = "YOLOv4-for-studying/checkpoints/Num-62_lg_dataset_transfer_448x256/epoch-41_valid-loss-14.10/yolov4_lg_transfer"
 
+#Create YOLO model
+yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, training=False)
+yolo.load_weights(student_weight)
 pred_bboxes = yolo(image_data, training=False)
+
+
+if compare_with_teacher:
+    teacher = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
+    teacher.load_weights(teacher_weight)
+
+    
+    _, _, _, teacher_out_sbboxes, teacher_out_mbboxes, teacher_out_lbboxes = teacher(imagex2_data, training=False)
+    student_pred_small      = pred_bboxes[0]
+
+    # scores                  = student_pred_small[:,:,:,:,4:5] * tf.math.reduce_max(student_pred_small[:,:,:,:,5:], axis=-1, keepdims=True)
+    # frgrd_respond_1         = tf.cast(scores >= 0.5, tf.float32)
+    # teacher_xywh            = student_pred_small[:, :, :, :, :4]
+    # ious                    = bboxes_iou_from_xywh(teacher_xywh[0, :, :, :, np.newaxis, :], np.array(resized_label[3], dtype=np.float32)[np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
+    # max_iou                 = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
+    # frgrd_respond_2         = tf.cast(max_iou >= 0.5, tf.float32)
+    # student_frgrd_respond   = tf.squeeze(tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32))
+    
+    
+    yolo_scale_offset       = [4, 8, 16]
+    yolo_anchors            = YOLO_ANCHORS
+    teacher_pred_sbboxes    = decode(teacher_out_sbboxes, NUM_CLASS=3 , i=0, YOLO_SCALE_OFFSET=yolo_scale_offset, YOLO_ANCHORS=yolo_anchors)
+    scores                  = teacher_pred_sbboxes[:,:,:,:,4:5] * tf.math.reduce_max(teacher_pred_sbboxes[:,:,:,:,5:], axis=-1, keepdims=True)
+    frgrd_respond_1         = tf.cast(scores >= 0.5, tf.float32)
+    teacher_xywh            = teacher_pred_sbboxes[:, :, :, :, :4]
+    ious                    = bboxes_iou_from_xywh(teacher_xywh[0, :, :, :, np.newaxis, :], np.array(resized_label[3], dtype=np.float32)[np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
+    max_iou                 = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
+    frgrd_respond_2         = tf.cast(max_iou >= 0.5, tf.float32)
+    #***
+    teacher_frgrd_respond   = tf.squeeze(tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32))
+    #***
+    label_frgrd_respond     = tf.cast(resized_label[0][:,:,:,4], tf.float32)    #have overlaping anchors
+    #***
+    intersect_teacher_label_respond = tf.math.logical_and(tf.cast(teacher_frgrd_respond,tf.bool), tf.cast(label_frgrd_respond,tf.bool))
+    #***
+    teacher_except_intersect_respond = tf.math.logical_xor(tf.cast(teacher_frgrd_respond,tf.bool), intersect_teacher_label_respond)
+    #***
+    label_except_intersect_respond = tf.math.logical_xor(tf.cast(label_frgrd_respond,tf.bool), intersect_teacher_label_respond)
+    
+
+    teacher_pred_all        = np.array(teacher_pred_sbboxes[0][tf.cast(teacher_frgrd_respond, tf.bool)])
+    teacher_pred_all        = np.array([np.concatenate([x[0:4],np.array([np.argmax(x[5:8])], dtype=np.float32)],axis=-1) for x in teacher_pred_all], np.float32)
+    teacher_pred_all        = convert_into_original_size(teacher_pred_all, [original_h, original_w])
+    image_test              = draw_bbox(np.copy(original_image), teacher_pred_all, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
+    cv2.imshow('Teacher Pred ALL', cv2.resize(image_test,(960, 540)))
+
+    teacher_pred_all        = np.array(teacher_pred_sbboxes[0][tf.cast(teacher_except_intersect_respond, tf.bool)])
+    teacher_pred_all        = np.array([np.concatenate([x[0:4],np.array([np.argmax(x[5:8])], dtype=np.float32)],axis=-1) for x in teacher_pred_all], np.float32)
+    teacher_pred_all        = convert_into_original_size(teacher_pred_all, [original_h, original_w])
+    image_test              = draw_bbox(np.copy(original_image), teacher_pred_all, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
+    cv2.imshow('Teacher Pred except intersection', cv2.resize(image_test,(960, 540)))
+    
+    teacher_pred_all        = np.array(teacher_pred_sbboxes[0][tf.cast(intersect_teacher_label_respond, tf.bool)])
+    teacher_pred_all        = np.array([np.concatenate([x[0:4],np.array([np.argmax(x[5:8])], dtype=np.float32)],axis=-1) for x in teacher_pred_all], np.float32)
+    teacher_pred_all        = convert_into_original_size(teacher_pred_all, [original_h, original_w])
+    image_test              = draw_bbox(np.copy(original_image), teacher_pred_all, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
+    cv2.imshow('Teacher Pred Intersection', cv2.resize(image_test,(960, 540)))
+
+    teacher_pred_all        = np.array(resized_label[0][tf.cast(label_frgrd_respond, tf.bool)])
+    teacher_pred_all        = np.array([np.concatenate([x[0:4],np.array([np.argmax(x[5:8])], dtype=np.float32)],axis=-1) for x in teacher_pred_all], np.float32)
+    teacher_pred_all        = convert_into_original_size(teacher_pred_all, [original_h, original_w])
+    image_test_2              = draw_bbox(np.copy(original_image), teacher_pred_all, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
+    cv2.imshow('Label ALL', cv2.resize(image_test_2,(960, 540)))
+
+    teacher_pred_all        = np.array(resized_label[0][tf.cast(label_except_intersect_respond, tf.bool)])
+    teacher_pred_all        = np.array([np.concatenate([x[0:4],np.array([np.argmax(x[5:8])], dtype=np.float32)],axis=-1) for x in teacher_pred_all], np.float32)
+    teacher_pred_all        = convert_into_original_size(teacher_pred_all, [original_h, original_w])
+    image_test_2              = draw_bbox(np.copy(original_image), teacher_pred_all, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
+    cv2.imshow('Label except intersection', cv2.resize(image_test_2,(960, 540)))
+
+    teacher_pred_all        = np.array(resized_label[0][tf.cast(intersect_teacher_label_respond, tf.bool)])
+    teacher_pred_all        = np.array([np.concatenate([x[0:4],np.array([np.argmax(x[5:8])], dtype=np.float32)],axis=-1) for x in teacher_pred_all], np.float32)
+    teacher_pred_all        = convert_into_original_size(teacher_pred_all, [original_h, original_w])
+    image_test_2              = draw_bbox(np.copy(original_image), teacher_pred_all, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
+    cv2.imshow('Label Intersection', cv2.resize(image_test_2,(960, 540)))
+
+    if cv2.waitKey() == 'q':
+        pass
 
 pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]               #reshape to [3, bbox_num, 85]
 pred_bboxes = tf.concat(pred_bboxes, axis=0)                                            #concatenate to [bbox_num, 85]
+# pred_bboxes = pred_bboxes[0]
 pred_bboxes = postprocess_boxes(pred_bboxes, np.copy(original_image), size, 0.50)      #scale to origional and select valid bboxes
 pred_bboxes = nms(pred_bboxes, 0.5, method='nms')                                       #Non-maximum suppression
 
 # original_image      = cv2.cvtColor(imaget, cv2.COLOR_BGR2RGB)
-image_pred = draw_bbox(np.copy(original_image), pred_bboxes, CLASSES_PATH=YOLO_CLASS_PATH, show_confidence=True, show_label=False) #draw bboxes
+image_pred = draw_bbox(np.copy(original_image), pred_bboxes, CLASSES_PATH=YOLO_CLASS_PATH, show_confidence=True, show_label=False, show_grids=True) #draw bboxes
 
 
 # imaget1 = cv2.resize(imaget1, np.array(size)*2)
 # imaget2, bboxes2 = image_preprocess(np.copy(imaget), np.array(size)*2, np.copy(bboxes), sizex2_flag=True)
 
 # image = draw_bbox(np.copy(imaget), bboxes, YOLO_CLASS_PATH, show_label=False)
-cv2.imshow('bbox1', cv2.resize(image_truth,(1280, 720)))
-cv2.imshow('bbox2', cv2.resize(image_pred,(1280, 720)))
+cv2.imshow('All GT image', cv2.resize(image_truth,(1280, 720)))
+cv2.imshow('small GT image', cv2.resize(image_gt_sbboxes,(1280, 720)))
+cv2.imshow('small label image', cv2.resize(image_label_sbboxes,(1280, 720)))
+cv2.imshow('Predicted image', cv2.resize(image_pred,(1280, 720)))
 if cv2.waitKey() == 'q':
     pass
 

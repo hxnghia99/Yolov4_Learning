@@ -16,17 +16,28 @@ import tensorflow as tf
 from YOLOv4_utils import *
 from YOLOv4_config import *
 import random
+import collections
 
 
 class Dataset(object):
-    def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE, TESTING=None):    #train and test data use only one size 416x416
+    def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE, TESTING=None, TEST_LABEL_GT=None, VALID_MODE=None):    #train and test data use only one size 416x416
         #settings of annotation path, input size, batch size
-        self.annotation_path        = TRAIN_ANNOTATION_PATH if dataset_type == 'train' else TEST_ANNOTATION_PATH
+        self.annotation_path        = TRAIN_ANNOTATION_PATH if dataset_type == 'train' else VALID_ANNOTATION_PATH
+        if VALID_MODE:
+            self.annotation_path    = TEST_ANNOTATION_PATH
         self.input_size             = TRAIN_INPUT_SIZE if dataset_type == 'train' else TEST_INPUT_SIZE
         if USE_SUPERVISION:
             self.input_size_x2 = np.array(self.input_size, dtype=np.int32) * 2
         self.batch_size             = TRAIN_BATCH_SIZE if dataset_type == 'train' else TEST_BATCH_SIZE
         self.data_aug               = TRAIN_DATA_AUG if dataset_type == 'train' else TEST_DATA_AUG
+        
+        self.test_label             = False
+        if TEST_LABEL_GT == True:
+            self.annotation_path    = "YOLOv4-for-studying/dataset/LG_DATASET/test_1.txt"
+            self.batch_size         = 1
+            self.data_aug           = False
+            self.test_label         = True
+        
         #settings of classes
         self.class_names            = read_class_names(YOLO_CLASS_PATH)
         self.num_classes            = len(self.class_names)
@@ -136,7 +147,7 @@ class Dataset(object):
         #For each bbox, find the good anchors
         for bbox in bboxes:
             bbox_coordinates = bbox[:4]
-            bbox_class_idx   = bbox[4]
+            bbox_class_idx   = int(bbox[4])
             #class label smoothing
             onehot = np.zeros(self.num_classes, dtype=np.float32)
             onehot[bbox_class_idx] = 1.0
@@ -346,7 +357,60 @@ class Dataset(object):
             pass
         cv2.destroyAllWindows()
         print("Test")
-       
+
+
+    def convert_into_original_size(self, array_bboxes, original_size):
+        input_size                  = self.input_size
+        org_image_h, org_image_w    = original_size
+        if len(array_bboxes)!=0:
+            pred_xywh = array_bboxes[:,0:4]
+            # (x, y, w, h) --> (xmin, ymin, xmax, ymax) : size 416 x 416
+            pred_coor = np.concatenate([pred_xywh[:, :2] - pred_xywh[:, 2:] * 0.5,
+                                        pred_xywh[:, :2] + pred_xywh[:, 2:] * 0.5], axis=-1)
+            # prediction (xmin, ymin, xmax, ymax) -> prediction (xmin_org, ymin_org, xmax_org, ymax_org)
+            resize_ratio = min(input_size[0] / org_image_w, input_size[1] / org_image_h)
+            dw = (input_size[0] - resize_ratio * org_image_w) / 2                      #pixel position recalculation
+            dh = (input_size[1] - resize_ratio * org_image_h) / 2
+            pred_coor[:, 0::2] = 1.0 * (pred_coor[:, 0::2] - dw) / resize_ratio     #(pixel_pos - dw)/resize_ratio
+            pred_coor[:, 1::2] = 1.0 * (pred_coor[:, 1::2] - dh) / resize_ratio
+            array_orig_bboxes = np.concatenate([pred_coor, array_bboxes[:,4:5]], axis=-1)
+            return array_orig_bboxes
+        else:
+            return np.array([])
+
+    def test_label_gt(self):
+        annotation = self.annotations[0]
+        original_image = cv2.imread(annotation[0])
+        bboxes = np.array([list(map(int, box.split(','))) for box in annotation[1]])
+        #resized image and bboxes
+        try:
+            image_data, resized_bboxes = self.parse_annotation(annotation)
+        except:
+            image_data, resized_bboxes, _ = self.parse_annotation(annotation)
+        image_data = image_data[np.newaxis,...]
+        #label based on resized image and bboxes
+        resized_label_sbboxes, resized_label_mbboxes, resized_label_lbboxes, resized_sbboxes, resized_mbboxes, resized_lbboxes = self.preprocess_true_bboxes(np.copy(resized_bboxes))
+
+        sbboxes = [np.concatenate([bbox, np.array([0])]) for bbox in resized_sbboxes if np.prod(bbox)!=0]
+        sbboxes = self.convert_into_original_size(np.array(sbboxes), np.shape(original_image)[0:2])
+        mbboxes = [np.concatenate([bbox, np.array([0])]) for bbox in resized_mbboxes if np.prod(bbox)!=0]
+        mbboxes = self.convert_into_original_size(np.array(mbboxes), np.shape(original_image)[0:2])
+        lbboxes = [np.concatenate([bbox, np.array([0])]) for bbox in resized_lbboxes if np.prod(bbox)!=0]
+        lbboxes = self.convert_into_original_size(np.array(lbboxes), np.shape(original_image)[0:2])
+        
+        label_sbboxes = [list(bbox) for bbox in np.reshape(resized_label_sbboxes, (-1,8)) if np.prod(bbox[0:4])!=0]
+        label_sbboxes = [np.concatenate([np.array(y)[0:4], np.array([np.argmax(np.array(y)[5:8])])]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_sbboxes).values())]
+        label_sbboxes = self.convert_into_original_size(np.array(label_sbboxes), np.shape(original_image)[0:2])
+        label_mbboxes = [list(bbox) for bbox in np.reshape(resized_label_mbboxes, (-1,8)) if np.prod(bbox[0:4])!=0]
+        label_mbboxes = [np.concatenate([np.array(y)[0:4], np.array([np.argmax(np.array(y)[5:8])])]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_mbboxes).values())]
+        label_mbboxes = self.convert_into_original_size(np.array(label_mbboxes), np.shape(original_image)[0:2])
+        label_lbboxes = [list(bbox) for bbox in np.reshape(resized_label_lbboxes, (-1,8)) if np.prod(bbox[0:4])!=0]
+        label_lbboxes = [np.concatenate([np.array(y)[0:4], np.array([np.argmax(np.array(y)[5:8])])]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_lbboxes).values())]
+        label_lbboxes = self.convert_into_original_size(np.array(label_lbboxes), np.shape(original_image)[0:2])
+
+        return original_image, image_data, bboxes, [label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes], [resized_label_sbboxes, resized_label_mbboxes, resized_label_lbboxes, resized_sbboxes, resized_mbboxes, resized_lbboxes]
+
+
 if __name__ == '__main__':
     train_dataset = Dataset('train', TESTING=True)
     test_way = 1
