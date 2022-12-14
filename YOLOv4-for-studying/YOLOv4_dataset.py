@@ -20,7 +20,7 @@ import collections
 
 
 class Dataset(object):
-    def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE, TESTING=None, TEST_LABEL_GT=None, VALID_MODE=None):    #train and test data use only one size 416x416
+    def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE, TESTING=None, TEST_LABEL_GT_PATH=None, VALID_MODE=None):    #train and test data use only one size 416x416
         #settings of annotation path, input size, batch size
         self.annotation_path        = TRAIN_ANNOTATION_PATH if dataset_type == 'train' else VALID_ANNOTATION_PATH
         if VALID_MODE:
@@ -32,8 +32,8 @@ class Dataset(object):
         self.data_aug               = TRAIN_DATA_AUG if dataset_type == 'train' else TEST_DATA_AUG
         
         self.test_label             = False
-        if TEST_LABEL_GT == True:
-            self.annotation_path    = "YOLOv4-for-studying/dataset/LG_DATASET/test_1.txt"
+        if TEST_LABEL_GT_PATH != None:
+            self.annotation_path    = TEST_LABEL_GT_PATH
             self.batch_size         = 1
             self.data_aug           = False
             self.test_label         = True
@@ -101,7 +101,7 @@ class Dataset(object):
             image_path, bboxes_annotations = annotation
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations])
+        bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations], np.float32)
         
         #return raw image and bboxes
         if mAP:
@@ -120,7 +120,7 @@ class Dataset(object):
             bbox_mask = np.logical_and(bboxes[:,4]>-0.5, bboxes[:,4]<9.5)
             for bbox in bboxes:
                 if bbox[4] == -1:     #class 0 (-1 after transforming to coco format) : ignored region
-                    x_tl, y_tl, x_br, y_br = bbox[:4]
+                    x_tl, y_tl, x_br, y_br =list(map(int,bbox[:4]))
                     image[y_tl:y_br, x_tl:x_br] = 128.0 #make ignored region into gray
             bboxes = bboxes[bbox_mask]
 
@@ -142,7 +142,7 @@ class Dataset(object):
         #shape [3, gcell, gcell, anchors, 5 + num_classes]
         label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
                             for i in range(self.num_output_levels)]
-        bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(self.num_output_levels)]
+        bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4), dtype=np.float32) for _ in range(self.num_output_levels)]
         bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)     
         #For each bbox, find the good anchors
         for bbox in bboxes:
@@ -381,7 +381,18 @@ class Dataset(object):
     def test_label_gt(self):
         annotation = self.annotations[0]
         original_image = cv2.imread(annotation[0])
-        bboxes = np.array([list(map(int, box.split(','))) for box in annotation[1]])
+        bboxes = np.array([list(map(int, box.split(','))) for box in annotation[1]], np.float32)
+        
+        if TRAINING_DATASET_TYPE=="VISDRONE":
+            """
+            VISDRONE ignored region and class "other" preprocessing
+            """
+            bbox_mask = np.logical_and(bboxes[:,4]>-0.5, bboxes[:,4]<9.5)
+            for bbox in bboxes:
+                if bbox[4] == -1:     #class 0 (-1 after transforming to coco format) : ignored region
+                    x_tl, y_tl, x_br, y_br = list(map(int,bbox[:4]))
+                    original_image[y_tl:y_br, x_tl:x_br] = 128.0 #make ignored region into gray
+            bboxes = bboxes[bbox_mask]
         #resized image and bboxes
         try:
             image_data, resized_bboxes = self.parse_annotation(annotation)
@@ -391,21 +402,21 @@ class Dataset(object):
         #label based on resized image and bboxes
         resized_label_sbboxes, resized_label_mbboxes, resized_label_lbboxes, resized_sbboxes, resized_mbboxes, resized_lbboxes = self.preprocess_true_bboxes(np.copy(resized_bboxes))
 
-        sbboxes = [np.concatenate([bbox, np.array([0])]) for bbox in resized_sbboxes if np.prod(bbox)!=0]
+        sbboxes = [np.concatenate([bbox, np.array([0], dtype=np.float32)]) for bbox in resized_sbboxes if np.prod(bbox)!=0]
         sbboxes = self.convert_into_original_size(np.array(sbboxes), np.shape(original_image)[0:2])
-        mbboxes = [np.concatenate([bbox, np.array([0])]) for bbox in resized_mbboxes if np.prod(bbox)!=0]
+        mbboxes = [np.concatenate([bbox, np.array([0], dtype=np.float32)]) for bbox in resized_mbboxes if np.prod(bbox)!=0]
         mbboxes = self.convert_into_original_size(np.array(mbboxes), np.shape(original_image)[0:2])
-        lbboxes = [np.concatenate([bbox, np.array([0])]) for bbox in resized_lbboxes if np.prod(bbox)!=0]
+        lbboxes = [np.concatenate([bbox, np.array([0], dtype=np.float32)]) for bbox in resized_lbboxes if np.prod(bbox)!=0]
         lbboxes = self.convert_into_original_size(np.array(lbboxes), np.shape(original_image)[0:2])
         
-        label_sbboxes = [list(bbox) for bbox in np.reshape(resized_label_sbboxes, (-1,8)) if np.prod(bbox[0:4])!=0]
-        label_sbboxes = [np.concatenate([np.array(y)[0:4], np.array([np.argmax(np.array(y)[5:8])])]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_sbboxes).values())]
+        label_sbboxes = [list(bbox) for bbox in np.reshape(resized_label_sbboxes, (-1,5+self.num_classes)) if np.prod(bbox[0:4])!=0]
+        label_sbboxes = [np.concatenate([np.array(y, dtype=np.float32)[0:4], np.array([np.argmax(np.array(y)[5:8])], dtype=np.float32)]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_sbboxes).values())]
         label_sbboxes = self.convert_into_original_size(np.array(label_sbboxes), np.shape(original_image)[0:2])
-        label_mbboxes = [list(bbox) for bbox in np.reshape(resized_label_mbboxes, (-1,8)) if np.prod(bbox[0:4])!=0]
-        label_mbboxes = [np.concatenate([np.array(y)[0:4], np.array([np.argmax(np.array(y)[5:8])])]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_mbboxes).values())]
+        label_mbboxes = [list(bbox) for bbox in np.reshape(resized_label_mbboxes, (-1,5+self.num_classes)) if np.prod(bbox[0:4])!=0]
+        label_mbboxes = [np.concatenate([np.array(y, dtype=np.float32)[0:4], np.array([np.argmax(np.array(y)[5:8])], dtype=np.float32)]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_mbboxes).values())]
         label_mbboxes = self.convert_into_original_size(np.array(label_mbboxes), np.shape(original_image)[0:2])
-        label_lbboxes = [list(bbox) for bbox in np.reshape(resized_label_lbboxes, (-1,8)) if np.prod(bbox[0:4])!=0]
-        label_lbboxes = [np.concatenate([np.array(y)[0:4], np.array([np.argmax(np.array(y)[5:8])])]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_lbboxes).values())]
+        label_lbboxes = [list(bbox) for bbox in np.reshape(resized_label_lbboxes, (-1,5+self.num_classes)) if np.prod(bbox[0:4])!=0]
+        label_lbboxes = [np.concatenate([np.array(y, dtype=np.float32)[0:4], np.array([np.argmax(np.array(y)[5:8])], dtype=np.float32)]) for y in list(collections.OrderedDict((tuple(x), x) for x in label_lbboxes).values())]
         label_lbboxes = self.convert_into_original_size(np.array(label_lbboxes), np.shape(original_image)[0:2])
 
         return original_image, image_data, bboxes, [label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes], [resized_label_sbboxes, resized_label_mbboxes, resized_label_lbboxes, resized_sbboxes, resized_mbboxes, resized_lbboxes]

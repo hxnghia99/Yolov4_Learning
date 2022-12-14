@@ -131,7 +131,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                 gt_bboxes_small = np.array(temp)
             
                 #eliminate ignored region class and "other" class
-                if EVALUATION_DATASET_TYPE == "VISDRONE":
+                if EVALUATION_DATASET_TYPE == "VISDRONE" and len(gt_bboxes_small)!=0:
                     bbox_mask = np.logical_and(gt_bboxes_small[:,4]>-0.5, gt_bboxes_small[:,4]<9.5)
                     gt_bboxes_small = gt_bboxes_small[bbox_mask]
 
@@ -593,7 +593,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 if __name__ == '__main__':
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_P0/yolov4_lg_transfer"
-    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-37_valid-loss-17.68/yolov4_lg_transfer"
+    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-49_valid-loss-6.10/yolov4_lg_transfer"
     # weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False)
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE, VALID_MODE=True)
