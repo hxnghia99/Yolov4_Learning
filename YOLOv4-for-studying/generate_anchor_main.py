@@ -46,28 +46,38 @@ def parse_annotations(annotation) :
         else:
             bboxes_annotations.append(text)
     image = np.array(cv2.imread(image_path))
-    bboxes = np.array([list(map(lambda x: float(x), box.split(','))) for box in bboxes_annotations])
+    bboxes = np.array([list(map(lambda x: float(x), box.split(','))) for box in bboxes_annotations], np.float32)
     return image, bboxes
 
 #Extract ground truth bboxes for all data
 def load_bbox(annotation, WIDTH, HEIGHT):
-    save_bbox = []
-    flag = False
+    save_bbox = [[],[],[]]
+    flag = False    #for initializing
     for idx in range(len(annotation)) :
         sys.stdout.write("\rLoad image: {}".format(idx))
         image, bboxes = parse_annotations(annotation[idx])
         bboxes = image_preporcess(np.copy(image), [HEIGHT, WIDTH], np.copy(bboxes))
-        xywh = bboxes[:,:4]
-        xywh[:,[2,3]] = bboxes[:, [2,3]] - bboxes[:,[0,1]] + 1
+        wh = bboxes[:, 2:4] - bboxes[:,0:2] + 1
         #assign 1 if w or h < 1
-        xywh[:, 2]  = np.maximum(1, xywh[:, 2])
-        xywh[:, 3]  = np.maximum(1, xywh[:, 3])
-        if flag == False:
-            save_bbox = xywh[:, 2:]
-            flag = True
-        else :
-            save_bbox = np.concatenate((save_bbox,xywh[:, 2:]), axis = 0)
-    return save_bbox
+        wh[:, 0]  = np.maximum(1, wh[:, 0])
+        wh[:, 1]  = np.maximum(1, wh[:, 1])
+        size = np.multiply.reduce(np.array(wh), axis=-1)
+
+        for i in range(3):
+            if i==0:
+                size_threshold = (WIDTH*32/640) * (HEIGHT*32/480)
+                bbox_wh = wh[size<=size_threshold]
+                save_bbox[i].extend(bbox_wh.tolist())
+            elif i==1:
+                size_threshold_1 = (WIDTH*32/640) * (HEIGHT*32/480)
+                size_threshold_2 = (WIDTH*96/640) * (HEIGHT*96/480)
+                bbox_wh = wh[np.logical_and(size>size_threshold_1, size<=size_threshold_2)]
+                save_bbox[i].extend(bbox_wh.tolist())
+            else:
+                size_threshold = (WIDTH*96/640) * (HEIGHT*96/480)
+                bbox_wh = wh[size>size_threshold]
+                save_bbox[i].extend(bbox_wh.tolist())
+    return save_bbox    #[3, num bbox, 2]
 
 
 def IoU_Estimate(path, size):
@@ -78,12 +88,18 @@ def IoU_Estimate(path, size):
     data = load_bbox(annotation, WIDTH, HEIGHT)     #List of all gt_bboxes including (width, height)
     cnt = 0
 
-    out, cnt, arr = kmeans(data, cnt, k=9)
-    #anchors = np.array([[10,13], [16, 30], [33, 23], [30, 61], [62, 45], [59, 119], [116, 90],
-    #            [156, 198], [373, 326]])
+    accuracy = 0
 
-    print("kmeans counter : {}".format(cnt))
-    print("Accuracy: {:.2f}%".format(avg_iou(data, out) * 100))
+    clusters = []
+    for i in range(3):
+        out, cnt, arr = kmeans(np.array(data[i], np.float32), cnt, k=3)
+        accuracy += avg_iou(np.array(data[i], np.float32), out) * 100
+        clusters.extend(out)
+
+    out = np.array(clusters, np.float32)
+
+    # print("\nkmeans counter : {}".format(cnt))
+    print("Accuracy: {:.2f}%".format(accuracy/3))
     #for i in range(len(arr)):
     #    print("Accuracy: {:.2f}%".format(avg_iou(data, arr[i]) * 100))
     print("Boxes: {}".format(out))
@@ -101,9 +117,15 @@ def IoU_Estimate(path, size):
         anchor = np.delete(anchor, i, axis=0)
         anchor_area = np.delete(anchor_area, i, axis=0)
     anchor_n = np.round(np.array(anchor_n),2)
+    anchor_n2 = np.round(np.array(anchor_n),0)
     print("\nSorted anchor:", anchor_n)
+    print("\nSorted anchor:", anchor_n2)
 
-
+    data_temp = []
+    for i in range(3):
+        data_temp.extend(data[i])
+    data = np.array(data_temp, np.float32)
+    
     colors = ['blue', 'yellow', 'red', 'green', 'cyan', 'magenta', 'white', 'gray', 'brown']
     for i in range(len(colors)):
         plt.scatter(data[:,0],data[:,1],s=5,c='black',label='scale')
