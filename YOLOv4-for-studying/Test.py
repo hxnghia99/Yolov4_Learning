@@ -82,21 +82,28 @@ imagex2_data = imagex2[np.newaxis,...].astype(np.float32)
 # image_data = image_preprocess(np.copy(original_image), np.array(size))
 
 image_truth             = draw_bbox(np.copy(original_image), bboxes, CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=False)
-image_label_sbboxes     = draw_bbox(np.copy(original_image), label[0], CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=False)
+image_label_sbboxes     = draw_bbox(np.copy(original_image), label[0], CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
 image_gt_sbboxes        = draw_bbox(np.copy(original_image), label[3], CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
 
 
 size = YOLO_INPUT_SIZE
 compare_fmap_w_teacher = False
-compare_pred_w_teacher = True
-show_only_pred_student = False
-student_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-49_valid-loss-6.10/yolov4_lg_transfer"
-teacher_weight = "YOLOv4-for-studying/checkpoints/Num-xx_lg_dataset_transfer_448x256/epoch-50_valid-loss-9.46/yolov4_lg_transfer"
+compare_pred_w_teacher = False
+show_only_pred_student = True
+student_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-37_valid-loss-21.35/yolov4_lg_transfer"
+teacher_weight = "YOLOv4-for-studying/checkpoints/Num-110_lg_dataset_transfer_448x256/epoch-34_valid-loss-13.48/yolov4_lg_transfer"
 
 #Create YOLO model
 yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, training=False)
 yolo.load_weights(student_weight)
 pred_bboxes = yolo(image_data, training=False)
+
+
+# #Create YOLO model
+# yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH)
+# # load_yolov4_weights(yolo, "YOLOv4-for-studying/model_data/yolo-obj_final.weights") # use darknet weights
+# yolo.load_weights(teacher_weight)
+# pred_bboxes = yolo(image_data, training=False)
 
 
 if compare_fmap_w_teacher:
@@ -204,9 +211,9 @@ elif compare_pred_w_teacher:
 
 
 elif show_only_pred_student:
-    pred_bboxes = pred_bboxes[0::2]
-    pred_bboxes = [decode(x, NUM_CLASS=3, i=i, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOLO_ANCHORS=YOLO_ANCHORS*2) for i,x in enumerate(pred_bboxes)]
-
+    # pred_bboxes = pred_bboxes[0::2]
+    # pred_bboxes = [decode(x, NUM_CLASS=10 if TRAINING_DATASET_TYPE=="VISDRONE" else 3, i=i, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOLO_ANCHORS=YOLO_ANCHORS*1) for i,x in enumerate(pred_bboxes)]
+    pred_bboxes = extract_roi_score(pred_bboxes)
     pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]               #reshape to [3, bbox_num, 85]
     pred_bboxes = tf.concat(pred_bboxes, axis=0)                                            #concatenate to [bbox_num, 85]
     # pred_bboxes = pred_bboxes[0]
@@ -219,10 +226,10 @@ elif show_only_pred_student:
     # imaget2, bboxes2 = image_preprocess(np.copy(imaget), np.array(size)*2, np.copy(bboxes), sizex2_flag=True)
 
     # image = draw_bbox(np.copy(imaget), bboxes, YOLO_CLASS_PATH, show_label=False)
-    cv2.imshow('All GT image', cv2.resize(image_truth,(1280, 720)))
-    # cv2.imshow('small GT image', cv2.resize(image_gt_sbboxes,(1280, 720)))
-    # cv2.imshow('small label image', cv2.resize(image_label_sbboxes,(1280, 720)))
-    cv2.imshow('Predicted image', cv2.resize(image_pred,(1280, 720)))
+    cv2.imshow('All GT image', cv2.resize(image_truth,(960, 540)))
+    cv2.imshow('small GT image', cv2.resize(image_gt_sbboxes,(960, 540)))
+    cv2.imshow('small label image', cv2.resize(image_label_sbboxes,(960, 540)))
+    cv2.imshow('Predicted image', cv2.resize(image_pred,(960, 540)))
     if cv2.waitKey() == 'q':
         pass
 

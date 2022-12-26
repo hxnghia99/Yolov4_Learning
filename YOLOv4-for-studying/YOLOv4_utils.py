@@ -154,10 +154,18 @@ def postprocess_boxes(pred_bbox, original_image, input_size, score_threshold, us
     valid_scale =   [0, original_scale]
     pred_bbox   =   np.array(pred_bbox)
     num_bbox    =   len(pred_bbox)
+    class_names = {}
+    with open(YOLO_CLASS_PATH, 'r') as data:
+        for ID, name in enumerate(data):
+            class_names[ID] = name.strip('\n')
+    NUM_CLASS = len(class_names)
     #divide prediction of shape [..., 85] into [..., 4], [..., 1], [..., 80]
     pred_xywh = pred_bbox[:, 0:4]   
     pred_conf = pred_bbox[:, 4]
-    pred_prob = pred_bbox[:, 5:]
+    pred_prob = pred_bbox[:, 5:(5+NUM_CLASS)]
+    if PRED_NUM_PARAMETERS == 6:
+        pred_roi = pred_bbox[:, -1]
+    
     # (x, y, w, h) --> (xmin, ymin, xmax, ymax) : size 416 x 416
     pred_coor = np.concatenate([pred_xywh[:, :2] - pred_xywh[:, 2:] * 0.5,
                                 pred_xywh[:, :2] + pred_xywh[:, 2:] * 0.5], axis=-1)
@@ -181,6 +189,10 @@ def postprocess_boxes(pred_bbox, original_image, input_size, score_threshold, us
     scores = pred_conf * pred_prob[np.arange(num_bbox), classes]    #shape [num_box]
     score_mask = scores > score_threshold
     mask = np.logical_and(scale_mask, score_mask)
+    
+    # roi_mask = pred_roi > 0.05
+    # mask = np.logical_and(mask, roi_mask)
+    
     coors, scores, classes = pred_coor[mask], scores[mask], classes[mask]   #length = num_True_box
     #output shape [num_True_box, 6]
     return np.concatenate([coors, scores[:, np.newaxis], classes[:, np.newaxis]], axis=-1) 
@@ -223,6 +235,46 @@ def bboxes_iou_from_xywh(boxes1, boxes2):
     #calculate IOU
     ious = bboxes_iou_from_minmax(boxes1, boxes2)
     return ious
+
+
+'''###############################################################################
+input:  (2) 1 bbox or list of bboxes, list of bboxes
+output: list of IoU
+obj:    Use normal IoU method to calculate IoU between 1 bbox and list of bboxes
+from (Xmin, Ymin, Xmax, Ymax)
+################################################################################'''
+def bboxes_iou_from_minmax_np(boxes1, boxes2):
+    #area of bboxes1 and bboxes2
+    boxes1_area = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
+    boxes2_area = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
+    #coordinates of intersection
+    inters_top_left     = np.maximum(boxes1[..., :2], boxes2[..., :2])
+    inters_bottom_right = np.minimum(boxes1[..., 2:], boxes2[..., 2:])
+    #area of intersection and union
+    intersection = np.maximum(inters_bottom_right - inters_top_left, 0.)
+    intersection_area = np.multiply.reduce(intersection, axis=-1)
+    union_area = boxes1_area + boxes2_area - intersection_area
+    #ious for list of bboxes
+    ious = intersection_area / union_area
+    return ious
+
+
+'''###############################################################################
+input:  (2) 1 bbox or list of bboxes, list of bboxes
+output: list of IoU
+obj:    Use normal IoU method to calculate IoU between 1 bbox and list of bboxes
+from XYWH
+################################################################################'''
+def bboxes_iou_from_xywh_np(boxes1, boxes2):
+    #convert xywh to minmax
+    boxes1 = np.concatenate([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
+                             boxes1[..., :2] + boxes1[..., 2:] * 0.5], axis=-1)
+    boxes2 = np.concatenate([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
+                             boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
+    #calculate IOU
+    ious = bboxes_iou_from_minmax_np(boxes1, boxes2)
+    return ious
+
 
 
 '''###############################################################################
@@ -510,3 +562,21 @@ def detect_image(Yolo, image_path, output_path='', input_size=YOLO_INPUT_SIZE, s
         cv2.destroyAllWindows()
     return image
 
+
+
+
+def extract_roi_score(pred_bboxes):
+    '''
+    input: predicted bboxes at 3 scales --> list[3]
+    output: the same as input
+    function: extract ROI score for each predicted bboxes
+    '''
+    output_pred_bboxes = []
+    for i in range(3): # based on scale idx
+        scaled_pred_bbox = np.array(pred_bboxes[i])   #[batch, h, w, 3, 9]
+        for j in range(3): #based on anchor idx
+            anchor_roi_fmap = scaled_pred_bbox[:,:,:,j,5:6]       #[batch, h, w, 1]
+            anchor_roi_fmap = AveragePooling2D(pool_size=(3,3), strides=(1,1), padding='same')(anchor_roi_fmap) 
+            scaled_pred_bbox[:,:,:,j,5:6] = np.array(anchor_roi_fmap)
+        output_pred_bboxes.append(scaled_pred_bbox)    
+    return output_pred_bboxes

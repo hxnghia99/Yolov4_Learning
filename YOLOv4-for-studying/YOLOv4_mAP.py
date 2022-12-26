@@ -280,7 +280,9 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         t2 = time.time()
         times.append(t2-t1)
     
-        #post process for prediction bboxes
+        #post process for prediction bboxes]
+        if PRED_NUM_PARAMETERS==6:
+            pred_bboxes = extract_roi_score(pred_bboxes)
         pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
         pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
         pred_bboxes = postprocess_boxes(pred_bboxes, original_image, TEST_INPUT_SIZE, score_threshold)  #remove invalid and low score bboxes
@@ -593,9 +595,10 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 if __name__ == '__main__':
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_P0/yolov4_lg_transfer"
-    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-49_valid-loss-6.10/yolov4_lg_transfer"
+    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-37_valid-loss-21.35/yolov4_lg_transfer"
     # weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False)
+    # load_yolov4_weights(yolo, "YOLOv4-for-studying/model_data/yolo-obj_final.weights")
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE, VALID_MODE=True)
     if USE_CUSTOM_WEIGHTS:
         if EVALUATION_DATASET_TYPE == "COCO":

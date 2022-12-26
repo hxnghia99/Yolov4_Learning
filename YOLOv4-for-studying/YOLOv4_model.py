@@ -12,7 +12,7 @@
 from YOLOv4_utils import *
 
 import tensorflow as tf
-from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input, UpSampling2D, Conv2DTranspose, ReLU
+from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input, UpSampling2D, Conv2DTranspose, ReLU, AveragePooling2D
 from tensorflow.keras.regularizers import L2
 from YOLOv4_config import *
 from keras_flops import get_flops
@@ -633,11 +633,11 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
 
         else:
             route_2 = conv
-            # fmap_P2 = conv
-            if USE_SUPERVISION:
-                fmap_P2 = convolutional(conv, (1, 1, 64, 128), dilation=dilation)   #adaptation layer
+            fmap_P2 = conv
+            # if USE_SUPERVISION:
+            #     fmap_P2 = convolutional(conv, (1, 1, 64, 128), dilation=dilation)   #adaptation layer
             conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
-            conv_sbbox = convolutional(conv, (1, 1, 128, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
+            conv_sbbox = convolutional(conv, (1, 1, 128, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + PRED_NUM_PARAMETERS)), activate=False, bn=False, dilation=dilation)
             
             conv = convolutional(route_2, (3, 3, 64, 128), downsample=True, dilation=dilation)
             conv = tf.concat([conv, route_3], axis=-1)
@@ -650,11 +650,11 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
                 conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)
 
             route_3 = conv
-            # fmap_P3 = conv
-            if USE_SUPERVISION:
-                fmap_P3 = convolutional(conv, (1, 1, 128, 256))     #adaptation layer
+            fmap_P3 = conv
+            # if USE_SUPERVISION:
+            #     fmap_P3 = convolutional(conv, (1, 1, 128, 256))     #adaptation layer
             conv = convolutional(conv, (3, 3, 128, 256))
-            conv_mbbox = convolutional(conv, (1, 1, 256, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
+            conv_mbbox = convolutional(conv, (1, 1, 256, 3 * (NUM_CLASS + PRED_NUM_PARAMETERS)), activate=False, bn=False, dilation=dilation)
 
             conv = convolutional(route_3, (3, 3, 128, 256), downsample=True, dilation=dilation)
             conv = tf.concat([conv, route_4], axis=-1)
@@ -666,11 +666,11 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
                 conv = convolutional(conv, (3, 3, 256, 512), dilation=dilation)
                 conv = convolutional(conv, (1, 1, 512, 256), dilation=dilation)
 
-            if USE_SUPERVISION:
-                fmap_P4 = convolutional(conv, (1, 1, 256, 512))     #adaptation layer
-            # fmap_P4 = conv
+            # if USE_SUPERVISION:
+            #     fmap_P4 = convolutional(conv, (1, 1, 256, 512))     #adaptation layer
+            fmap_P4 = conv
             conv = convolutional(conv, (3, 3, 256, 512))
-            conv_lbbox = convolutional(conv, (1, 1, 512, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
+            conv_lbbox = convolutional(conv, (1, 1, 512, 3 * (NUM_CLASS + PRED_NUM_PARAMETERS)), activate=False, bn=False, dilation=dilation)
 
             if USE_SUPERVISION:
                 return [conv_sbbox, conv_mbbox, conv_lbbox], [fmap_P2, fmap_P3, fmap_P4]#, fmap_t3, fmap_t4,fmap_t5, backbone_P2, backbone_P3, backbone_P4, backbone_P5]
@@ -681,23 +681,26 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
 
 #Define function used to change the output tensor to the information of (bbox, confidence, class)
 # i represents for the grid scales: (0,1,2) <--> (large, medium, small)
-def decode(conv_output, NUM_CLASS, i=0, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOLO_ANCHORS=YOLO_ANCHORS if USE_SUPERVISION else YOLO_ANCHORS*2):
+def decode(conv_output, NUM_CLASS, i=0, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOLO_ANCHORS=np.array(YOLO_ANCHORS)):
     conv_shape       = tf.shape(conv_output)                # shape [batch_size, output_size, output_size, 255]           
     batch_size       = conv_shape[0]
     output_size_h      = conv_shape[1]
     output_size_w      = conv_shape[2]
     #Change the output_shape of each scale into [batch_size, output_size_h, output_size_w, 3, 85]
-    conv_output = tf.reshape(conv_output, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASS))
+    conv_output = tf.reshape(conv_output, (batch_size, output_size_h, output_size_w, ANCHORS_PER_GRID_CELL_SMALL if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else ANCHORS_PER_GRID_CELL, PRED_NUM_PARAMETERS + NUM_CLASS))
     
     #Split the final dimension into 4 information (offset xy, offset wh, confidence, class probabilities)
-    conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)
+    if PRED_NUM_PARAMETERS == 5:
+        conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)
+    elif PRED_NUM_PARAMETERS == 6:
+        conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob, conv_raw_roi = tf.split(conv_output, (2, 2, 1, NUM_CLASS, 1), axis=-1)
     #shape [batch_size, output_size_h, output_size_w, 3, ...]
 
     # Create the matrix of grid cell indexes
     x_gridcell, y_gridcell = tf.meshgrid(tf.range(output_size_w), tf.range(output_size_h))  #create 2 matrices of shape [output_size_h, output_size_w]
     xy_gridcell = tf.stack([x_gridcell, y_gridcell], axis=-1)                           #Stack at final axis to create shape [output_size_h, output_size_w, 2]
     xy_gridcell = tf.expand_dims(tf.expand_dims(xy_gridcell, axis=2), axis=0)           #Prepare shape [1, output_size_h, output_size_w, 1, 2]
-    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, 3, 1])                        #Create indexes matrix of shape [batch_size, output_size_h, output_size_w, 3, 2]
+    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, ANCHORS_PER_GRID_CELL_SMALL if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else ANCHORS_PER_GRID_CELL, 1])                        #Create indexes matrix of shape [batch_size, output_size_h, output_size_w, 3, 2]
     xy_gridcell = tf.cast(xy_gridcell, tf.float32)
 
     # Predicted boxes coordinates
@@ -708,7 +711,10 @@ def decode(conv_output, NUM_CLASS, i=0, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOL
     pred_conf = tf.sigmoid(conv_raw_conf)
     #Predicted box class probabilities 
     pred_prob = tf.sigmoid(conv_raw_prob)
-
+    if PRED_NUM_PARAMETERS == 6:
+        #Predicted ROI confidence scores
+        pred_roi = tf.sigmoid(conv_raw_roi)
+        return tf.concat([pred_xywh, pred_conf, pred_prob, pred_roi], axis=-1)
     #Prediction of shape [batch_size, output_size_h, output_size_w, 3, 85]
     return tf.concat([pred_xywh, pred_conf, pred_prob], axis=-1)
 
@@ -725,7 +731,7 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
     if USE_SUPERVISION:
         conv_tensors, student_fmaps_mid = YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation, dilation_bb=dilation_bb, Modified_model=Modified_model)
     else:
-        conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation, dilation_bb=dilation_bb, Modified_model=Modified_model)
+        conv_tensors = YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation, Modified_model=Modified_model)
 
     output_tensors = []
     student_fmaps = []
@@ -740,7 +746,7 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
             output_tensors.append(temp)
         for temp in student_fmaps:
             output_tensors.append(temp)
-    YOLOv4_model = tf.keras.Model(input_layer, output_tensors)
+    YOLOv4_model = tf.keras.Model(input_layer, output_tensors)  # [x6 (conv_tensor, pred_tensor), x3 fmap_mid, x3 conv_tensor]
     return YOLOv4_model
 
 
@@ -790,6 +796,10 @@ def create_YOLOv4_backbone(input_channel=3, dilation=False, CLASSES_PATH=None):
     conv = convolutional(conv, (1, 1, 256, 128), dilation=dilation)                  #output: 104 x 104 x 128       #78 + 14        #446 +15->461
     fmap_bb_P3 = conv
 
+    if TEACHER_DILATION:
+        output_tensors = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
+        YOLOv4_backbone = tf.keras.Model(input_layer, output_tensors)
+        return YOLOv4_backbone
 
     route_3 = conv
     conv = convolutional(conv, (3, 3, 128, 256))
@@ -833,17 +843,17 @@ def create_YOLOv4_backbone(input_channel=3, dilation=False, CLASSES_PATH=None):
     YOLOv4_backbone = tf.keras.Model(input_layer, output_tensors)
     return YOLOv4_backbone
 
-if __name__ == '__main__':
-    yolo_model = YOLOv4_Model(Modified_model=False)
-    flops = get_flops(yolo_model, batch_size=1)  
-    print(f"FLOPS: {flops / 10 ** 9:.03} G")
-    # yolo_model.summary()
+# if __name__ == '__main__':
+#     yolo_model = YOLOv4_Model(Modified_model=False)
+#     flops = get_flops(yolo_model, batch_size=1)  
+#     print(f"FLOPS: {flops / 10 ** 9:.03} G")
+#     # yolo_model.summary()
 
-    backbone = create_YOLOv4_backbone(dilation=False, CLASSES_PATH=YOLO_CLASS_PATH)
-    print(len(backbone.weights))
+#     backbone = create_YOLOv4_backbone(dilation=False, CLASSES_PATH=YOLO_CLASS_PATH)
+#     print(len(backbone.weights))
 
-    # print(tf.shape(backbone.weights[400]))
-    # print(tf.shape(yolo_model.weights[400]))
+#     # print(tf.shape(backbone.weights[400]))
+#     # print(tf.shape(yolo_model.weights[400]))
 
 
 # def cspdarknet53(input_data):
@@ -917,7 +927,7 @@ if __name__ == '__main__':
 #     return route_1, route_2, input_data
 
 
-# def YOLOv4_detector(input_layer, NUM_CLASS):
+# def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, Modified_model=False):
 #     route_1, route_2, conv = cspdarknet53(input_layer)
 
 #     route = conv

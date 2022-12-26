@@ -9,7 +9,7 @@
 #===============================================================#
 
 # TRAINING INFORMATION
-#FTTv2.2 + distillation-only-score + distillate-SSIM-loss-normalized-fmap
+#FTTv1.1 + assign-fmap-teacher-into-label
 
 
 import numpy as np
@@ -20,14 +20,16 @@ TRAINING_DATASET_TYPE           = "LG"
 TRAIN_TRANSFER                  = True
 TRAIN_FROM_CHECKPOINT           = False
 MODEL_BRANCH_TYPE               = ["P2", "P5m"]
-USE_FTT_P2                      = True
+USE_FTT_P2                      = False
 USE_FTT_P3                      = False
 USE_FTT_P4                      = False
-USE_FTT_DEVELOPING_VERSION      = True
-LAMDA_FMAP_LOSS                 = 100.0
-USE_SUPERVISION                 = True                         #when True, use at least 1 FTT module --> create teacher model
+USE_FTT_DEVELOPING_VERSION      = False
+LAMDA_FMAP_LOSS                 = 4.0
+USE_SUPERVISION                 = False                         #when True, use at least 1 FTT module --> create teacher model
 TEACHER_DILATION                = False                         #teacher uses dilation convolution or not
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION     #teacher uses weights from student or fixed pretrained weights
+USE_5_ANCHORS_SMALL_SCALE       = False
+PRED_NUM_PARAMETERS             = 5
 
 
 """
@@ -63,7 +65,7 @@ EVALUATE_ORIGINAL_SIZE          = False
 USE_PRIMARY_EVALUATION_METRIC   = True         #calculate mAP0.5:0.95
 
 #Slicing patch techniques setting: Only for Visdrone dataset
-USE_SLICING_PATCH_TECHNIQUE     = True
+USE_SLICING_PATCH_TECHNIQUE     = False
 SLICED_IMAGE_SIZE               = [416, 416]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
@@ -87,6 +89,7 @@ TEST_DATA_AUG                   = False
 #Anchor box settings
 YOLO_MAX_BBOX_PER_SCALE         = 64
 ANCHORS_PER_GRID_CELL           = 3
+ANCHORS_PER_GRID_CELL_SMALL     = 5
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
 
 if MODEL_BRANCH_TYPE[0] == "P(-1)":
@@ -115,12 +118,27 @@ elif MODEL_BRANCH_TYPE[0] == "P2":
 # YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
 #                                    [[16, 28], [29, 18], [27, 43]],
 #                                    [[53, 29], [60, 60], [123, 97]]]
-# Visdrone anchors 416x416 only for sliced images
-YOLO_ANCHORS                    = np.array([[[7, 9], [10, 18], [21, 14]],
-                                   [[16, 28], [38, 23], [25, 42]],
-                                   [[69, 38], [45, 67], [111, 95]]]) / 2
+# # # Visdrone anchors 416x416 only for sliced images
+# if USE_5_ANCHORS_SMALL_SCALE:
+#     ADDITIONAL_SMALL_ANCHOR         = [2, 18]
+#     YOLO_ANCHORS                    = [np.array([[7, 9], [10, 18], [21, 14], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
+#                                     np.array([[16, 28], [38, 23], [25, 42]]),
+#                                     np.array([[69, 38], [45, 67], [111, 95]])]
+# else:
+#     YOLO_ANCHORS                    = [np.array([[7, 9], [10, 18], [21, 14]]),
+#                                     np.array([[16, 28], [38, 23], [25, 42]]),
+#                                     np.array([[69, 38], [45, 67], [111, 95]])]
 
-
+#LG-5k-v3 size 224x128:
+if USE_5_ANCHORS_SMALL_SCALE:
+    ADDITIONAL_SMALL_ANCHOR         = [2, 18]
+    YOLO_ANCHORS                    = [ np.array([[2.94, 5.86], [3.92, 8.58], [7.65, 6.25], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
+                                        np.array([[5.28, 10.72], [6.64, 14.03], [19.08,  9.36]]),
+                                        np.array([[10.8 , 18.38], [15.58, 18.31], [26.43, 16.52]])]
+else:
+    YOLO_ANCHORS                    = [ np.array([[2.94, 5.86], [3.92, 8.58], [7.65, 6.25]]),
+                                        np.array([[5.28, 10.72], [6.64, 14.03], [19.08,  9.36]]),
+                                        np.array([[10.8 , 18.38], [15.58, 18.31], [26.43, 16.52]])]
 
 
 
@@ -129,7 +147,7 @@ TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according valida
 TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 50
+TRAIN_EPOCHS                    = 50 
 TRAIN_LR_END                    = 1e-6
 if MODEL_BRANCH_TYPE[0] == "P(-1)":
     TRAIN_LR_INIT               = 2e-3
@@ -177,10 +195,10 @@ elif TRAINING_DATASET_TYPE == "VISDRONE":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
     if not USE_SLICING_PATCH_TECHNIQUE:
         TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
+        VALID_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
     else:
         TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train_slice.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice.txt"
+        VALID_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice.txt"
         # TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train2_slice.txt"
         # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train2_slice.txt"
     RELATIVE_PATH               = ""
@@ -231,9 +249,6 @@ elif EVALUATION_DATASET_TYPE == "LG":
     VALIDATE_MAP_RESULT_PATH    = f"YOLOv4-for-studying/mAP/results-lg.txt"
 
 elif EVALUATION_DATASET_TYPE == "VISDRONE":
-    RELATIVE_PATH               = ""
-    PREFIX_PATH                 = ""
-    YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
     TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/test.txt"
     if EVALUATE_TRANSFER:
         EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
