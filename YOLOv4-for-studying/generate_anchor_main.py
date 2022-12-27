@@ -2,11 +2,12 @@
 import numpy as np
 from generate_anchor_func import kmeans, avg_iou
 import os
+import sys
 import numpy as np
 import cv2
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
-
+from YOLOv4_config import *
 
 #Get image and target size to resize bboxes
 def image_preporcess(image, target_size, gt_boxes=None):
@@ -34,70 +35,115 @@ def load_annotations(annot_path):
 
 #Get 1 annotation and returm [image, [bboxes] ]
 def parse_annotations(annotation) :
-    line = annotation.split()
-    image_path = line[0]
-    if not os.path.exists(image_path):
-        raise KeyError("%s does not exist ... " %image_path)
+    text_by_line = annotation.split()
+    bboxes_annotations = []
+    #At each annotations, divide into [image_path, [list of bboxes] ]
+    for text in text_by_line:
+        if not text.replace(',','').replace('-1','').isnumeric():
+            temp_path   = os.path.relpath(text, RELATIVE_PATH)
+            temp_path   = os.path.join(PREFIX_PATH, temp_path)
+            image_path  = temp_path.replace('\\','/')
+        else:
+            bboxes_annotations.append(text)
     image = np.array(cv2.imread(image_path))
-    bboxes = np.array([list(map(lambda x: int(float(x)), box.split(','))) for box in line[1:]])
+    bboxes = np.array([list(map(lambda x: float(x), box.split(','))) for box in bboxes_annotations], np.float32)
     return image, bboxes
 
 #Extract ground truth bboxes for all data
 def load_bbox(annotation, WIDTH, HEIGHT):
-    save_bbox = []
-    flag = False
+    save_bbox = [[],[],[]]
+    flag = False    #for initializing
     for idx in range(len(annotation)) :
+        sys.stdout.write("\rLoad image: {}".format(idx))
         image, bboxes = parse_annotations(annotation[idx])
         bboxes = image_preporcess(np.copy(image), [HEIGHT, WIDTH], np.copy(bboxes))
-        xywh = bboxes[:,:4]
-        xywh[:,[2,3]] = bboxes[:, [2,3]] - bboxes[:,[0,1]] + 1
+        wh = bboxes[:, 2:4] - bboxes[:,0:2] + 1
         #assign 1 if w or h < 1
-        xywh[:, 2]  = np.maximum(1, xywh[:, 2])
-        xywh[:, 3]  = np.maximum(1, xywh[:, 3])
-        if flag == False:
-            save_bbox = xywh[:, 2:]
-            flag = True
-        else :
-            save_bbox = np.concatenate((save_bbox,xywh[:, 2:]), axis = 0)
-    return save_bbox
+        wh[:, 0]  = np.maximum(1, wh[:, 0])
+        wh[:, 1]  = np.maximum(1, wh[:, 1])
+        size = np.multiply.reduce(np.array(wh), axis=-1)
+
+        for i in range(3):
+            if i==0:
+                size_threshold = (WIDTH*32/640) * (HEIGHT*32/480)
+                bbox_wh = wh[size<=size_threshold]
+                save_bbox[i].extend(bbox_wh.tolist())
+            elif i==1:
+                size_threshold_1 = (WIDTH*32/640) * (HEIGHT*32/480)
+                size_threshold_2 = (WIDTH*96/640) * (HEIGHT*96/480)
+                bbox_wh = wh[np.logical_and(size>size_threshold_1, size<=size_threshold_2)]
+                save_bbox[i].extend(bbox_wh.tolist())
+            else:
+                size_threshold = (WIDTH*96/640) * (HEIGHT*96/480)
+                bbox_wh = wh[size>size_threshold]
+                save_bbox[i].extend(bbox_wh.tolist())
+    return save_bbox    #[3, num bbox, 2]
 
 
-def IoU_Estimate(path):
+def IoU_Estimate(path, size, divide_category=False):
     annot_path = path
-    INPUT_SIZE = [416, 416]
-    WIDTH = INPUT_SIZE[0]
-    HEIGHT = INPUT_SIZE[1]
+    WIDTH = size[0]
+    HEIGHT = size[1]
     annotation = load_annotations(annot_path)       #List of [ [image_path, bboxes text], ...]
     data = load_bbox(annotation, WIDTH, HEIGHT)     #List of all gt_bboxes including (width, height)
     cnt = 0
 
-    out, cnt, arr = kmeans(data, cnt, k=9)
-    #anchors = np.array([[10,13], [16, 30], [33, 23], [30, 61], [62, 45], [59, 119], [116, 90],
-    #            [156, 198], [373, 326]])
+    if divide_category:
+        accuracy = 0
+        clusters = []
+        for i in range(3):
+            out, cnt, arr = kmeans(np.array(data[i], np.float32), cnt, k=3)
+            accuracy += avg_iou(np.array(data[i], np.float32), out) * 100
+            clusters.extend(out)
+        out = np.array(clusters, np.float32)
+        # print("\nkmeans counter : {}".format(cnt))
+        print("\nAccuracy: {:.2f}%".format(accuracy/3))
+        #for i in range(len(arr)):
+        #    print("Accuracy: {:.2f}%".format(avg_iou(data, arr[i]) * 100))
+        print("Boxes: {}".format(out))
+        anchor =    out
+        # print(anchor)
+        anchor_area = np.multiply.reduce(anchor, axis=-1)
+        # print(anchor_area)
+        anchor_n = []
+        while len(anchor):
+            i = np.argmin(anchor_area)
+            anchor_n.append(anchor[i])
+            anchor = np.delete(anchor, i, axis=0)
+            anchor_area = np.delete(anchor_area, i, axis=0)
+        anchor_n = np.round(np.array(anchor_n),2)
+        anchor_n2 = np.round(np.array(anchor_n),0)
+        print("\nSorted anchor:", anchor_n)
+        print("\nSorted anchor:", anchor_n2)
+        data_temp = []
+        for i in range(3):
+            data_temp.extend(data[i])
+        data = np.array(data_temp, np.float32)
+    else:
+        temp = []
+        for i in range(3):
+            temp.extend(data[i])
+        data = np.array(temp, np.float32)
+        out, cnt, arr = kmeans(data, cnt, k=9)
+        print("\nkmeans counter : {}".format(cnt))
+        print("Accuracy: {:.2f}%".format(avg_iou(data, out) * 100))
+        anchor =    out
+        # print(anchor)
+        anchor_area = np.multiply.reduce(anchor, axis=-1)
+        # print(anchor_area)
+        anchor_n = []
+        while len(anchor):
+            i = np.argmin(anchor_area)
+            anchor_n.append(anchor[i])
+            anchor = np.delete(anchor, i, axis=0)
+            anchor_area = np.delete(anchor_area, i, axis=0)
+        anchor_n = np.round(np.array(anchor_n),2)
+        anchor_n2 = np.round(np.array(anchor_n),0)
+        print("\nSorted anchor:", anchor_n)
+        print("\nSorted anchor:", anchor_n2)
 
-    print("kmeans counter : {}".format(cnt))
-    print("Accuracy: {:.2f}%".format(avg_iou(data, out) * 100))
-    #for i in range(len(arr)):
-    #    print("Accuracy: {:.2f}%".format(avg_iou(data, arr[i]) * 100))
-    print("Boxes: {}".format(out))
 
-    anchor =    out
-    # print(anchor)
-
-    anchor_area = np.multiply.reduce(anchor, axis=-1)
-    # print(anchor_area)
-
-    anchor_n = []
-    while len(anchor):
-        i = np.argmin(anchor_area)
-        anchor_n.append(anchor[i])
-        anchor = np.delete(anchor, i, axis=0)
-        anchor_area = np.delete(anchor_area, i, axis=0)
-    anchor_n = np.array(anchor_n)  
-    print("\nSorted anchor:", anchor_n)
-
-
-    colors = ['blue', 'yellow', 'red', 'green', 'cyan', 'magenta', 'white', 'gray', 'brown']
+    colors = ['blue', 'yellow', 'red', 'green', 'cyan', 'magenta', 'purple', 'gray', 'brown']
     for i in range(len(colors)):
         plt.scatter(data[:,0],data[:,1],s=5,c='black',label='scale')
     for i in range(len(colors)):
@@ -112,5 +158,7 @@ def IoU_Estimate(path):
 
 
 if __name__ == "__main__":
-    path = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
-    IoU_Estimate(path)
+    # path = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
+    path = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
+    size = [448, 256]
+    IoU_Estimate(path, size, divide_category=True)
