@@ -24,17 +24,17 @@ import math
 #Compute YOLOv4 loss for each scale using reference code
 def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS_PATH, fmap_student=None, fmap_teacher=None, fmap_student_mid=None, fmap_teacher_mid=None):
     NUM_CLASSES = len(read_class_names(CLASSES_PATH))
-    label       = tf.convert_to_tensor(label)
-    gt_bboxes   = tf.convert_to_tensor(gt_bboxes)
+    # label       = tf.convert_to_tensor(label)
+    # gt_bboxes   = tf.convert_to_tensor(gt_bboxes)
     pred_shape  = tf.shape(pred)
     batch_size  = pred_shape[0]
     output_size_h = pred_shape[1]
     output_size_w = pred_shape[2]
-    input_size_h = tf.Variable(TRAIN_INPUT_SIZE[1], dtype=tf.float32)
-    input_size_w = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
+    input_size_h = float(TRAIN_INPUT_SIZE[1])
+    input_size_w = float(TRAIN_INPUT_SIZE[0])
     
     #change shape of raw convolutional output
-    conv = tf.reshape(conv, (batch_size, output_size_h, output_size_w, ANCHORS_PER_GRID_CELL, 5 + NUM_CLASSES)) #shape [batch, output size, output size, 3, 85]
+    conv = tf.reshape(conv, (batch_size, output_size_h, output_size_w, ANCHORS_PER_GRID_CELL_SMALL if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else ANCHORS_PER_GRID_CELL, 5 + NUM_CLASSES)) #shape [batch, output size, output size, 3, 85
     #get individual data:
     # 1) raw convolutional output
     conv_conf_raw       = conv[:, :, :, :, 4:5]
@@ -191,15 +191,15 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # fmap_size_c     = tf.shape(fmap_student_mid)[3]
         # input_size_h    = tf.Variable(TRAIN_INPUT_SIZE[1], dtype=tf.float32)
         # input_size_w    = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
-        # yolo_scale_offset       = [8, 16, 32]
-        # yolo_anchors            = YOLO_ANCHORS * 2
+        # yolo_scale_offset       = [4, 8, 16]
+        # yolo_anchors            = YOLO_ANCHORS
         # decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
         # decode_fmap_student     = decode(fmap_student, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #understand student output as prediction in x2 image
 
         # # """ Combine teacher prediction and hard label """
         # # label                   = tf.Variable(label, tf.float32)
         # # label_respond           = label[:,:,:,:,4]
-        # # label[:, :, :, :, :4]     = label[:, :, :, :, :4] * 2
+        # # label[:, :, :, :, :4]     = label[:, :, :, :, :4]
         # # decode_fmap_teacher = np.array(decode_fmap_teacher, np.float32)
         # # for batch in range(batch_size):
         # #     for h in range(output_size_h):
@@ -211,7 +211,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         
         # scores                  = decode_fmap_teacher[:,:,:,:,4:5] * tf.math.reduce_max(decode_fmap_teacher[:,:,:,:,5:], axis=-1, keepdims=True)
         # frgrd_respond           = tf.cast(scores >= 0.5, tf.float32)
-        # teacher_xywh            = decode_fmap_teacher[:, :, :, :, :4] / 2.0
+        # teacher_xywh            = decode_fmap_teacher[:, :, :, :, :4]
         # ious                    = bboxes_iou_from_xywh(teacher_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
         # #                           shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
         # max_iou                 = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]

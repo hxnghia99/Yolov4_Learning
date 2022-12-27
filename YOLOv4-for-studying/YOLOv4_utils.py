@@ -227,6 +227,45 @@ def bboxes_iou_from_xywh(boxes1, boxes2):
 
 '''###############################################################################
 input:  (2) 1 bbox or list of bboxes, list of bboxes
+output: list of IoU
+obj:    Use normal IoU method to calculate IoU between 1 bbox and list of bboxes
+from (Xmin, Ymin, Xmax, Ymax)
+################################################################################'''
+def bboxes_iou_from_minmax_np(boxes1, boxes2):
+    #area of bboxes1 and bboxes2
+    boxes1_area = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
+    boxes2_area = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
+    #coordinates of intersection
+    inters_top_left     = np.maximum(boxes1[..., :2], boxes2[..., :2])
+    inters_bottom_right = np.minimum(boxes1[..., 2:], boxes2[..., 2:])
+    #area of intersection and union
+    intersection = np.maximum(inters_bottom_right - inters_top_left, 0.)
+    intersection_area = np.multiply.reduce(intersection, axis=-1)
+    union_area = boxes1_area + boxes2_area - intersection_area
+    #ious for list of bboxes
+    ious = intersection_area / union_area
+    return ious
+
+
+'''###############################################################################
+input:  (2) 1 bbox or list of bboxes, list of bboxes
+output: list of IoU
+obj:    Use normal IoU method to calculate IoU between 1 bbox and list of bboxes
+from XYWH
+################################################################################'''
+def bboxes_iou_from_xywh_np(boxes1, boxes2):
+    #convert xywh to minmax
+    boxes1 = np.concatenate([boxes1[..., :2] - boxes1[..., 2:] * 0.5,
+                             boxes1[..., :2] + boxes1[..., 2:] * 0.5], axis=-1)
+    boxes2 = np.concatenate([boxes2[..., :2] - boxes2[..., 2:] * 0.5,
+                             boxes2[..., :2] + boxes2[..., 2:] * 0.5], axis=-1)
+    #calculate IOU
+    ious = bboxes_iou_from_minmax_np(boxes1, boxes2)
+    return ious
+
+
+'''###############################################################################
+input:  (2) 1 bbox or list of bboxes, list of bboxes
 output: list of gIoU
 obj:    Use generalized IoU method to calculate IoU between 1 bbox and list of bboxes
 from (Xmin, Ymin, Xmax, Ymax)

@@ -637,7 +637,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
             if USE_SUPERVISION:
                 fmap_P2 = convolutional(conv, (1, 1, 64, 128), dilation=dilation)   #adaptation layer
             conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
-            conv_sbbox = convolutional(conv, (1, 1, 128, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
+            conv_sbbox = convolutional(conv, (1, 1, 128, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
             
             conv = convolutional(route_2, (3, 3, 64, 128), downsample=True, dilation=dilation)
             conv = tf.concat([conv, route_3], axis=-1)
@@ -681,13 +681,13 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
 
 #Define function used to change the output tensor to the information of (bbox, confidence, class)
 # i represents for the grid scales: (0,1,2) <--> (large, medium, small)
-def decode(conv_output, NUM_CLASS, i=0, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOLO_ANCHORS=YOLO_ANCHORS if USE_SUPERVISION else YOLO_ANCHORS*2):
+def decode(conv_output, NUM_CLASS, i=0, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOLO_ANCHORS=YOLO_ANCHORS):
     conv_shape       = tf.shape(conv_output)                # shape [batch_size, output_size, output_size, 255]           
     batch_size       = conv_shape[0]
     output_size_h      = conv_shape[1]
     output_size_w      = conv_shape[2]
     #Change the output_shape of each scale into [batch_size, output_size_h, output_size_w, 3, 85]
-    conv_output = tf.reshape(conv_output, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASS))
+    conv_output = tf.reshape(conv_output, (batch_size, output_size_h, output_size_w, ANCHORS_PER_GRID_CELL_SMALL if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else ANCHORS_PER_GRID_CELL, 5 + NUM_CLASS))
     
     #Split the final dimension into 4 information (offset xy, offset wh, confidence, class probabilities)
     conv_raw_dxdy, conv_raw_dwdh, conv_raw_conf, conv_raw_prob = tf.split(conv_output, (2, 2, 1, NUM_CLASS), axis=-1)
@@ -697,7 +697,7 @@ def decode(conv_output, NUM_CLASS, i=0, YOLO_SCALE_OFFSET=YOLO_SCALE_OFFSET, YOL
     x_gridcell, y_gridcell = tf.meshgrid(tf.range(output_size_w), tf.range(output_size_h))  #create 2 matrices of shape [output_size_h, output_size_w]
     xy_gridcell = tf.stack([x_gridcell, y_gridcell], axis=-1)                           #Stack at final axis to create shape [output_size_h, output_size_w, 2]
     xy_gridcell = tf.expand_dims(tf.expand_dims(xy_gridcell, axis=2), axis=0)           #Prepare shape [1, output_size_h, output_size_w, 1, 2]
-    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, 3, 1])                        #Create indexes matrix of shape [batch_size, output_size_h, output_size_w, 3, 2]
+    xy_gridcell = tf.tile(xy_gridcell, [batch_size, 1, 1, ANCHORS_PER_GRID_CELL_SMALL if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else ANCHORS_PER_GRID_CELL, 1])                        #Create indexes matrix of shape [batch_size, output_size_h, output_size_w, 3, 2]
     xy_gridcell = tf.cast(xy_gridcell, tf.float32)
 
     # Predicted boxes coordinates

@@ -43,8 +43,10 @@ class Dataset(object):
         self.num_classes            = len(self.class_names)
         #settings of anchors in different scales
         self.strides                = np.array(YOLO_SCALE_OFFSET)
-        self.anchors                = (np.array(YOLO_ANCHORS)/ self.strides[:, np.newaxis, np.newaxis])
+        self.anchors                = [YOLO_ANCHORS[i] / self.strides[:, np.newaxis, np.newaxis][i] for i in range(3)]
         self.num_anchors_per_gcell  = ANCHORS_PER_GRID_CELL
+        if USE_5_ANCHORS_SMALL_SCALE:
+            self.num_anchors_per_gcell_small = ANCHORS_PER_GRID_CELL_SMALL
         #settings of datasets
         self.annotations            = self.load_annotations()
         self.num_samples            = len(self.annotations)
@@ -101,7 +103,7 @@ class Dataset(object):
             image_path, bboxes_annotations = annotation
             image = cv2.imread(image_path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        bboxes = np.array([list(map(int, box.split(','))) for box in bboxes_annotations], np.float32)
+        bboxes = np.array([list(map(float, box.split(','))) for box in bboxes_annotations], np.float32)
         
         #return raw image and bboxes
         if mAP:
@@ -140,10 +142,13 @@ class Dataset(object):
     def preprocess_true_bboxes(self, bboxes):       #bbox: [xy_min, xy_max]
         #create label from true bboxes
         #shape [3, gcell, gcell, anchors, 5 + num_classes]
-        label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
+        label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell_small if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
                             for i in range(self.num_output_levels)]
         bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4), dtype=np.float32) for _ in range(self.num_output_levels)]
-        bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)     
+        bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)  
+        if USE_5_ANCHORS_SMALL_SCALE:
+            label_flag =  [np.ones((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell_small if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else self.num_anchors_per_gcell), dtype=np.bool_)
+                            for i in range(self.num_output_levels)]  
         #For each bbox, find the good anchors
         for bbox in bboxes:
             bbox_coordinates = bbox[:4]
@@ -162,20 +167,32 @@ class Dataset(object):
             all_iou_scores = []
             has_positive_flag = False
             for i in range(self.num_output_levels):
-                anchor_xywh = np.zeros((self.num_anchors_per_gcell, 4))                             #shape [3, 4]      
-                anchor_xywh[:, :2] = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32) + 0.5       #xy of anchor is center of gridcell that has xy of bbox
+                anchor_xywh = np.zeros((self.num_anchors_per_gcell_small if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else self.num_anchors_per_gcell, 4))                             #shape [3, 4]      
+                anchor_xywh[:3, :2] = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32) + 0.5       #xy of anchor is center of gridcell that has xy of bbox
+                if i==0 and USE_5_ANCHORS_SMALL_SCALE:
+                    anchor_xywh[3:4,:2] = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32) + 1/6
+                    anchor_xywh[4:5,:2] = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32) + 5/6
                 anchor_xywh[:, 2:] = self.anchors[i]
                 #compare the iou between 3 anchors and 1 bbox within specific scale
-                iou_scores = bboxes_iou_from_xywh(bbox_xywh_scaled[i][np.newaxis, :], anchor_xywh)  #shape [3,]
+                iou_scores = bboxes_iou_from_xywh_np(bbox_xywh_scaled[i][np.newaxis, :], anchor_xywh)  #shape [3,]
+                column, row = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32)
+                if USE_5_ANCHORS_SMALL_SCALE:
+                    iou_scores = iou_scores * np.array(label_flag[i][row,column,:], np.float32)
                 all_iou_scores.append(iou_scores)                                                   #use this ious if do not have positive anchor
                 iou_mask = iou_scores > ANCHOR_SELECTION_IOU_THRESHOLD
+                # if i == 0:
+                #     test = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32)
+                #     print(test)
+                #     print("------")
                 if np.any(iou_mask):
-                    column, row = np.floor(bbox_xywh_scaled[i, :2]).astype(np.int32)
                     label[i][row, column, iou_mask, :]  = 0             
                     label[i][row, column, iou_mask, :4] = bbox_xywh     #coordinates
                     label[i][row, column, iou_mask, 4]  = 1.0           #confidence score
                     label[i][row, column, iou_mask, 5:] = smooth_onehot #class probabilities
                     has_positive_flag = True
+                    best_idx = np.argmax(iou_scores)
+                    if USE_5_ANCHORS_SMALL_SCALE:
+                        label_flag[i][row,column,best_idx] = False
                     #store true bboxes at scale i
                     if TRAINING_DATASET_TYPE == "VISDRONE":
                         bboxes_id = int(bboxes_idx[i] % self.max_bbox_per_scale)
@@ -185,9 +202,14 @@ class Dataset(object):
                     bboxes_idx[i] += 1
             #If not have positive anchor, select one with the best iou 
             if not has_positive_flag:
-                best_anchor_in_all_idx = np.argmax(np.array(all_iou_scores).reshape(-1), axis=-1)
-                best_scale_idx  = int(best_anchor_in_all_idx // self.num_anchors_per_gcell)
-                best_anchor_idx = int(best_anchor_in_all_idx % self.num_anchors_per_gcell)
+                best_anchor_in_all_idx = np.argmax(np.concatenate(all_iou_scores, axis=-1), axis=-1)
+                if best_anchor_in_all_idx < (self.num_anchors_per_gcell_small if USE_5_ANCHORS_SMALL_SCALE else self.num_anchors_per_gcell):
+                    best_scale_idx = 0
+                    best_anchor_idx = best_anchor_in_all_idx
+                else:
+                    best_anchor_in_all_idx = best_anchor_in_all_idx - (self.num_anchors_per_gcell_small if USE_5_ANCHORS_SMALL_SCALE else self.num_anchors_per_gcell)
+                    best_scale_idx  = int(best_anchor_in_all_idx // self.num_anchors_per_gcell) + 1
+                    best_anchor_idx = int(best_anchor_in_all_idx % self.num_anchors_per_gcell)
                 column, row = np.floor(bbox_xywh_scaled[best_scale_idx, :2]).astype(np.int32)
                 #assign the anchor with best iou to the label
                 label[best_scale_idx][row, column, best_anchor_idx, :]  = 0
@@ -216,7 +238,7 @@ class Dataset(object):
             if USE_SUPERVISION:
                 batch_image_x2 = np.zeros((self.batch_size, self.input_size_x2[1], self.input_size_x2[0], 3), dtype=np.float32)
             batch_label_sbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[0], self.output_gcell_sizes_w[0],
-                                            self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
+                                            self.num_anchors_per_gcell_small if USE_5_ANCHORS_SMALL_SCALE else self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
             batch_label_mbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[1], self.output_gcell_sizes_w[1],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
             batch_label_lbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[2], self.output_gcell_sizes_w[2],

@@ -25,9 +25,10 @@ USE_FTT_P3                      = False
 USE_FTT_P4                      = False
 USE_FTT_DEVELOPING_VERSION      = True
 LAMDA_FMAP_LOSS                 = 100.0
-USE_SUPERVISION                 = True                         #when True, use at least 1 FTT module --> create teacher model
-TEACHER_DILATION                = False                         #teacher uses dilation convolution or not
-TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION     #teacher uses weights from student or fixed pretrained weights
+USE_SUPERVISION                 = False                              #when True, use at least 1 FTT module --> create teacher model
+TEACHER_DILATION                = False                             #teacher uses dilation convolution or not
+TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION         #teacher uses weights from student or fixed pretrained weights
+USE_5_ANCHORS_SMALL_SCALE       = False and (not USE_SUPERVISION)   #do not use together with SUPERVISION
 
 
 """
@@ -87,6 +88,7 @@ TEST_DATA_AUG                   = False
 #Anchor box settings
 YOLO_MAX_BBOX_PER_SCALE         = 64
 ANCHORS_PER_GRID_CELL           = 3
+ANCHORS_PER_GRID_CELL_SMALL     = 5
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
 
 if MODEL_BRANCH_TYPE[0] == "P(-1)":
@@ -99,30 +101,65 @@ elif MODEL_BRANCH_TYPE[0] == "P2":
     YOLO_SCALE_OFFSET           = [4, 8, 16]
 
 
-# # COCO anchors
+# #1 COCO anchors
 # YOLO_ANCHORS                    = [[[12,  16], [19,   36], [40,   28]],
 #                                    [[36,  75], [76,   55], [72,  146]],
 #                                    [[142,110], [192, 243], [459, 401]]]
-# # Visdrone anchors 992x992
+# #2 Visdrone anchors 992x992
 # YOLO_ANCHORS                    = [[[6, 8], [10, 17], [18, 12]],
 #                                    [[16, 27], [31, 19], [27, 39]],
 #                                    [[54, 30], [47, 57], [96, 77]]]
-# # Visdrone anchors 992x640
+# #3 Visdrone anchors 992x640
 # YOLO_ANCHORS                    = [[[6, 8], [16, 11], [10, 18]],            #224x128
 #                                    [[17, 27], [28, 17], [28, 40]],
 #                                    [[47, 27], [52, 52], [96, 75]]]
-# # Visdrone anchors 544x352 only for sliced images
+# #4 Visdrone anchors 544x352 only for sliced images
 # YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
 #                                    [[16, 28], [29, 18], [27, 43]],
 #                                    [[53, 29], [60, 60], [123, 97]]]
-# Visdrone anchors 416x416 only for sliced images
-YOLO_ANCHORS                    = np.array([[[7, 9], [10, 18], [21, 14]],
-                                   [[16, 28], [38, 23], [25, 42]],
-                                   [[69, 38], [45, 67], [111, 95]]]) / 2
+#5 Visdrone anchors 416x416 only for sliced images
+if USE_5_ANCHORS_SMALL_SCALE:
+    ADDITIONAL_SMALL_ANCHOR         = [2, 18]
+    YOLO_ANCHORS                    = [np.array([[7, 9], [10, 18], [21, 14], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
+                                    np.array([[16, 28], [38, 23], [25, 42]]),
+                                    np.array([[69, 38], [45, 67], [111, 95]])]
+else:
+    YOLO_ANCHORS                    = [np.array([[7, 9], [10, 18], [21, 14]]),
+                                    np.array([[16, 28], [38, 23], [25, 42]]),
+                                    np.array([[69, 38], [45, 67], [111, 95]])]
 
+# # #6 LG-5k-v3 size 224x128:
+# if USE_5_ANCHORS_SMALL_SCALE:
+#     ADDITIONAL_SMALL_ANCHOR         = [2, 18]
+#     YOLO_ANCHORS                    = [ np.array([[2.94, 5.86], [3.92, 8.58], [7.65, 6.25], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
+#                                         np.array([[5.28, 10.72], [6.64, 14.03], [19.08,  9.36]]),
+#                                         np.array([[10.8 , 18.38], [15.58, 18.31], [26.43, 16.52]])]
+# else:
+#     YOLO_ANCHORS                    = [ np.array([[2.94, 5.86], [3.92, 8.58], [7.65, 6.25]]),
+#                                         np.array([[5.28, 10.72], [6.64, 14.03], [19.08,  9.36]]),
+#                                         np.array([[10.8 , 18.38], [15.58, 18.31], [26.43, 16.52]])]
 
+# # #6 LG-all size 448x256:
+# if USE_5_ANCHORS_SMALL_SCALE:
+#     ADDITIONAL_SMALL_ANCHOR         = [2, 18]
+#     YOLO_ANCHORS                    = [ np.array([[5, 10], [6, 16], [13, 11], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
+#                                         np.array([[10, 23], [24, 14], [37, 21]]),
+#                                         np.array([[22, 36], [49, 31], [62, 68]])]
+# else:
+#     YOLO_ANCHORS                    = [ np.array([[5, 10], [6, 16], [13, 11]]),
+#                                         np.array([[10, 23], [24, 14], [37, 21]]),
+#                                         np.array([[22, 36], [49, 31], [62, 68]])]
 
-
+# # #6 LG-5k-v3 size 224x128:
+# if USE_5_ANCHORS_SMALL_SCALE:
+#     ADDITIONAL_SMALL_ANCHOR         = [2, 18]
+#     YOLO_ANCHORS                    = [ np.array([[6, 12], [14, 12], [10, 21], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
+#                                         np.array([[36, 20], [22, 36], [50, 32]]),
+#                                         np.array([[64, 70], [57, 96], [119, 63]])]
+# else:
+#     YOLO_ANCHORS                    = [ np.array([[6, 12], [14, 12], [10, 21]]),
+#                                         np.array([[36, 20], [22, 36], [50, 32]]),
+#                                         np.array([[64, 70], [57, 96], [119, 63]])]
 
 #Training settings
 TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according validation loss (True recommended)
