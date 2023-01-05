@@ -20,10 +20,10 @@ import collections
 
 
 class Dataset(object):
-    def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE, TESTING=None, TEST_LABEL_GT_PATH=None, VALID_MODE=None):    #train and test data use only one size 416x416
+    def __init__(self, dataset_type, TRAIN_INPUT_SIZE=YOLO_INPUT_SIZE, TEST_INPUT_SIZE=YOLO_INPUT_SIZE, TESTING=None, TEST_LABEL_GT_PATH=None, EVAL_MODE=None):    #train and test data use only one size 416x416
         #settings of annotation path, input size, batch size
         self.annotation_path        = TRAIN_ANNOTATION_PATH if dataset_type == 'train' else VALID_ANNOTATION_PATH
-        if VALID_MODE:
+        if EVAL_MODE:
             self.annotation_path    = TEST_ANNOTATION_PATH
         self.input_size             = TRAIN_INPUT_SIZE if dataset_type == 'train' else TEST_INPUT_SIZE
         if USE_SUPERVISION:

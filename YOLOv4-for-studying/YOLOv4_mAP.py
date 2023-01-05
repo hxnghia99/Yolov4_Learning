@@ -15,7 +15,7 @@ import sys
 import numpy as np
 import tensorflow as tf
 from YOLOv4_dataset import Dataset
-from YOLOv4_model import YOLOv4_Model
+from YOLOv4_model import *
 from YOLOv4_utils import *
 from YOLOv4_config import *
 from YOLOv4_slicing import *
@@ -66,6 +66,10 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         MIN_OVERLAP_RANGE = np.array([50])   #value to define true/false positive
         print(f"\n Calculating mAP50... \n")
 
+    size_ranges = np.array([[0, 32**2],
+                            [32**2, 96**2],
+                            [96**2, 1e+10]], np.float32) / (640*480) 
+    
     CLASS_NAMES = read_class_names(CLASSES_PATH)
     #Check and create folder to store ground truth and mAP result
     ground_truth_dir_path = GT_DIR
@@ -264,9 +268,9 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         annotation = dataset.annotations[index]
         original_image, bboxes = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
         
+        original_h, original_w, _ = original_image.shape
         # Create a new model using image original size scaling to 32
         if EVALUATE_ORIGINAL_SIZE:
-            original_h, original_w, _ = original_image.shape
             TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
         
         # TEST_INPUT_SIZE = [352, 192]
@@ -337,7 +341,7 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             pred_conf           = '%.4f' % pred_conf
             xmin, ymin, xmax, ymax = list(map(str, pred_coordinates))
             bbox = xmin + " " + ymin + " " + xmax + " " + ymax
-            json_pred[gt_class_names.index(pred_class_name)].append({"confidence": str(pred_conf), "file_id": str(index), "bbox": str(bbox)})
+            json_pred[gt_class_names.index(pred_class_name)].append({"confidence": str(pred_conf), "file_id": str(index), "bbox": str(bbox), "original_width": str(original_w), "original_height": str(original_h)})
     
     
     
@@ -487,6 +491,15 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                     #Load predictions
                     predictions_file = f'{ground_truth_dir_path}/{class_name}_predictions.json'
                     predictions_data = json.load(open(predictions_file))
+                    predictions_data_new = []
+                    for idx, prediction in enumerate(predictions_data):
+                        #Filter out the different size-based predictions
+                        pred_coordinates = np.array([float(x) for x in prediction['bbox'].split()])
+                        pred_size = (pred_coordinates[2]-pred_coordinates[0]) * (pred_coordinates[3]-pred_coordinates[1])
+                        original_size = float(prediction["original_height"]) * float(prediction["original_width"])
+                        if pred_size > size_ranges[size_idx][0]*original_size and pred_size <= size_ranges[size_idx][1]*original_size:
+                            predictions_data_new.append(prediction)
+                    predictions_data = predictions_data_new
                     num_predictions = len(predictions_data)
                     true_positive = [0] * num_predictions
                     false_positive = [0] * num_predictions
@@ -593,10 +606,12 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 if __name__ == '__main__':
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_P0/yolov4_lg_transfer"
-    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-49_valid-loss-6.10/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-48_valid-loss-13.61/yolov4_lg_transfer"
+    weights_file = "YOLOv4-for-studying/checkpoints/epoch-33_valid-loss-276.93/yolov4_visdrone_from_scratch"
     # weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False)
-    testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE, VALID_MODE=True)
+    # yolo = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
+    testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE, EVAL_MODE=True)
     if USE_CUSTOM_WEIGHTS:
         if EVALUATION_DATASET_TYPE == "COCO":
             load_yolov4_weights(yolo, weights_file)

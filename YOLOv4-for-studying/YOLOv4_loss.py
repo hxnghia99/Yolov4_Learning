@@ -210,13 +210,13 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # # decode_fmap_teacher     = tf.cast(decode_fmap_teacher, tf.float32)
         
         # scores                  = decode_fmap_teacher[:,:,:,:,4:5] * tf.math.reduce_max(decode_fmap_teacher[:,:,:,:,5:], axis=-1, keepdims=True)
-        # frgrd_respond           = tf.cast(scores >= 0.5, tf.float32)
+        # frgrd_respond_1           = tf.cast(scores >= 0.5, tf.float32)
         # teacher_xywh            = decode_fmap_teacher[:, :, :, :, :4]
         # ious                    = bboxes_iou_from_xywh(teacher_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
         # #                           shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
         # max_iou                 = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
-        # # frgrd_respond_2         = tf.cast(max_iou >= 0.5, tf.float32)
-        # # frgrd_respond           = tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32)
+        # frgrd_respond_2         = tf.cast(max_iou >= 0.5, tf.float32)
+        # frgrd_respond           = tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32)
         # bkgrd_respond           = (1 - frgrd_respond) * tf.cast(max_iou < 0.5, tf.float32)
         # conf_flag               = tf.cast(tf.math.logical_or(tf.cast(frgrd_respond,tf.bool), tf.cast(bkgrd_respond,tf.bool)),tf.float32)
 
@@ -251,8 +251,8 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         #     gb_loss = tf.Variable(0.0)
         # # elif fmap_teacher_mid != None and i==0:
         # else:
-        #     # fmap_student_mid = tf.math.top_k(fmap_student_mid, k=fmap_size_c)[0]
-        #     # fmap_teacher_mid = tf.math.top_k(fmap_teacher_mid, k=fmap_size_c)[0]
+        #     fmap_student_mid = tf.math.top_k(fmap_student_mid, k=fmap_size_c)[0]
+        #     fmap_teacher_mid = tf.math.top_k(fmap_teacher_mid, k=fmap_size_c)[0]
         #     fmap_student_mid = normalize_fmap(fmap_student_mid)
         #     fmap_teacher_mid = normalize_fmap(fmap_teacher_mid)
         #     # gb_loss = tf.math.reduce_mean(tf.abs(fmap_teacher_mid - fmap_student_mid))

@@ -9,7 +9,7 @@
 #===============================================================#
 
 # TRAINING INFORMATION
-#FTTv2.2 + distillation-only-score + distillate-SSIM-loss-normalized-fmap
+#YOLOv4-CSP-(2,2,4,5,2)-remove-1st-sampling-FTTv2.2-P2
 
 
 import numpy as np
@@ -20,12 +20,14 @@ TRAINING_DATASET_TYPE           = "LG"
 TRAIN_TRANSFER                  = True
 TRAIN_FROM_CHECKPOINT           = False
 MODEL_BRANCH_TYPE               = ["P2", "P5m"]
-USE_FTT_P2                      = True
-USE_FTT_P3                      = False
+USE_FTT_P2                      = False                             #affect new backbone CSPDarknet52
+USE_FTT_P3                      = False                             
 USE_FTT_P4                      = False
-USE_FTT_DEVELOPING_VERSION      = True
+USE_FTT_DEVELOPING_VERSION      = False
+USE_NEW_BACKBONE                = False                             #Force to use NEW BACKBONE CSPDARKNET52 regardless of above model settings
+USE_SUPERVISION                 = False                             #when True, use at least 1 FTT module --> create teacher model
+USE_ADAPTATION_LAYER            = False
 LAMDA_FMAP_LOSS                 = 100.0
-USE_SUPERVISION                 = False                              #when True, use at least 1 FTT module --> create teacher model
 TEACHER_DILATION                = False                             #teacher uses dilation convolution or not
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION         #teacher uses weights from student or fixed pretrained weights
 USE_5_ANCHORS_SMALL_SCALE       = False and (not USE_SUPERVISION)   #do not use together with SUPERVISION
@@ -64,7 +66,7 @@ EVALUATE_ORIGINAL_SIZE          = False
 USE_PRIMARY_EVALUATION_METRIC   = True         #calculate mAP0.5:0.95
 
 #Slicing patch techniques setting: Only for Visdrone dataset
-USE_SLICING_PATCH_TECHNIQUE     = True
+USE_SLICING_PATCH_TECHNIQUE     = False
 SLICED_IMAGE_SIZE               = [416, 416]
 OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
@@ -100,6 +102,8 @@ elif MODEL_BRANCH_TYPE[0] == "P3n":
 elif MODEL_BRANCH_TYPE[0] == "P2":
     YOLO_SCALE_OFFSET           = [4, 8, 16]
 
+if USE_NEW_BACKBONE:
+    YOLO_SCALE_OFFSET           = [4, 8, 16]
 
 # #1 COCO anchors
 # YOLO_ANCHORS                    = [[[12,  16], [19,   36], [40,   28]],
@@ -117,16 +121,16 @@ elif MODEL_BRANCH_TYPE[0] == "P2":
 # YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
 #                                    [[16, 28], [29, 18], [27, 43]],
 #                                    [[53, 29], [60, 60], [123, 97]]]
-#5 Visdrone anchors 416x416 only for sliced images
+# #5 Visdrone anchors 416x416 only for sliced images
 if USE_5_ANCHORS_SMALL_SCALE:
     ADDITIONAL_SMALL_ANCHOR         = [2, 18]
     YOLO_ANCHORS                    = [np.array([[7, 9], [10, 18], [21, 14], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
                                     np.array([[16, 28], [38, 23], [25, 42]]),
                                     np.array([[69, 38], [45, 67], [111, 95]])]
 else:
-    YOLO_ANCHORS                    = [np.array([[7, 9], [10, 18], [21, 14]]),
+    YOLO_ANCHORS                    = np.array([np.array([[7, 9], [10, 18], [21, 14]]),
                                     np.array([[16, 28], [38, 23], [25, 42]]),
-                                    np.array([[69, 38], [45, 67], [111, 95]])]
+                                    np.array([[69, 38], [45, 67], [111, 95]])])
 
 # # #6 LG-5k-v3 size 224x128:
 # if USE_5_ANCHORS_SMALL_SCALE:
@@ -139,7 +143,7 @@ else:
 #                                         np.array([[5.28, 10.72], [6.64, 14.03], [19.08,  9.36]]),
 #                                         np.array([[10.8 , 18.38], [15.58, 18.31], [26.43, 16.52]])]
 
-# # #6 LG-all size 448x256:
+# # #7 LG-all size 448x256:
 # if USE_5_ANCHORS_SMALL_SCALE:
 #     ADDITIONAL_SMALL_ANCHOR         = [2, 18]
 #     YOLO_ANCHORS                    = [ np.array([[5, 10], [6, 16], [13, 11], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
@@ -150,16 +154,16 @@ else:
 #                                         np.array([[10, 23], [24, 14], [37, 21]]),
 #                                         np.array([[22, 36], [49, 31], [62, 68]])]
 
-# # #6 LG-5k-v3 size 224x128:
+# # #8 LG-all size 448x256: divide 3 categories
 # if USE_5_ANCHORS_SMALL_SCALE:
 #     ADDITIONAL_SMALL_ANCHOR         = [2, 18]
 #     YOLO_ANCHORS                    = [ np.array([[6, 12], [14, 12], [10, 21], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
 #                                         np.array([[36, 20], [22, 36], [50, 32]]),
 #                                         np.array([[64, 70], [57, 96], [119, 63]])]
 # else:
-#     YOLO_ANCHORS                    = [ np.array([[6, 12], [14, 12], [10, 21]]),
-#                                         np.array([[36, 20], [22, 36], [50, 32]]),
-#                                         np.array([[64, 70], [57, 96], [119, 63]])]
+#     YOLO_ANCHORS                    = [ np.array([[6, 12], [14, 12], [10, 21]])/2,
+#                                         np.array([[36, 20], [22, 36], [50, 32]])/2,
+#                                         np.array([[64, 70], [57, 96], [119, 63]])/2]
 
 #Training settings
 TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according validation loss (True recommended)
@@ -214,12 +218,12 @@ elif TRAINING_DATASET_TYPE == "VISDRONE":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/Visdrone_DATASET/visdrone_class_names.txt"
     if not USE_SLICING_PATCH_TECHNIQUE:
         TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
+        VALID_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation.txt"
     else:
         TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train_slice.txt"
-        TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice.txt"
+        VALID_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/validation_slice.txt"
         # TRAIN_ANNOTATION_PATH       = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/train2_slice.txt"
-        # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train2_slice.txt"
+        # VALID_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/Visdrone_DATASET/train2_slice.txt"
     RELATIVE_PATH               = ""
     PREFIX_PATH                 = ""
     

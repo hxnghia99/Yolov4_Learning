@@ -74,9 +74,9 @@ def main():
 
     if USE_SUPERVISION:
         #yolov4 teacher network
-        yolo_teacher = create_YOLOv4_backbone(dilation=TEACHER_DILATION, CLASSES_PATH=YOLO_CLASS_PATH)
+        yolo_teacher = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
         if not TRAINING_SHARING_WEIGHTS:
-            yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-62_lg_dataset_transfer_448x256/epoch-41_valid-loss-14.10/yolov4_lg_transfer")
+            yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-110_lg_dataset_transfer_448x256/epoch-37_valid-loss-8.52/yolov4_lg_transfer")
 
         # yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_224x128_P5_nFTT_P2/yolov4_lg_transfer")
         # for i in range(495):

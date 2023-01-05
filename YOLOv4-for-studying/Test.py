@@ -91,12 +91,20 @@ compare_fmap_w_teacher = False
 compare_pred_w_teacher = False
 show_only_pred_student = True
 student_weight = "YOLOv4-for-studying/checkpoints/Num-123_lg_dataset_transfer_224x128/epoch-49_valid-loss-14.35/yolov4_lg_transfer"
-teacher_weight = "YOLOv4-for-studying/checkpoints/Num-xx_lg_dataset_transfer_448x256/epoch-50_valid-loss-9.46/yolov4_lg_transfer"
-
+teacher_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_448x256/epoch-36_valid-loss-8.48_origin-dilate-bb/yolov4_lg_transfer"
+teacher_weight = "YOLOv4-for-studying/checkpoints/Num-105_lg_dataset_transfer_224x128/epoch-45_valid-loss-10.95_medium-anchor/yolov4_lg_transfer"
 #Create YOLO model
 yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, training=False)
-yolo.load_weights(student_weight)
+# yolo = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
+# yolo.load_weights(student_weight)
+yolo.load_weights(teacher_weight)
 pred_bboxes = yolo(image_data, training=False)
+
+
+# #Create YOLO model: TEACHER
+# yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, training=False)
+# yolo.load_weights(teacher_weight)
+# pred_bboxes = yolo(image_data, training=False)
 
 
 if compare_fmap_w_teacher:
@@ -114,8 +122,8 @@ if compare_fmap_w_teacher:
     # student_frgrd_respond   = tf.squeeze(tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32))
     
     
-    yolo_scale_offset       = [4, 8, 16]
-    yolo_anchors            = YOLO_ANCHORS
+    yolo_scale_offset       = np.array([4, 8, 16])
+    yolo_anchors            = np.array(YOLO_ANCHORS)
     teacher_pred_sbboxes    = decode(teacher_out_sbboxes, NUM_CLASS=3 , i=0, YOLO_SCALE_OFFSET=yolo_scale_offset, YOLO_ANCHORS=yolo_anchors)
     scores                  = teacher_pred_sbboxes[:,:,:,:,4:5] * tf.math.reduce_max(teacher_pred_sbboxes[:,:,:,:,5:], axis=-1, keepdims=True)
     frgrd_respond_1         = tf.cast(scores >= 0.5, tf.float32)
@@ -179,7 +187,7 @@ elif compare_pred_w_teacher:
     teacher.load_weights(teacher_weight)
     _, _, _, teacher_out_sbboxes, teacher_out_mbboxes, teacher_out_lbboxes = teacher(imagex2_data, training=False)
     
-    teacher_pred_bboxes = [decode(x, NUM_CLASS=3, i=i, YOLO_SCALE_OFFSET=np.array(YOLO_SCALE_OFFSET)*2, YOLO_ANCHORS=YOLO_ANCHORS*2) for i,x in enumerate([teacher_out_sbboxes, teacher_out_mbboxes, teacher_out_lbboxes])]
+    teacher_pred_bboxes = [decode(x, NUM_CLASS=3, i=i, YOLO_SCALE_OFFSET=np.array(YOLO_SCALE_OFFSET)*2, YOLO_ANCHORS=np.array(YOLO_ANCHORS)*2) for i,x in enumerate([teacher_out_sbboxes, teacher_out_mbboxes, teacher_out_lbboxes])]
     teacher_pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in teacher_pred_bboxes]               #reshape to [3, bbox_num, 85]
     teacher_pred_bboxes = tf.concat(teacher_pred_bboxes, axis=0)                                            #concatenate to [bbox_num, 85]
     # pred_bboxes = pred_bboxes[0]
@@ -193,11 +201,26 @@ elif compare_pred_w_teacher:
     # pred_bboxes = pred_bboxes[0]
     pred_bboxes = postprocess_boxes(pred_bboxes, np.copy(original_image), size, 0.5)      #scale to origional and select valid bboxes
     pred_bboxes = nms(pred_bboxes, 0.5, method='nms')                                       #Non-maximum suppression
+    
+
+
+    #having 3 kinds of bboxes: bboxes, pred_bboxes, teacher_pred_bboxes
+    error = np.zeros((4,), np.float32)
+    
+    for bbox in pred_bboxes:
+        list_ious = bboxes_iou_from_minmax_np(np.array(bboxes, np.float32)[:,0:4], np.array(bbox[np.newaxis,0:4],np.float32))
+        gt_bbox_idx = np.argmax(list_ious)
+        error += bboxes[gt_bbox_idx][:4] - bbox[:4]
+    error = error/len(pred_bboxes)
+
+    pred_bboxes = np.array(pred_bboxes,np.float32)
+    pred_bboxes[:,:4] = pred_bboxes[:,:4] + error[np.newaxis,:]
+
     image_pred = draw_bbox(np.copy(original_image), pred_bboxes, CLASSES_PATH=YOLO_CLASS_PATH, show_confidence=True, show_label=False, show_grids=False) #draw bboxes
 
-    cv2.imshow('All GT image', cv2.resize(image_truth,(1280, 720)))
-    cv2.imshow('Student predicted image', cv2.resize(image_pred,(1280, 720)))
-    cv2.imshow('Teacher predicted image', cv2.resize(teacher_image_pred,(1280, 720)))
+    cv2.imshow('All GT image', cv2.resize(image_truth,(960, 540)))
+    cv2.imshow('Student predicted image', cv2.resize(image_pred,(960, 540)))
+    cv2.imshow('Teacher predicted image', cv2.resize(teacher_image_pred,(960, 540)))
     if cv2.waitKey() == 'q':
         pass
 
