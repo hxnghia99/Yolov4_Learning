@@ -77,7 +77,7 @@ def main():
         yolo_teacher = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
         if not TRAINING_SHARING_WEIGHTS:
             yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-110_lg_dataset_transfer_448x256/epoch-37_valid-loss-8.52/yolov4_lg_transfer")
-
+            print("Finished loading weights into teacher ...")
         # yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_224x128_P5_nFTT_P2/yolov4_lg_transfer")
         # for i in range(495):
         #     yolo.layers[i].trainable = False
@@ -286,7 +286,7 @@ def main():
         training_writer.flush()
 
         # print validate summary data
-        print("\n\nSUMMARY of EPOCH = {:2.0f}".format(epoch+1))
+        sys.stdout.write("\r\n\nSUMMARY of EPOCH = {:2.0f}".format(epoch+1))
         if USE_SUPERVISION:
             print("Training   : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - total_fmap_loss:{:6.2f}".
                 format(giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch, (gb_train+pos_pixel_train)/steps_per_epoch))
