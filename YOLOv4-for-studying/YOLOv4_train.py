@@ -286,7 +286,8 @@ def main():
         training_writer.flush()
 
         # print validate summary data
-        sys.stdout.write("\r\n\nSUMMARY of EPOCH = {:2.0f}".format(epoch+1))
+        sys.stdout.write("\r                                                                                                                                    ")
+        sys.stdout.write("\rSUMMARY of EPOCH = {:2.0f}\n".format(epoch+1))
         if USE_SUPERVISION:
             print("Training   : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - total_fmap_loss:{:6.2f}".
                 format(giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch, (gb_train+pos_pixel_train)/steps_per_epoch))
@@ -329,11 +330,11 @@ def main():
         validate_writer.flush()
         if USE_SUPERVISION:
             # print validate summary data 
-            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f} - total_fmap_loss:{:6.2f}".
+            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f} - total_fmap_loss:{:6.2f}\n".
                 format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, (gb_val+pos_pixel_val)/num_testset))
         else:
             # print validate summary data 
-            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f}".
+            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f}\n".
                 format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset))
 
         if not USE_SUPERVISION:

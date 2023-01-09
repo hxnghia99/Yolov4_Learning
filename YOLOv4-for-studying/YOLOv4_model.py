@@ -286,16 +286,21 @@ def FTT_module(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_r
     p_lr = content_extractor(p_lr, num_channels*4)                                                                                              #3 +[+3+2+1(add)]x2->15
     p_lr = tf.nn.depth_to_space(p_lr, 2)           #pixel shufflement --> num_channels = c                                                      #16
 
+    if USE_FTT_DEVELOPING_VERSION:
+        p_hr = convolutional(p_hr, (1,1, num_channels, num_channels))
     p_hr = tf.concat([p_lr, p_hr], axis=-1) #(104x104x256)                                                                                                    #17
     p_hr = texture_extractor(p_hr, num_channels*2)      #num_channels = c                                                                       #17 +[+3+2+1(add)]x2+3->32
+    
     #element-wise sum
     result = p_lr + p_hr                                                                                                                        #33                                    
     
     if USE_FTT_DEVELOPING_VERSION and p_hrx2 != None:
-        result = convolutional(result, (1, 1, num_channels, num_channels*2), dilation=dilation) #increase channel x2
-        result = content_extractor(result, num_channels*2)  
-        result = tf.nn.depth_to_space(result, 2)            #increase resolution x2, channel /4 (208x208x64)
-        p_hrx2 = tf.concat([result, p_hrx2], axis=-1)       # (208x208x128)
+        p_hr = convolutional(result, (1, 1, num_channels, num_channels*2), dilation=dilation) #increase channel x2
+        p_hr = content_extractor(p_hr, num_channels*2)  
+        p_hr = tf.nn.depth_to_space(p_hr, 2)            #increase resolution x2, channel /4 (208x208x64)
+        
+        p_hrx2 = convolutional(p_hrx2, (1,1, int(num_channels/2), int(num_channels/2)))
+        p_hrx2 = tf.concat([p_hr, p_hrx2], axis=-1)       # (208x208x128)
         for _ in range(num_res):
             if not USE_SDCAB_BLOCK_IN_FTT:
                 shortcut = p_hrx2
@@ -304,7 +309,9 @@ def FTT_module(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_r
                 p_hrx2 = shortcut + p_hrx2
             else:
                 p_hrx2 = SDCAB_block(p_hrx2, num_channels)
-        result = convolutional(p_hrx2, (3,3, num_channels, num_channels), downsample=True) #(104x104x128)
+        p_hrx2 = convolutional(p_hrx2, (3,3, num_channels, num_channels), downsample=True) #(104x104x128) #14
+        p_hrx2 = convolutional(p_hrx2, (1,1, num_channels, num_channels))
+        result = result + p_hrx2
     return result
 
 
@@ -412,9 +419,9 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
         fmap_P2 = conv    
         #Compress information of feature maps
         conv = convolutional(conv, (1, 1, 128, 64), dilation=dilation)
-        conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
-        conv = convolutional(conv, (1, 1, 128, 64), dilation=dilation)
-        if not USE_FTT_DEVELOPING_VERSION:
+        if not USE_FTT_DEVELOPING_VERSION:    
+            conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
+            conv = convolutional(conv, (1, 1, 128, 64), dilation=dilation)
             conv = convolutional(conv, (3, 3, 64, 128), dilation=dilation)
             conv = convolutional(conv, (1, 1, 128, 64), dilation=dilation)                       #output: 104 x 104 x 64
         # fmap_P2 = conv
