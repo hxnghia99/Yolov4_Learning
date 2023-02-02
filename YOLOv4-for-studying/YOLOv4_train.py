@@ -286,7 +286,7 @@ def main():
         training_writer.flush()
 
         # print validate summary data
-        sys.stdout.write("\r                                                                                                                                    ")
+        sys.stdout.write("\r                                                                                                                                                            ")
         sys.stdout.write("\rSUMMARY of EPOCH = {:2.0f}\n".format(epoch+1))
         if USE_SUPERVISION:
             print("Training   : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - total_fmap_loss:{:6.2f}".
