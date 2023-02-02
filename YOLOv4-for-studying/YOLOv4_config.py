@@ -24,14 +24,16 @@ USE_FTT_P2                      = True                             #affect new b
 USE_FTT_P3                      = False                             
 USE_FTT_P4                      = False
 USE_FTT_DEVELOPING_VERSION      = True
-USE_SDCAB_BLOCK_IN_FTT          = True
+USE_SDCAB_BLOCK_IN_FTT          = False
 USE_NEW_BACKBONE                = False                             #Force to use NEW BACKBONE CSPDARKNET52 regardless of above model settings
-USE_SUPERVISION                 = True                             #when True, use at least 1 FTT module --> create teacher model
-USE_ADAPTATION_LAYER            = True
+USE_SUPERVISION                 = False                             #when True, use at least 1 FTT module --> create teacher model
+USE_ADAPTATION_LAYER            = False
 LAMDA_FMAP_LOSS                 = 1.0 / 10
 TEACHER_DILATION                = False                             #teacher uses dilation convolution or not
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION         #teacher uses weights from student or fixed pretrained weights
 USE_5_ANCHORS_SMALL_SCALE       = False and (not USE_SUPERVISION)   #do not use together with SUPERVISION
+CHANNEL_TIMES_K                 = 1
+TEST_FLOPS                      = True
 
 
 """
