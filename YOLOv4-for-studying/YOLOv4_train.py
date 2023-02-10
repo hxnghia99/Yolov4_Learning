@@ -177,7 +177,7 @@ def main():
             conv_backbone = [conv_P3, conv_P4, conv_P5] 
 
             with tf.GradientTape(persistent=False) as tape:
-                pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
+                pred_result = yolo([image_data,fmap_bb_P3], training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
                 giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
                 num_scales = len(YOLO_SCALE_OFFSET)
                 #calculate loss at each scale  
@@ -230,7 +230,7 @@ def main():
             fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
             conv_backbone = [conv_P3, conv_P4, conv_P5] 
     
-            pred_result = yolo(image_data, training=False)
+            pred_result = yolo([image_data,fmap_bb_P3], training=False)
             giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
             grid = len(YOLO_SCALE_OFFSET)
             #calculate loss at each scale
