@@ -9,8 +9,7 @@
 #===============================================================#
 
 # TRAINING INFORMATION
-#YOLOv4-CSPDarknet52 + 224x128 + distillation(feature+pred)
-
+#YOLOv4-FTT-P2 + whole-LG
 
 import numpy as np
 
@@ -23,12 +22,13 @@ MODEL_BRANCH_TYPE               = ["P2", "P5m"]
 USE_FTT_P2                      = True                             #affect new backbone CSPDarknet52
 USE_FTT_P3                      = False                             
 USE_FTT_P4                      = False
-USE_FTT_DEVELOPING_VERSION      = True
+USE_FTT_DEVELOPING_VERSION      = False                             #activate SR-module
+SR_MODULE_VERSION               = "v2.2"                            # in list ['v2.2', 'v2.3', 'v2.4']
 USE_SDCAB_BLOCK_IN_FTT          = False
 USE_NEW_BACKBONE                = False                             #Force to use NEW BACKBONE CSPDARKNET52 regardless of above model settings
-USE_SUPERVISION                 = True                             #when True, use at least 1 FTT module --> create teacher model
+USE_SUPERVISION                 = False                             #when True, use at least 1 FTT module --> create teacher model
 USE_ADAPTATION_LAYER            = False
-LAMDA_FMAP_LOSS                 = 10
+LAMDA_FMAP_LOSS                 = 25
 TEACHER_DILATION                = False                             #teacher uses dilation convolution or not
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION         #teacher uses weights from student or fixed pretrained weights
 USE_5_ANCHORS_SMALL_SCALE       = False and (not USE_SUPERVISION)   #do not use together with SUPERVISION
@@ -198,10 +198,10 @@ elif TRAINING_DATASET_TYPE == "LG":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
     # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
     # VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
-    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
-    # VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
-    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_5k.txt"
-    VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/validate_700.txt"
+    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
+    VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
+    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_5k.txt"
+    # VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/validate_700.txt"
     RELATIVE_PATH               = 'E:/dataset/TOTAL/'
     PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
     
@@ -261,8 +261,8 @@ if EVALUATION_DATASET_TYPE == "COCO":
     VALIDATE_MAP_RESULT_PATH    = "YOLOv4-for-studying/mAP/results_coco.txt"
 
 elif EVALUATION_DATASET_TYPE == "LG":
-    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/evaluate_1300.txt" 
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
+    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/evaluate_1300.txt" 
     if EVALUATE_TRANSFER:
         EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
         # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_original_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"

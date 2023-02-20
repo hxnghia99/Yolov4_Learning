@@ -277,13 +277,15 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
         image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
         image_data = image[np.newaxis, ...].astype(np.float32)
+        input2 = np.zeros([12, 32, 56, 128])
 
         #measure time to make prediction
         t1 = time.time()
         pred_bboxes = Yolo(image_data, training=False)
         t2 = time.time()
         times.append(t2-t1)
-    
+
+        # pred_bboxes = pred_bboxes[1:6:2]
         #post process for prediction bboxes
         pred_bboxes = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bboxes]
         pred_bboxes = tf.concat(pred_bboxes, axis=0)                                #shape [total_bboxes, 5 + NUM_CLASS]
@@ -602,15 +604,39 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
 
         
 
+def load_weights_old_new(weights_file):
+    new_model = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False, training=True)
+    old_model = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False, training=False)
+
+    new_model.load_weights(weights_file)
+
+    for i in range(535):
+        if i==517 or i==518 or i==519 or i==523 or i==527 or i==531:
+            continue
+        j = i
+        if i>=520:
+            j=i-3
+        if i>=524:
+            j=i-4
+        if i>=528:
+            j=i-5
+        if i>=532:
+            j=i-6
+        if new_model.layers[i].get_weights() != []:
+            old_model.layers[j].set_weights(new_model.layers[i].get_weights())
+    return old_model
 
 if __name__ == '__main__':
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_P0/yolov4_lg_transfer"
-    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-48_valid-loss-13.61/yolov4_lg_transfer"
-    weights_file = "YOLOv4-for-studying/checkpoints/epoch-33_valid-loss-276.93/yolov4_visdrone_from_scratch"
+    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-42_valid-loss-7.06/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/epoch-33_valid-loss-276.93/yolov4_visdrone_from_scratch"
     # weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False)
     # yolo = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
+
+    # yolo = load_weights_old_new(weights_file)
+
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE, EVAL_MODE=True)
     if USE_CUSTOM_WEIGHTS:
         if EVALUATION_DATASET_TYPE == "COCO":

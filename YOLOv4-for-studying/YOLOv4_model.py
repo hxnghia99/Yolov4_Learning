@@ -262,7 +262,49 @@ def CSPDarknet53(input_data, dilation=False):
 
 
 #Implementation of feature texture transfer (FTT model)
-def FTT_module(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_res=1 if USE_FTT_DEVELOPING_VERSION else 2):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
+def SR_module_v22(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_res=1):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
+    #Extract detailed information from LR
+    def content_extractor(conv, num_channels, iterations=num_res):
+        for _ in range(iterations):
+            shortcut = conv
+            conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)
+            conv = convolutional(conv, (3,3, num_channels, num_channels), dilation=dilation)
+            conv = shortcut + conv
+        return conv
+    #Extract context information from HR
+    def texture_extractor(conv, num_channels, iterations=num_res):
+        for _ in range(iterations):
+            shortcut = conv
+            conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)                    
+            conv = convolutional(conv, (3,3, num_channels, num_channels), dilation=dilation)
+            conv = shortcut + conv
+        conv = convolutional(conv, (1,1, num_channels, int(num_channels/2)), dilation=dilation)
+        return conv
+    #start the module
+    p_lr = convolutional(p_lr, (1, 1, num_channels, num_channels*4), dilation=dilation) # x4 channels --> num_channels = 4c                     #0 +3->3 (461 +3->464)
+    p_lr = content_extractor(p_lr, num_channels*4)                                                                                              #3 +[+3+2+1(add)]x2->15
+    p_lr = tf.nn.depth_to_space(p_lr, 2)           #pixel shufflement --> num_channels = c                                                      #16
+
+    # if USE_FTT_DEVELOPING_VERSION:
+    #     p_hr = convolutional(p_hr, (1,1, num_channels, num_channels))
+    p_hr = tf.concat([p_lr, p_hr], axis=-1) #(104x104x256)                                                                                            #17
+    p_hr = texture_extractor(p_hr, num_channels*2)      #num_channels = c                                                                       #17 +[+3+2+1(add)]x2+3->32
+    
+    #element-wise sum
+    result = p_lr + p_hr                                                                                                                        #33                                    
+    
+    if USE_FTT_DEVELOPING_VERSION and p_hrx2 != None:
+        p_hr = convolutional(result, (1, 1, num_channels, num_channels*2), dilation=dilation) #increase channel x2
+        p_hr = content_extractor(p_hr, num_channels*2)  
+        p_hr = tf.nn.depth_to_space(p_hr, 2)            #increase resolution x2, channel /4 (208x208x64)
+        
+        p_hrx2 = tf.concat([p_hr, p_hrx2], axis=-1)       # (208x208x128)
+        p_hrx2 = content_extractor(p_hrx2, num_channels)      
+        p_hrx2 = convolutional(p_hrx2, (3,3, num_channels, num_channels), downsample=True) #(104x104x128) #14
+    return p_hrx2
+
+#Implementation of feature texture transfer (FTT model)
+def SR_module_v23(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_res=1):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
     #Extract detailed information from LR
     def content_extractor(conv, num_channels, iterations=num_res):
         for _ in range(iterations):
@@ -274,22 +316,49 @@ def FTT_module(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_r
     #Extract context information from HR
     def texture_extractor(conv, num_channels, iterations=num_res):
         for _ in range(iterations):
-            if not USE_SDCAB_BLOCK_IN_FTT:
-                shortcut = conv
-                conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)                    
-                conv = convolutional(conv, (3,3, num_channels, num_channels), dilation=dilation)
-                conv = shortcut + conv
-            else:
-                conv = SDCAB_block(conv, num_channels)
+            shortcut = conv
+            conv = convolutional(conv, (1,1, num_channels, num_channels/2), dilation=dilation)                    
+            conv = convolutional(conv, (3,3, num_channels/2, num_channels), dilation=dilation)
+            conv = shortcut + conv
         conv = convolutional(conv, (1,1, num_channels, int(num_channels/2)), dilation=dilation)
         return conv
     #start the module
     p_lr = convolutional(p_lr, (1, 1, num_channels, num_channels*4), dilation=dilation) # x4 channels --> num_channels = 4c                     #0 +3->3 (461 +3->464)
-    # p_lr = content_extractor(p_lr, num_channels*4)                                                                                              #3 +[+3+2+1(add)]x2->15
+    p_lr = content_extractor(p_lr, num_channels*4)                                                                                              #3 +[+3+2+1(add)]x2->15
     p_lr = tf.nn.depth_to_space(p_lr, 2)           #pixel shufflement --> num_channels = c                                                      #16
 
     # if USE_FTT_DEVELOPING_VERSION:
     #     p_hr = convolutional(p_hr, (1,1, num_channels, num_channels))
+    p_hr = tf.concat([p_lr, p_hr], axis=-1) #(104x104x256)                                                                                            #17
+    p_hr = texture_extractor(p_hr, num_channels*2)      #num_channels = c                                                                       #17 +[+3+2+1(add)]x2+3->32
+    
+    #element-wise sum
+    result = p_lr + p_hr                                                                                                                        #33                                    
+    
+    if USE_FTT_DEVELOPING_VERSION and p_hrx2 != None:
+        p_hr = convolutional(result, (1, 1, num_channels, num_channels*2), dilation=dilation) #increase channel x2
+        p_hr = content_extractor(p_hr, num_channels*2)  
+        p_hr = tf.nn.depth_to_space(p_hr, 2)            #increase resolution x2, channel /4 (208x208x64)
+        
+        p_hrx2 = tf.concat([p_hr, p_hrx2], axis=-1)       # (208x208x128)
+        p_hrx2 = content_extractor(p_hrx2, num_channels)      
+        p_hrx2 = convolutional(p_hrx2, (3,3, num_channels, num_channels), downsample=True) #(104x104x128) #14
+    return p_hrx2
+
+#Implementation of feature texture transfer (FTT model)
+def SR_module_v24(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_res=1):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
+    #Extract detailed information from LR
+    def content_extractor(conv, num_channels, iterations=num_res):
+        for _ in range(iterations):
+            shortcut = conv
+            conv = convolutional(conv, (1,1, num_channels, num_channels/2), dilation=dilation)
+            conv = convolutional(conv, (3,3, num_channels/2, num_channels), dilation=dilation)
+            conv = shortcut + conv
+        return conv
+    #start the module
+    p_lr = convolutional(p_lr, (1, 1, num_channels, num_channels*4), dilation=dilation) # x4 channels --> num_channels = 4c                     #0 +3->3 (461 +3->464)
+    p_lr = tf.nn.depth_to_space(p_lr, 2)           #pixel shufflement --> num_channels = c                                                      #16
+
     p_hr = tf.concat([p_lr, p_hr], axis=-1) #(104x104x256)   
     p_hr = convolutional(p_hr, (1, 1, num_channels*2, num_channels))                                                                                                 #17
     p_hr = content_extractor(p_hr, num_channels)      #num_channels = c                                                                       #17 +[+3+2+1(add)]x2+3->32
@@ -311,6 +380,38 @@ def FTT_module(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_r
         p_hrx2 = convolutional(p_hrx2, (3,3, num_channels/2, num_channels), downsample=True) #(104x104x128) #14
         p_hrx2 = convolutional(p_hrx2, (1,1, num_channels, num_channels/2))
     return p_hrx2
+
+#Implementation of feature texture transfer (FTT model)
+def FTT_module(p_lr, p_hr, num_channels=None, dilation=False, num_res=2):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
+    #Extract detailed information from LR
+    def content_extractor(conv, num_channels, iterations=num_res):
+        for _ in range(iterations):
+            shortcut = conv
+            conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)
+            conv = convolutional(conv, (3,3, num_channels, num_channels), dilation=dilation)
+            conv = shortcut + conv
+        return conv
+    #Extract context information from HR
+    def texture_extractor(conv, num_channels, iterations=num_res):
+        for _ in range(iterations):
+            shortcut = conv
+            conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)                    
+            conv = convolutional(conv, (3,3, num_channels, num_channels), dilation=dilation)
+            conv = shortcut + conv
+        conv = convolutional(conv, (1,1, num_channels, int(num_channels/2)), dilation=dilation)
+        return conv
+    #start the module
+    p_lr = convolutional(p_lr, (1, 1, num_channels, num_channels*4), dilation=dilation) # x4 channels --> num_channels = 4c                     #0 +3->3 (461 +3->464)
+    p_lr = content_extractor(p_lr, num_channels*4)                                                                                              #3 +[+3+2+1(add)]x2->15
+    p_lr = tf.nn.depth_to_space(p_lr, 2)           #pixel shufflement --> num_channels = c                                                      #16
+
+    p_hr = tf.concat([p_lr, p_hr], axis=-1) #(104x104x256)                                                                                              #17
+    p_hr = texture_extractor(p_hr, num_channels*2)      #num_channels = c                                                                       #17 +[+3+2+1(add)]x2+3->32
+    
+    #element-wise sum
+    result = p_lr + p_hr                                                                                                                        #33                                    
+    
+    return result
 
 
 def spatial_attention_module(conv, kernel_size=1):
@@ -345,7 +446,7 @@ def SDCAB_block(conv, num_channels):
 
 
 #Add neck layers to CSPDarknet53 and create YOLOv4 model
-def YOLOv4_detector(input_layer, input_layer2, NUM_CLASS, dilation=False, dilation_bb=False, Modified_model=False):
+def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, Modified_model=False):
     # Create CSPDarknet53 network and 3 backbone features at large, medium and small scale
     if MODEL_BRANCH_TYPE[1] == "P5n":
         route_2, route_3, route_4, conv = CSPDarknet53(input_layer)
@@ -375,7 +476,7 @@ def YOLOv4_detector(input_layer, input_layer2, NUM_CLASS, dilation=False, dilati
         #Compress information of feature maps
         conv = convolutional(conv, (1, 1, 512*k, 256*k), dilation=dilation)                                                #423 +3->426 
         conv = convolutional(conv, (3, 3, 256*k, 512*k), dilation=dilation)                                                #426 +3->429
-        conv = convolutional(conv, (1, 1, 512*k, 256*k), dilation=dilation)                                                #429 +3->432
+        conv = convolutional(conv, (1, 1, 512*k, 256*k), dilation=dilation)                                                #429 +3->432             #17 #83
         if not USE_FTT_DEVELOPING_VERSION:
             conv = convolutional(conv, (3, 3, 256*k, 512*k), dilation=dilation)                    #output: 26 x 26 x 512      #432 +3->435               
             conv = convolutional(conv, (1, 1, 512*k, 256*k), dilation=dilation)                    #output: 26 x 26 x 256      #435 +3->438
@@ -396,7 +497,7 @@ def YOLOv4_detector(input_layer, input_layer2, NUM_CLASS, dilation=False, dilati
         #Compress information of feature maps
         conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)                                                #446 +3->449
         conv = convolutional(conv, (3, 3, 128*k, 256*k), dilation=dilation)                                                #449 +3->452
-        conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)                                                #452 +3->455
+        conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)                                                #452 +3->455         #17     #88
         if not USE_FTT_DEVELOPING_VERSION:
             conv = convolutional(conv, (3, 3, 128*k, 256*k), dilation=dilation)                     #output: 52 x 52 x 256     #455 +3->458
             conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)                     #output: 52 x 52 x 128     #458 +3->461
@@ -413,16 +514,25 @@ def YOLOv4_detector(input_layer, input_layer2, NUM_CLASS, dilation=False, dilati
             route_2 = convolutional(route_2, (1, 1, 128*k, 64*k), dilation=dilation)             #output: 104 x 104 x 64
             conv = tf.concat([route_2, conv], axis=-1)                    #output: 104 x 104 x 128
         else:
-            conv = FTT_module(conv, route_2,route_1, 128*k, dilation=dilation)                                                   #461 +33->494        #if 3-FTT: 544
-        fmap_P2 = conv    
-        # #Compress information of feature maps
-        # conv = convolutional(conv, (1, 1, 128*k, 64*k), dilation=dilation) 
-        # conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
-        # conv = convolutional(conv, (1, 1, 128*k, 64*k), dilation=dilation)
-        # if not USE_FTT_DEVELOPING_VERSION:    
-        #     conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
-        #     conv = convolutional(conv, (1, 1, 128*k, 64*k), dilation=dilation)                       #output: 104 x 104 x 64
-        # # fmap_P2 = conv
+            if not USE_FTT_DEVELOPING_VERSION:
+                conv = FTT_module(conv, route_2, 128*k, dilation=dilation)                                                   #461 +33->494        #if 3-FTT: 544
+            else:
+                if SR_MODULE_VERSION == "v2.2":
+                    conv = SR_module_v22(conv, route_2, route_1, 128*k, dilation=dilation)    
+                elif SR_MODULE_VERSION == "v2.3":
+                    conv = SR_module_v23(conv, route_2, route_1, 128*k, dilation=dilation)
+                elif SR_MODULE_VERSION == "v2.4":
+                    conv = SR_module_v24(conv, route_2, route_1, 128*k, dilation=dilation)
+        fmap_P2 = conv
+        if SR_MODULE_VERSION != "v2.4":                                                                                                                           #39       #98
+            #Compress information of feature maps
+            conv = convolutional(conv, (1, 1, 128*k, 64*k), dilation=dilation) 
+            conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
+            conv = convolutional(conv, (1, 1, 128*k, 64*k), dilation=dilation)
+            if not USE_FTT_DEVELOPING_VERSION:    
+                conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
+                conv = convolutional(conv, (1, 1, 128*k, 64*k), dilation=dilation)                       #output: 104 x 104 x 64
+            # fmap_P2 = conv
 
 
     """ Additional upsampling: 3 times to original image size """
@@ -644,15 +754,15 @@ def YOLOv4_detector(input_layer, input_layer2, NUM_CLASS, dilation=False, dilati
             fmap_P2 = conv
             if USE_SUPERVISION and USE_ADAPTATION_LAYER:
                 fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)   #adaptation layer
-            conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
+            conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)                          #517 520 523
             conv_sbbox = convolutional(conv, (1, 1, 128*k, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
             
-            conv = convolutional(route_2, (3, 3, 64*k, 128*k), downsample=True, dilation=dilation)
-            conv = tf.concat([conv, route_3], axis=-1)
+            conv = convolutional(route_2, (3, 3, 64*k, 128*k), downsample=True, dilation=dilation)      #488 + 4 ->492
+            conv = tf.concat([conv, route_3], axis=-1)                                                  #493
 
-            conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)
-            conv = convolutional(conv, (3, 3, 128*k, 256*k), dilation=dilation)
-            conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)
+            conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)                         #
+            conv = convolutional(conv, (3, 3, 128*k, 256*k), dilation=dilation)                         #
+            conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)                         #493 + 9 ->502
             if not USE_FTT_DEVELOPING_VERSION:
                 conv = convolutional(conv, (3, 3, 128*k, 256*k), dilation=dilation)
                 conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)
@@ -661,15 +771,15 @@ def YOLOv4_detector(input_layer, input_layer2, NUM_CLASS, dilation=False, dilati
             fmap_P3 = conv
             if USE_SUPERVISION and USE_ADAPTATION_LAYER:
                 fmap_P3 = convolutional(conv, (1, 1, 128*k, 256))     #adaptation layer
-            conv = convolutional(conv, (3, 3, 128*k, 256*k))
+            conv = convolutional(conv, (3, 3, 128*k, 256*k))                                            #518 521 524
             conv_mbbox = convolutional(conv, (1, 1, 256*k, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
 
-            conv = convolutional(route_3, (3, 3, 128*k, 256*k), downsample=True, dilation=dilation)
-            conv = tf.concat([conv, route_4], axis=-1)
+            conv = convolutional(route_3, (3, 3, 128*k, 256*k), downsample=True, dilation=dilation)     #502 + 4 -> 506
+            conv = tf.concat([conv, route_4], axis=-1)                                                  #507
 
             conv = convolutional(conv, (1, 1, 512*k, 256*k), dilation=dilation)
             conv = convolutional(conv, (3, 3, 256*k, 512*k), dilation=dilation)
-            conv = convolutional(conv, (1, 1, 512*k, 256*k), dilation=dilation)
+            conv = convolutional(conv, (1, 1, 512*k, 256*k), dilation=dilation)                         #507 + 9 -> 516
             if not USE_FTT_DEVELOPING_VERSION:
                 conv = convolutional(conv, (3, 3, 256*k, 512*k), dilation=dilation)
                 conv = convolutional(conv, (1, 1, 512*k, 256*k), dilation=dilation)
@@ -677,35 +787,11 @@ def YOLOv4_detector(input_layer, input_layer2, NUM_CLASS, dilation=False, dilati
             fmap_P4 = conv
             if USE_SUPERVISION and USE_ADAPTATION_LAYER:
                 fmap_P4 = convolutional(conv, (1, 1, 256*k, 512))     #adaptation layer
-            conv = convolutional(conv, (3, 3, 256*k, 512*k))
-            conv_lbbox = convolutional(conv, (1, 1, 512*k, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
-
-            
-            fmap_P4 = UpSampling2D()(fmap_P4)
-            fmap_P4 = Resblocks(fmap_P4, 256) 
-            fmap_P4 = convolutional(fmap_P4, (1, 1, 256, 128))
-            fmap_P4 = UpSampling2D()(fmap_P4)
-            fmap_P4 = Resblocks(fmap_P4, 128) 
-            Ks1 = convolutional(fmap_P4, (32,56,128,128), padding1="valid")
-
-            fmap_P3 = UpSampling2D()(fmap_P3)
-            fmap_P3 = Resblocks(fmap_P3, 128) 
-            Ks2 = convolutional(fmap_P3, (32,56,128,128), padding1="valid")
-
-            fmap_P2 = convolutional(fmap_P2, (1, 1, 64, 128))
-            Ks3 = convolutional(fmap_P2, (32,56,128,128), padding1="valid")
-            
-            Kt1 = convolutional(input_layer2, (32, 56, 128, 128), padding1="valid")
-
-            alpha1 = tf.nn.softmax(Ks1*Kt1)
-            alpha2 = tf.nn.softmax(Ks2*Kt1)
-            alpha3 = tf.nn.softmax(Ks3*Kt1)
-
-            aggregated_fmap = alpha1*fmap_P4 + alpha2*fmap_P3 + alpha3*fmap_P4
-
+            conv = convolutional(conv, (3, 3, 256*k, 512*k))                                            #519 522 525
+            conv_lbbox = convolutional(conv, (1, 1, 512*k, 3 * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)           #528
 
             if USE_SUPERVISION:
-                return [conv_sbbox, conv_mbbox, conv_lbbox], [aggregated_fmap, fmap_P3, fmap_P4]#, fmap_t3, fmap_t4,fmap_t5, backbone_P2, backbone_P3, backbone_P4, backbone_P5]
+                return [conv_sbbox, conv_mbbox, conv_lbbox], [fmap_P2, fmap_P3, fmap_P4]#, fmap_t3, fmap_t4,fmap_t5, backbone_P2, backbone_P3, backbone_P4, backbone_P5]
             else:
                 return [conv_sbbox, conv_mbbox, conv_lbbox]
 
@@ -932,12 +1018,11 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
     NUM_CLASS = len(class_names)
     #Create input layer
     input_layer = Input([YOLO_INPUT_SIZE[1] if TEST_FLOPS else None, YOLO_INPUT_SIZE[0] if TEST_FLOPS else None, input_channel])
-    input_layer2 = Input([32, 56, 128])
     if USE_SUPERVISION:
         if USE_NEW_BACKBONE: 
             conv_tensors, student_fmaps_mid = CSPDarknet52_YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation)
         else:
-            conv_tensors, student_fmaps_mid = YOLOv4_detector(input_layer, input_layer2, NUM_CLASS, dilation=dilation, dilation_bb=dilation_bb, Modified_model=Modified_model)
+            conv_tensors, student_fmaps_mid = YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation, dilation_bb=dilation_bb, Modified_model=Modified_model)
     else:
         if USE_NEW_BACKBONE:
             conv_tensors = CSPDarknet52_YOLOv4_detector(input_layer, NUM_CLASS, dilation=dilation)
@@ -958,7 +1043,7 @@ def YOLOv4_Model(input_channel=3, training=False, CLASSES_PATH=YOLO_COCO_CLASS_P
         for temp in student_fmaps:
             output_tensors.append(temp)
     if training:
-        input_layer = [input_layer, input_layer2]
+        input_layer = input_layer
     YOLOv4_model = tf.keras.Model(input_layer, output_tensors)
     return YOLOv4_model
     
@@ -1125,6 +1210,7 @@ def create_YOLOv4_backbone(input_channel=3, dilation_bb=False, CLASSES_PATH=None
     return YOLOv4_backbone
 
 if __name__ == '__main__':
+    Darknet = YOLOv4_Model(CLASSES_PATH=YOLO_COCO_CLASS_PATH)
     yolo_model = YOLOv4_Model(training=True, Modified_model=False, dilation_bb=False)
     flops = get_flops(yolo_model, batch_size=1)  
     print(f"FLOPS: {flops / 10 ** 9:.04} G")

@@ -90,14 +90,14 @@ size = YOLO_INPUT_SIZE
 compare_fmap_w_teacher = False
 compare_pred_w_teacher = False
 show_only_pred_student = True
-student_weight = "YOLOv4-for-studying/checkpoints/Num-123_lg_dataset_transfer_224x128/epoch-49_valid-loss-14.35/yolov4_lg_transfer"
-teacher_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_448x256/epoch-36_valid-loss-8.48_origin-dilate-bb/yolov4_lg_transfer"
-teacher_weight = "YOLOv4-for-studying/checkpoints/Num-105_lg_dataset_transfer_224x128/epoch-45_valid-loss-10.95_medium-anchor/yolov4_lg_transfer"
+student_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-43_valid-loss-11.40/yolov4_lg_transfer"
+# teacher_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_448x256/epoch-36_valid-loss-8.48_origin-dilate-bb/yolov4_lg_transfer"
+# teacher_weight = "YOLOv4-for-studying/checkpoints/Num-105_lg_dataset_transfer_224x128/epoch-45_valid-loss-10.95_medium-anchor/yolov4_lg_transfer"
 #Create YOLO model
 yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, training=False)
 # yolo = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
 # yolo.load_weights(student_weight)
-yolo.load_weights(teacher_weight)
+yolo.load_weights(student_weight)
 pred_bboxes = yolo(image_data, training=False)
 
 

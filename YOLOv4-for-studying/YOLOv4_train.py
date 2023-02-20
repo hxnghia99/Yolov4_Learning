@@ -78,9 +78,30 @@ def main():
         if not TRAINING_SHARING_WEIGHTS:
             yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-110_lg_dataset_transfer_448x256/epoch-37_valid-loss-8.52/yolov4_lg_transfer")
             print("Finished loading weights into teacher ...")
-        # yolo.load_weights("YOLOv4-for-studying/checkpoints/lg_dataset_transfer_v3_224x128_P5_nFTT_P2/yolov4_lg_transfer")
-        # for i in range(495):
-        #     yolo.layers[i].trainable = False
+        # for i in range(462):
+        #     yolo.layers[i].set_weights(yolo_teacher.layers[i].get_weights())
+
+        # #care: 511, 512, 513
+        # for i in range(439, 514):
+        #     name = yolo_teacher.layers[i].name
+        #     if name.split("_")[0] == "conv2d":
+        #         layer_weights = yolo_teacher.layers[i].get_weights()[0]
+        #         kernel_size, input_c, output_c = layer_weights.shape[1:4]
+        #         if i not in [511, 512, 513]:
+        #             layer_weights = tf.reshape(layer_weights, (kernel_size, kernel_size, int(input_c/2), 2, int(output_c/2), 2))
+        #             layer_weights = [tf.math.reduce_mean(layer_weights, axis=[3,5])]
+        #         else:
+        #             layer_weights = tf.reshape(layer_weights, (kernel_size, kernel_size, int(input_c/2), 2, output_c))
+        #             layer_weights = tf.math.reduce_mean(layer_weights, axis=3)
+        #             layer_weights = [layer_weights, yolo_teacher.layers[i].get_weights()[1]]
+        #     elif name.split("_")[0] == "batch":
+        #         layer_weights = yolo_teacher.layers[i].get_weights()
+        #         c = layer_weights[0].shape[0]
+        #         layer_weights = [tf.math.reduce_mean(tf.reshape(x,(int(c/2),2)), axis=-1) for x in layer_weights]
+        #     else:
+        #         layer_weights = []
+        #     yolo.layers[i+23].set_weights(layer_weights)
+        # print("Finished loading weights from teacher to student ...")
 
 
     #Create Adam optimizers
@@ -177,7 +198,7 @@ def main():
             conv_backbone = [conv_P3, conv_P4, conv_P5] 
 
             with tf.GradientTape(persistent=False) as tape:
-                pred_result = yolo([image_data,fmap_bb_P3], training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
+                pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
                 giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
                 num_scales = len(YOLO_SCALE_OFFSET)
                 #calculate loss at each scale  
@@ -230,7 +251,7 @@ def main():
             fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
             conv_backbone = [conv_P3, conv_P4, conv_P5] 
     
-            pred_result = yolo([image_data,fmap_bb_P3], training=False)
+            pred_result = yolo(image_data, training=False)
             giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
             grid = len(YOLO_SCALE_OFFSET)
             #calculate loss at each scale
