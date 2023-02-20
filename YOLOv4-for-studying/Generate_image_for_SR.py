@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import sys
 
-
 type = "train"
 # type = "test"
 
@@ -16,6 +15,22 @@ reso_x1 = [224,128]
 
 lr_file_path = file_path.split(type)[0] + "LR/"
 hr_file_path = file_path.split(type)[0] + "HR/"
+
+def image_preprocess(image, target_size):
+    target_size_w, target_size_h = target_size
+    image_h, image_w, _ = image.shape   
+    resize_ratio = min(target_size_w/image_w, target_size_h/image_h)                      #resize ratio of the larger coordinate into 416
+    new_image_w, new_image_h = int(resize_ratio*image_w), int(resize_ratio*image_h)
+    
+    image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
+
+    image_padded = np.full(shape=[target_size_h, target_size_w, 3], fill_value=128.0, dtype=np.float32)
+    dw, dh = (target_size_w - new_image_w) // 2, (target_size_h - new_image_h) // 2
+    image_padded[dh:new_image_h+dh, dw:new_image_w+dw] = image_resized                #pad the resized image into image_padded
+
+    return np.array(image_padded, np.uint8)
+
+
 
 
 with open(file_path, "r") as f1:
@@ -32,8 +47,9 @@ with open(file_path, "r") as f1:
         original_image = cv2.imread(image_path)
         height, width, _ = original_image.shape
 
-        image_x2 = cv2.resize(original_image, (reso_x2))
-        image_x1 = cv2.resize(original_image, (reso_x1))
+
+        image_x2 = image_preprocess(np.copy(original_image), (reso_x2))
+        image_x1 = image_preprocess(np.copy(original_image), (reso_x1))
 
         lr_file_path_saving = lr_file_path + image_name + ".png"
         hr_file_path_saving = hr_file_path + image_name + ".png"
