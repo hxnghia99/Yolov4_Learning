@@ -17,6 +17,7 @@ from YOLOv4_utils import *
 from YOLOv4_config import *
 import random
 import collections
+from YOLOv4_SR_network import edsr
 
 
 class Dataset(object):
@@ -60,6 +61,13 @@ class Dataset(object):
 
         #Testing
         self.testing = TESTING
+
+        #Super-resolution network initialization
+        if USE_SUPER_RESOLUTION_INPUT:
+            self.sr_net             = edsr()
+            self.sr_net.load_weights(SR_NETWORK_WEIGHT_PATH)
+        else:
+            self.sr_net             = None
 
     #special method to give number of batchs in dataset
     def __len__(self):
@@ -130,7 +138,7 @@ class Dataset(object):
             image_x2 = image_preprocess(np.copy(image), self.input_size_x2, sizex2_flag=True)       #flag to use BICUBIC Interpolation
 
         #preprocess, bboxes as (xmin, ymin, xmax, ymax)
-        image, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes)
+        image, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes, sr_net=self.sr_net)
 
         if USE_SUPERVISION:
             return image, bboxes, image_x2

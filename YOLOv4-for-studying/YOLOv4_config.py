@@ -18,8 +18,8 @@ import numpy as np
 TRAINING_DATASET_TYPE           = "LG"
 TRAIN_TRANSFER                  = True
 TRAIN_FROM_CHECKPOINT           = False
-MODEL_BRANCH_TYPE               = ["P2", "P5m"]
-USE_FTT_P2                      = True                             #affect new backbone CSPDarknet52
+MODEL_BRANCH_TYPE               = ["P3n", "P5n"]
+USE_FTT_P2                      = False                             #affect new backbone CSPDarknet52
 USE_FTT_P3                      = False                             
 USE_FTT_P4                      = False
 USE_FTT_DEVELOPING_VERSION      = False                             #activate SR-module
@@ -33,12 +33,13 @@ TEACHER_DILATION                = False                             #teacher use
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION         #teacher uses weights from student or fixed pretrained weights
 USE_5_ANCHORS_SMALL_SCALE       = False and (not USE_SUPERVISION)   #do not use together with SUPERVISION
 CHANNEL_TIMES_K                 = 1
-TEST_FLOPS                      = True
+TEST_FLOPS                      = False
 
+USE_SUPER_RESOLUTION_INPUT      = False
 
 """
 MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
-    - original    =             P3n         |           P5n
+    - original    =             P3n         |           P5n     xxx
     - HR_P5       =             P0          |           P5
     - HR_P4       =             P0          |           P4
     - HR_P3       =             P0          |           P3
@@ -46,6 +47,7 @@ MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - HR_P5_P2    =             P2          |           P5m
 """
 
+SR_NETWORK_WEIGHT_PATH          = "YOLOv4-for-studying/model_data/EDSR_X2_SRGAN-200000.h5"
 
 FTT_P2_LAYERS_RANGE             = np.arange(462, 495)
 TEACHER_LAYERS_RANGE            = np.arange(462)

@@ -15,6 +15,8 @@ import cv2
 from YOLOv4_config import *
 from YOLOv4_model import *
 import colorsys
+from YOLOv4_SR_network import edsr
+
 
 '''##############################################
 input:  the path of class file
@@ -118,7 +120,7 @@ input: (3) image, target_size, gt_boxes(opt)
 output: new image padded the resized old image 
 obj:    create image to put into YOLO model
 ##################################'''
-def image_preprocess(image, target_size, gt_boxes=None, sizex2_flag=False):
+def image_preprocess(image, target_size, gt_boxes=None, sizex2_flag=False, sr_net=None):
     target_size_w, target_size_h = target_size
     image_h, image_w, _ = image.shape   
     resize_ratio = min(target_size_w/image_w, target_size_h/image_h)                      #resize ratio of the larger coordinate into 416
@@ -127,7 +129,11 @@ def image_preprocess(image, target_size, gt_boxes=None, sizex2_flag=False):
     if sizex2_flag:
         image_resized = cv2.resize(image, (new_image_w, new_image_h))#,interpolation=cv2.INTER_CUBIC)                     #the original image is resized into 416 x smaller coordinate
     else:
-        image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
+        if not USE_SUPER_RESOLUTION_INPUT:
+            image_resized = cv2.resize(image, (new_image_w, new_image_h))                     #the original image is resized into 416 x smaller coordinate
+        else:
+            image_resized = cv2.resize(image, (int(new_image_w/2), int(new_image_h/2)))
+            image_resized = sr_net(image_resized[np.newaxis,...], training=False)[0]
 
     image_padded = np.full(shape=[target_size_h, target_size_w, 3], fill_value=128.0, dtype=np.float32)
     dw, dh = (target_size_w - new_image_w) // 2, (target_size_h - new_image_h) // 2

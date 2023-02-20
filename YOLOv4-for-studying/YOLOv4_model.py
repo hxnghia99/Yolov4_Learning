@@ -342,6 +342,7 @@ def SR_module_v23(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, nu
         
         p_hrx2 = tf.concat([p_hr, p_hrx2], axis=-1)       # (208x208x128)
         p_hrx2 = content_extractor(p_hrx2, num_channels)      
+        p_hrx2 = convolutional(p_hrx2, (1,1, num_channels, num_channels/2))
         p_hrx2 = convolutional(p_hrx2, (3,3, num_channels, num_channels), downsample=True) #(104x104x128) #14
     return p_hrx2
 
