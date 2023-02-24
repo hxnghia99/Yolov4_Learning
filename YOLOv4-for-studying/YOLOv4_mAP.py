@@ -58,7 +58,7 @@ def all_points_interpolation_AP(prec, rec):
 
 #Calculate AP for each class, mAP of the model
 def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, TEST_INPUT_SIZE=TEST_INPUT_SIZE, 
-            CLASSES_PATH=YOLO_COCO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH):
+            CLASSES_PATH=YOLO_COCO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH, sr_net=None):
     if USE_PRIMARY_EVALUATION_METRIC:
         MIN_OVERLAP_RANGE = np.array([50+i*5 for i in range(10)], dtype=np.int32)
         print(f"\n Calculating primary mAP (0.5:0.95)... \n")
@@ -273,11 +273,20 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
         if EVALUATE_ORIGINAL_SIZE:
             TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
         
-        # TEST_INPUT_SIZE = [352, 192]
-
+        # t1 = time.time()
+        # #preprocess, bboxes as (xmin, ymin, xmax, ymax)
+        # if USE_SUPER_RESOLUTION_INPUT:
+        #     _, bboxes = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE, bboxes)
+        #     image = image_preprocess(np.copy(original_image), [224, 128])
+        #     # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        #     image = sr_net(image[np.newaxis,...]*255.0, training=False)[0]
+            
+        #     image = image / 255.0
+        #     image_data = image[np.newaxis, ...]
+        # else:
         image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
         image_data = image[np.newaxis, ...].astype(np.float32)
-        input2 = np.zeros([12, 32, 56, 128])
+        
 
         #measure time to make prediction
         t1 = time.time()
@@ -629,7 +638,7 @@ def load_weights_old_new(weights_file):
 if __name__ == '__main__':
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_P0/yolov4_lg_transfer"
-    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-42_valid-loss-7.06/yolov4_lg_transfer"
+    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-46_valid-loss-13.22/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/epoch-33_valid-loss-276.93/yolov4_visdrone_from_scratch"
     # weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False)
@@ -648,8 +657,13 @@ if __name__ == '__main__':
     # for i in range(temp):
     #     yolot.weights[i].assign(yolo.weights[i])
         
+    #Super-resolution network initialization
+    if USE_SUPER_RESOLUTION_INPUT:
+        sr_net             = edsr()
+        sr_net.load_weights(SR_NETWORK_WEIGHT_PATH)
+    
 
     get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
-            CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)
+            CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH, sr_net=sr_net if USE_SUPER_RESOLUTION_INPUT else None)
 
 

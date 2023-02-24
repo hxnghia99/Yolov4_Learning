@@ -19,11 +19,13 @@ import shutil
 import numpy as np
 import tensorflow as tf
 from YOLOv4_dataset import Dataset
-from YOLOv4_model   import YOLOv4_Model, create_YOLOv4_backbone
-from YOLOv4_loss    import compute_loss
+from YOLOv4_model   import YOLOv4_Model, create_YOLOv4_backbone, srgan_discriminator
+from YOLOv4_loss    import compute_loss, GAN_loss
 from YOLOv4_utils   import load_yolov4_weights
 from YOLOv4_config  import *
 from YOLOv4_Fmap_train import create_YOLOv4_student
+
+from YOLOv4_SR_network import vgg_19_model, resnet_50_model, resnet_34_model
 
 import logging
 tf.get_logger().setLevel(logging.ERROR)
@@ -81,6 +83,14 @@ def main():
         # for i in range(462):
         #     yolo.layers[i].set_weights(yolo_teacher.layers[i].get_weights())
 
+        #discriminator model:
+        discriminator = srgan_discriminator()
+
+        #Perceptual loss for GAN
+        # vgg = vgg_19_model()
+        resnet34 = resnet_34_model()
+
+        disc_optimizer = tf.keras.optimizers.Adam()
         # #care: 511, 512, 513
         # for i in range(439, 514):
         #     name = yolo_teacher.layers[i].name
@@ -102,7 +112,6 @@ def main():
         #         layer_weights = []
         #     yolo.layers[i+23].set_weights(layer_weights)
         # print("Finished loading weights from teacher to student ...")
-
 
     #Create Adam optimizers
     optimizer = tf.keras.optimizers.Adam()#beta_1=0.9, beta_2=0.999, epsilon=1e-8)
@@ -157,6 +166,7 @@ def main():
                     lr = TRAIN_LR_END + 0.5 * (TRAIN_LR_INIT - TRAIN_LR_END)*(
                         (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))    
                 optimizer.lr.assign(lr.numpy())
+                disc_optimizer.lr.assign(lr.numpy())
                 #increase global steps 
                 global_steps.assign_add(1)
 
@@ -197,9 +207,9 @@ def main():
             fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
             conv_backbone = [conv_P3, conv_P4, conv_P5] 
 
-            with tf.GradientTape(persistent=False) as tape:
+            with tf.GradientTape() as model_tape, tf.GradientTape() as disc_tape:
                 pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
-                giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=0
+                giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=gen_loss=disc_loss=0
                 num_scales = len(YOLO_SCALE_OFFSET)
                 #calculate loss at each scale  
                 for i in range(num_scales): 
@@ -209,16 +219,27 @@ def main():
                         fmap_teacher = fmap_backbone[i]
                         conv_teacher = conv_backbone[i]
                         loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=conv_teacher, fmap_student=conv_student, fmap_student_mid=fmap_student, fmap_teacher_mid=fmap_teacher)
+                    if i==0:
+                        fmap_student = pred_result[6]
+                        fmap_student_output = discriminator(fmap_student, training=True)
+                        fmap_teacher = fmap_backbone[0]
+                        fmap_teacher_output = discriminator(fmap_teacher, training=True)
+                        gan_loss_items = GAN_loss(fmap_student, fmap_teacher, fmap_student_output, fmap_teacher_output, resnet34)
+                        gen_loss        += gan_loss_items[0]
+                        disc_loss       += gan_loss_items[1]
                     giou_loss       += loss_items[0]
                     conf_loss       += loss_items[1]
                     prob_loss       += loss_items[2]
                     gb_loss         += loss_items[3]
                     pos_pixel_loss  += loss_items[4]
-                #calculate total of los
-                total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss
+                #calculate total of loss
+                total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss + gen_loss
                 #backpropagate
-                gradients = tape.gradient(total_loss, yolo.trainable_variables)
-                optimizer.apply_gradients(zip(gradients, yolo.trainable_variables))
+                model_gradients = model_tape.gradient(total_loss, yolo.trainable_variables)
+                optimizer.apply_gradients(zip(model_gradients, yolo.trainable_variables))
+
+                discriminator_gradients = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
+                disc_optimizer.apply_gradients(zip(discriminator_gradients, discriminator.trainable_variables))
                 # update learning rate
                 if global_steps < warmup_steps:
                     lr = global_steps / warmup_steps * TRAIN_LR_INIT
@@ -239,8 +260,10 @@ def main():
                     if USE_SUPERVISION:
                         tf.summary.scalar("training_loss/gb_loss", gb_loss, step=global_steps)
                         tf.summary.scalar("training_loss/pos_pixel_loss", pos_pixel_loss, step=global_steps)
+                        tf.summary.scalar("training_loss/generator_loss", gen_loss, step=global_steps)
+                        tf.summary.scalar("training_loss/discriminator_loss", disc_loss, step=global_steps)
                 training_writer.flush()   
-            return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy()
+            return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy(), gen_loss.numpy(), disc_loss.numpy()
 
         #Create validation function after each epoch
         def validate_step(image_data, target):
@@ -274,19 +297,23 @@ def main():
     best_val_loss = float('inf') # should be large at start
     for epoch in range(TRAIN_EPOCHS):
         #Get a batch of training data to train
-        giou_train, conf_train, prob_train, total_train, gb_train, pos_pixel_train = 0, 0, 0, 0, 0, 0
+        giou_train, conf_train, prob_train, total_train, gb_train, pos_pixel_train, gen_loss, disc_loss = 0, 0, 0, 0, 0, 0, 0, 0
         for image_data, target in trainset:
             results = train_step(image_data, target, epoch)            #result = [global steps, learning rate, coor_loss, conf_loss, prob_loss, total_loss]
             current_step = results[0] % steps_per_epoch
             if USE_SUPERVISION:
-                sys.stdout.write("\rEpoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:8.4f} - conf_loss={:10.4f} - prob_loss={:8.4f} - total_loss={:10.4f} - fmap_loss={:8.4f}"
-                    .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5], results[6]+results[7]))
+                sys.stdout.write("\rEpoch ={:2.0f} step= {:4.0f}/{} : lr={:.8f} - giou={:8.3f} - conf={:10.3f} - prob={:8.3f} - total={:10.3f} - fmap={:6.3f} - gen={:8.3f} - disc={:8.3f}"
+                    .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5], results[6]+results[7], results[8], results[9]))
+                # sys.stdout.write("\rEpoch ={:2.0f} step= {:4.0f}/{} : lr={:.8f} - giou_loss={:8.3f} - conf_loss={:10.3f} - prob_loss={:8.3f} - total_loss={:10.3f} - gen_loss={:8.4f} - disc_loss={:8.5f}"
+                #     .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5], results[8], results[9]))
                 giou_train += results[2]
                 conf_train += results[3]
                 prob_train += results[4]
                 total_train += results[5]    
                 gb_train += results[6]
                 pos_pixel_train += results[7]
+                gen_loss += results[8]
+                disc_loss += results[9]
             else:
                 sys.stdout.write("\rEpoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:8.4f} - conf_loss={:10.4f} - prob_loss={:8.4f} - total_loss={:10.4f}"
                     .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5]))
@@ -304,14 +331,18 @@ def main():
             if USE_SUPERVISION:
                 tf.summary.scalar("loss/gb_val", gb_train/steps_per_epoch, step=epoch)
                 tf.summary.scalar("loss/pos_pixel_val", pos_pixel_train/steps_per_epoch, step=epoch)
+                tf.summary.scalar("loss/gen_loss", gen_loss/steps_per_epoch, step=epoch)
+                tf.summary.scalar("loss/disc_loss", disc_loss/steps_per_epoch, step=epoch)
         training_writer.flush()
 
         # print validate summary data
-        sys.stdout.write("\r                                                                                                                                                            ")
+        sys.stdout.write("\r                                                                                                                                                                                ")
         sys.stdout.write("\rSUMMARY of EPOCH = {:2.0f}\n".format(epoch+1))
         if USE_SUPERVISION:
-            print("Training   : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - total_fmap_loss:{:6.2f}".
-                format(giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch, (gb_train+pos_pixel_train)/steps_per_epoch))
+            print("Training   : giou_train:{:7.2f} - conf_train:{:7.2f} - prob_train:{:7.2f} - total_train:{:7.2f} - total_fmap:{:6.2f} - gen:{:7.2f} - disc:{:7.4f}".
+                format(giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch, (gb_train+pos_pixel_train)/steps_per_epoch,gen_loss/steps_per_epoch, disc_loss/steps_per_epoch))
+            # print("Training   : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f} - gen_loss:{:6.3f} - disc_loss:{:6.4f}".
+            #     format(giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch,gen_loss/steps_per_epoch, disc_loss/steps_per_epoch))
         else:
             print("Training   : giou_train_loss:{:7.2f} - conf_train_loss:{:7.2f} - prob_train_loss:{:7.2f} - total_train_loss:{:7.2f}".
                 format(giou_train/steps_per_epoch, conf_train/steps_per_epoch, prob_train/steps_per_epoch, total_train/steps_per_epoch))
@@ -351,7 +382,7 @@ def main():
         validate_writer.flush()
         if USE_SUPERVISION:
             # print validate summary data 
-            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f} - total_fmap_loss:{:6.2f}\n".
+            print("\rValidation : giou_valid:{:7.2f} - conf_valid:{:7.2f} - prob_valid:{:7.2f} - total_valid:{:7.2f} - total_fmap:{:6.2f}\n".
                 format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, (gb_val+pos_pixel_val)/num_testset))
         else:
             # print validate summary data 

@@ -110,7 +110,7 @@ class Dataset(object):
             #Get data inside annotation
             image_path, bboxes_annotations = annotation
             image = cv2.imread(image_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         bboxes = np.array([list(map(float, box.split(','))) for box in bboxes_annotations], np.float32)
         
         #return raw image and bboxes
@@ -138,7 +138,15 @@ class Dataset(object):
             image_x2 = image_preprocess(np.copy(image), self.input_size_x2, sizex2_flag=True)       #flag to use BICUBIC Interpolation
 
         #preprocess, bboxes as (xmin, ymin, xmax, ymax)
-        image, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes, sr_net=self.sr_net)
+        if USE_SUPER_RESOLUTION_INPUT:
+            _, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes)
+            image = image_preprocess(np.copy(image), np.array((np.array(self.input_size, dtype=np.int32)/2), np.int32))
+            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = self.sr_net(image[np.newaxis,...]*255.0, training=False)[0]
+            image = image / 255.0
+            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        else:
+            image, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes, sr_net=self.sr_net)
 
         if USE_SUPERVISION:
             return image, bboxes, image_x2
@@ -370,8 +378,8 @@ class Dataset(object):
             image, bboxes = self.parse_annotation(['./YOLOv4-for-studying/dataset/LG_DATASET/train/images/c1_2020-10-292020-10-29-12-15-58-000137.jpg',['1087,343,1143,438,1','421,260,461,354,1','640,149,672,216,1','1034,151,1062,202,1','505,88,522,144,1','749,103,767,159,1','385,105,406,156,1','579,97,595,146,1','411,98,433,154,1','471,84,494,139,1','286,75,307,121,1','408,29,425,64,1','579,48,589,85,1','425,93,444,149,1','619,37,633,77,1','907,27,916,59,1','259,77,278,120,1','681,89,703,145,1','666,103,683,160,1','400,0,414,23,1','710,100,723,156,1','352,0,365,15,1','599,1,607,30,1','513,2,522,27,1','276,65,292,112,1','405,32,422,65,1','714,107,732,160,1','713,114,726,174,1','724,121,738,177,1','734,135,749,185,1','747,0,757,27,1','276,2,286,31,1','284,0,291,21,1','291,0,300,28,1','316,0,327,22,1','331,0,338,17,1','259,63,271,106,1']])
         else:
             image, bboxes, image_x2 = self.parse_annotation(['./YOLOv4-for-studying/dataset/LG_DATASET/train/images/c1_2020-10-292020-10-29-12-15-58-000137.jpg',['1087,343,1143,438,1','421,260,461,354,1','640,149,672,216,1','1034,151,1062,202,1','505,88,522,144,1','749,103,767,159,1','385,105,406,156,1','579,97,595,146,1','411,98,433,154,1','471,84,494,139,1','286,75,307,121,1','408,29,425,64,1','579,48,589,85,1','425,93,444,149,1','619,37,633,77,1','907,27,916,59,1','259,77,278,120,1','681,89,703,145,1','666,103,683,160,1','400,0,414,23,1','710,100,723,156,1','352,0,365,15,1','599,1,607,30,1','513,2,522,27,1','276,65,292,112,1','405,32,422,65,1','714,107,732,160,1','713,114,726,174,1','724,121,738,177,1','734,135,749,185,1','747,0,757,27,1','276,2,286,31,1','284,0,291,21,1','291,0,300,28,1','316,0,327,22,1','331,0,338,17,1','259,63,271,106,1']])
-            image_x2 = cv2.cvtColor(np.array(image_x2, np.float32), cv2.COLOR_BGR2RGB)
-        image = cv2.cvtColor(np.array(image, np.float32), cv2.COLOR_BGR2RGB)
+            # image_x2 = cv2.cvtColor(np.array(image_x2, np.float32), cv2.COLOR_BGR2RGB)
+        # image = cv2.cvtColor(np.array(image, np.float32), cv2.COLOR_BGR2RGB)
         image_test = draw_bbox(np.copy(image), np.copy(bboxes), CLASSES_PATH=YOLO_CLASS_PATH, show_label=False)
         
         label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes = self.preprocess_true_bboxes(bboxes)

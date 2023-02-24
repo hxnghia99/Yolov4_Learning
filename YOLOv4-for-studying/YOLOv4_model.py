@@ -12,7 +12,7 @@
 from YOLOv4_utils import *
 
 import tensorflow as tf
-from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input, UpSampling2D, Conv2DTranspose, ReLU
+from tensorflow.keras.layers import Conv2D, LeakyReLU, BatchNormalization, ZeroPadding2D, MaxPool2D, Input, UpSampling2D, Conv2DTranspose, ReLU, Dense
 from tensorflow.keras.regularizers import L2
 from YOLOv4_config import *
 from keras_flops import get_flops
@@ -379,13 +379,50 @@ def SR_module_v24(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, nu
         p_hrx2 = p_hrx2 + p_hr      
 
         p_hrx2 = convolutional(p_hrx2, (3,3, num_channels/2, num_channels), downsample=True) #(104x104x128) #14
-        p_hrx2 = convolutional(p_hrx2, (1,1, num_channels, num_channels/2))
+        # p_hrx2 = convolutional(p_hrx2, (1,1, num_channels, num_channels/2))
+    return p_hrx2
+
+#Implementation of feature texture transfer (FTT model)
+def SR_module_v25(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, num_res=1):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
+    #Extract detailed information from LR
+    def content_extractor(conv, num_channels, iterations=num_res):
+        for _ in range(iterations):
+            shortcut = conv
+            conv = convolutional(conv, (1,1, num_channels, num_channels/2), dilation=dilation)
+            conv = convolutional(conv, (3,3, num_channels/2, num_channels), dilation=dilation)
+            conv = shortcut + conv
+        return conv
+    #start the module
+    p_lr = convolutional(p_lr, (1, 1, num_channels, num_channels*4), dilation=dilation) # x4 channels --> num_channels = 4c                     #0 +3->3 (461 +3->464)
+    p_lr = tf.nn.depth_to_space(p_lr, 2)           #pixel shufflement --> num_channels = c                                                      #16
+
+    p_hr = tf.concat([p_lr, p_hr], axis=-1) #(104x104x256)   
+    p_hr = convolutional(p_hr, (1, 1, num_channels*2, num_channels))                                                                                                 #17
+    p_hr = content_extractor(p_hr, num_channels)      #num_channels = c                                                                       #17 +[+3+2+1(add)]x2+3->32
+    
+    #element-wise sum
+    result = p_lr + p_hr                                                                                                                        #33                                    
+    
+    if USE_FTT_DEVELOPING_VERSION and p_hrx2 != None:
+        p_hr = convolutional(result, (1, 1, num_channels, num_channels*2), dilation=dilation) #increase channel x2
+        # p_hr = content_extractor(p_hr, num_channels*2)  
+        p_hr = tf.nn.depth_to_space(p_hr, 2)            #increase resolution x2, channel /4 (208x208x64)
+        
+        # p_hrx2 = convolutional(p_hrx2, (1,1, int(num_channels/2), int(num_channels/2)))
+        p_hrx2 = tf.concat([p_hr, p_hrx2], axis=-1)       # (208x208x128)
+        p_hrx2 = convolutional(p_hrx2, (1, 1, num_channels, num_channels/2)) 
+        p_hrx2 = content_extractor(p_hrx2, num_channels/2)
+        # p_hrx2 = p_hrx2 + p_hr      
+
+        p_hrx2 = convolutional(p_hrx2, (3,3, num_channels/2, num_channels), downsample=True) #(104x104x128) #14
+        # p_hrx2 = convolutional(p_hrx2, (1,1, num_channels, num_channels/2))
     return p_hrx2
 
 #Implementation of feature texture transfer (FTT model)
 def FTT_module(p_lr, p_hr, num_channels=None, dilation=False, num_res=2):       #(p_lr, p_hr, c) = (p5, p4, 512), (p4, p3, 256), (p3, p2, 128)
     #Extract detailed information from LR
     def content_extractor(conv, num_channels, iterations=num_res):
+        #residual block
         for _ in range(iterations):
             shortcut = conv
             conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)
@@ -394,21 +431,24 @@ def FTT_module(p_lr, p_hr, num_channels=None, dilation=False, num_res=2):       
         return conv
     #Extract context information from HR
     def texture_extractor(conv, num_channels, iterations=num_res):
+        #residual block
         for _ in range(iterations):
             shortcut = conv
             conv = convolutional(conv, (1,1, num_channels, num_channels), dilation=dilation)                    
             conv = convolutional(conv, (3,3, num_channels, num_channels), dilation=dilation)
             conv = shortcut + conv
+        #1 conv: to reduce the number of channel
         conv = convolutional(conv, (1,1, num_channels, int(num_channels/2)), dilation=dilation)
         return conv
     #start the module
+    # input: 28x16x128
     p_lr = convolutional(p_lr, (1, 1, num_channels, num_channels*4), dilation=dilation) # x4 channels --> num_channels = 4c                     #0 +3->3 (461 +3->464)
     p_lr = content_extractor(p_lr, num_channels*4)                                                                                              #3 +[+3+2+1(add)]x2->15
     p_lr = tf.nn.depth_to_space(p_lr, 2)           #pixel shufflement --> num_channels = c                                                      #16
-
+    # what is output size? --> 
     p_hr = tf.concat([p_lr, p_hr], axis=-1) #(104x104x256)                                                                                              #17
     p_hr = texture_extractor(p_hr, num_channels*2)      #num_channels = c                                                                       #17 +[+3+2+1(add)]x2+3->32
-    
+    #56x32x128
     #element-wise sum
     result = p_lr + p_hr                                                                                                                        #33                                    
     
@@ -524,8 +564,12 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
                     conv = SR_module_v23(conv, route_2, route_1, 128*k, dilation=dilation)
                 elif SR_MODULE_VERSION == "v2.4":
                     conv = SR_module_v24(conv, route_2, route_1, 128*k, dilation=dilation)
+                elif SR_MODULE_VERSION == "v2.5":
+                    conv = SR_module_v25(conv, route_2, route_1, 128*k, dilation=dilation)
         fmap_P2 = conv
-        if SR_MODULE_VERSION != "v2.4":                                                                                                                           #39       #98
+        if SR_MODULE_VERSION == "v2.4" or SR_MODULE_VERSION == "v2.5":                                                                                                                           #39       #98
+            pass
+        else:
             #Compress information of feature maps
             conv = convolutional(conv, (1, 1, 128*k, 64*k), dilation=dilation) 
             conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
@@ -753,12 +797,13 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
         else:
             route_2 = conv
             fmap_P2 = conv
+            # fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)
             if USE_SUPERVISION and USE_ADAPTATION_LAYER:
                 fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)   #adaptation layer
-            conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)                          #517 520 523
-            conv_sbbox = convolutional(conv, (1, 1, 128*k, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
+            conv = convolutional(conv, (3, 3, 64*k*2, 128*k*2), dilation=dilation)                          #517 520 523
+            conv_sbbox = convolutional(conv, (1, 1, 128*k*2, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
             
-            conv = convolutional(route_2, (3, 3, 64*k, 128*k), downsample=True, dilation=dilation)      #488 + 4 ->492
+            conv = convolutional(route_2, (3, 3, 128*k, 128*k), downsample=True, dilation=dilation)      #488 + 4 ->492
             conv = tf.concat([conv, route_3], axis=-1)                                                  #493
 
             conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)                         #
@@ -1210,6 +1255,91 @@ def create_YOLOv4_backbone(input_channel=3, dilation_bb=False, CLASSES_PATH=None
     YOLOv4_backbone = tf.keras.Model(input_layer, output_tensors)
     return YOLOv4_backbone
 
+
+def srgan_discriminator():
+    x_in = Input(shape=(None, None, 128))
+    input_data = x_in
+    #CSP block 2
+    # First branch
+    route = input_data
+    route = convolutional(route, (1, 1, 128*k, 64*k), activate_type='mish')                        #output: 104 x 104 x 64      #49 +5->54
+    # Second branch
+    input_data = convolutional(input_data, (1, 1, 128*k, 64*k), activate_type='mish')                   #output: 104 x 104 x 64
+    for _ in range(2):
+        input_data = residual_block(input_data, 64*k,  64*k, 64*k, activate_type='mish')                                               #54 +5x2+1(add)+5x2+1(add) ->76
+    input_data = convolutional(input_data, (1, 1, 64*k, 64*k), activate_type='mish')                    #output: 104 x 104 x 64      #76 +5x2(below+above)->86
+    # Concatenation
+    input_data = tf.concat([input_data, route], axis=-1)                                            #outout: 104 x 104 x 128                        #87
+    input_data = convolutional(input_data, (1, 1, 128*k, 128*k), activate_type='mish')                  #output: 104 x 104 x 128     #87 +5->92                  #17
+    # Downsampling
+    input_data = convolutional(input_data, (3, 3, 128*k, 256*k), downsample=True, activate_type='mish') #output: 52 x 52 x 256       #92 +1(ZeroPad)+5->98
+
+    #CSP block 3
+    # First branch
+    route = input_data
+    route = convolutional(route, (1, 1, 256*k, 128*k), activate_type='mish')                       #output: 52 x 52 x 128       #98 +5->103
+    # Second branch
+    input_data = convolutional(input_data, (1, 1, 256*k, 128*k), activate_type='mish')                  #output: 52 x 52 x 128
+    for _ in range(2):
+        input_data = residual_block(input_data, 128*k, 128*k, 128*k, activate_type='mish')                                             #103 +[+5x2+1(add)]x8->191
+    input_data = convolutional(input_data, (1, 1, 128*k, 128*k), activate_type='mish')                  #output: 52 x 52 x 128       #191 +5x2(below+above)->201
+    # Concatenation
+    input_data = tf.concat([input_data, route], axis=-1)                                            #outout: 52 x 52 x 256                          #202
+    input_data = convolutional(input_data, (1, 1, 256*k, 256*k), activate_type='mish')                  #output: 52 x 52 x 256       #202 +5->207                #38
+    # Downsampling
+    input_data = convolutional(input_data, (3, 3, 256*k, 512*k), downsample=True, activate_type='mish') #output: 26 x 26 x 512       #207 +1(ZeroPad)+5->213
+    
+    #CSP block 4
+    # First branch
+    route = input_data
+    route = convolutional(route, (1, 1, 512*k, 256*k), activate_type='mish')                       #output: 26 x 26 x 256       #213 +5->218
+    # Second branch
+    input_data = convolutional(input_data, (1, 1, 512*k, 256*k), activate_type='mish')                  #output: 26 x 26 x 256
+    for _ in range(2):
+        input_data = residual_block(input_data, 256*k, 256*k, 256*k, activate_type='mish')                                             #218 +[+5x2+1]x8->306
+    input_data = convolutional(input_data, (1, 1, 256*k, 256*k), activate_type='mish')                  #output: 26 x 26 x 256       #306 +5x2(below+above)->316
+    # Concatenation
+    input_data = tf.concat([input_data, route], axis=-1)                                            #outout: 26 x 26 x 512                          #317
+    input_data = convolutional(input_data, (1, 1, 512*k, 512*k), activate_type='mish')                  #output: 26 x 26 x 512       #317 +5->322                #59
+    # Downsampling
+    input_data = convolutional(input_data, (3, 3, 512*k, 1024*k), downsample=True, activate_type='mish')#output: 13 x 13 x 1024      #322 +1(ZeroPad)+5->328
+
+    #CSP block 5
+    # First branch
+    route = input_data
+    route = convolutional(route, (1, 1, 1024*k, 512*k), activate_type='mish')                      #output: 13 x 13 x 512       #328 +5->333
+    # Second branch
+    input_data = convolutional(input_data, (1, 1, 1024*k, 512*k), activate_type='mish')                 #output: 13 x 13 x 512
+    for _ in range(4):
+        input_data = residual_block(input_data, 512*k, 512*k, 512*k, activate_type='mish')                                             #333 +[+5x2+1]x4->377
+    input_data = convolutional(input_data, (1, 1, 512*k, 512*k), activate_type='mish')                  #output: 13 x 13 x 512       #377 +5x2(below+above)->387
+    # Concatenation
+    input_data = tf.concat([input_data, route], axis=-1)                                            #output: 13 x 13 x 1024                         #388
+    input_data = convolutional(input_data, (1, 1, 1024*k, 1024*k), activate_type='mish')                #output: 13 x 13 x 1024      #388 +5->393            #72
+    #Compress information of feature map
+    input_data = convolutional(input_data, (1, 1, 1024*k, 512*k))                                       #output: 13 x 13 x 512       #393 +3->396
+    input_data = convolutional(input_data, (3, 3, 512*k, 1024*k))                                       #output: 13 x 13 x 1024      #396 +3->399
+    input_data = convolutional(input_data, (1, 1, 1024*k, 512*k))                                       #output: 13 x 13 x 512       #399 +3->402
+    #SPP block
+    max_pooling_1 = MaxPool2D(pool_size=13, padding='SAME', strides=1)(input_data)                                                                  #403
+    max_pooling_2 = MaxPool2D(pool_size=9, padding='SAME', strides=1)(input_data)                                                                   #404
+    max_pooling_3 = MaxPool2D(pool_size=5, padding='SAME', strides=1)(input_data)                                                             #405
+    input_data = tf.concat([max_pooling_1, max_pooling_2, max_pooling_3, input_data], axis=-1)      #output: 13 x 13 x 2048                         #406
+    input_data = convolutional(input_data, (1, 1, 2048*k, 512*k))                                                                    #406 +3->409
+    input_data = convolutional(input_data, (3, 3, 512*k, 1024*k))                                                                    #409 +3->412
+    input_data = convolutional(input_data, (1, 1, 1024*k, 512*k))                                       #output: 13 x 13 x 512       #412 +3->415   #78
+
+
+
+
+    dense1 = Dense(1024)(input_data)
+    dense1 = LeakyReLU(alpha=0.2)(dense1)
+
+    dense2 = Dense(1, activation='sigmoid')(dense1)
+
+    return tf.keras.models.Model(x_in, dense2, name="SRGAN_Discriminator")
+
+
 if __name__ == '__main__':
     Darknet = YOLOv4_Model(CLASSES_PATH=YOLO_COCO_CLASS_PATH)
     yolo_model = YOLOv4_Model(training=True, Modified_model=False, dilation_bb=False)
@@ -1352,9 +1482,6 @@ if __name__ == '__main__':
 #     conv_lbbox = convolutional(conv, (1, 1, 1024, 3 * (NUM_CLASS + 5)), activate=False, bn=False)
 
 #     return [conv_sbbox, conv_mbbox, conv_lbbox]
-
-
-
 
 
 

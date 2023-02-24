@@ -4,6 +4,27 @@ from tensorflow.keras.layers import (Input, BatchNormalization, Add, Lambda,
 from tensorflow.keras.initializers import Constant
 from tensorflow.keras.models import Model
 from tensorflow.nn import depth_to_space
+import tensorflow as tf
+from tensorflow.keras.applications.vgg19 import VGG19
+from tensorflow.keras.applications.resnet50 import ResNet50
+from ResNet34 import ResNet34
+
+#For loss function
+def resnet_50_model():
+    resnet50 = ResNet50(input_shape=(256,448,3), include_top=False)
+    resnet50 = tf.keras.models.Model(resnet50.layers[45].input, resnet50.layers[174].output)
+    return resnet50
+
+#For loss function
+def vgg_19_model():
+    vgg = VGG19(input_shape=(128,224,3), include_top=False)
+    vgg = tf.keras.models.Model(vgg.layers[6].output, vgg.layers[20].output)
+    return vgg
+
+def resnet_34_model():
+    resnet34 = ResNet34(input_shape=(256,448,3))
+    resnet34 = tf.keras.models.Model(resnet34.layers[45].input, resnet34.layers[156].output)
+    return resnet34
 
 
 
