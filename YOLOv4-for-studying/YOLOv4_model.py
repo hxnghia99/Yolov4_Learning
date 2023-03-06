@@ -17,6 +17,10 @@ from tensorflow.keras.regularizers import L2
 from YOLOv4_config import *
 from keras_flops import get_flops
 
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+
 # #Configure Batch Normalization layer for 2 trainable parameters
 # class BatchNormalization(tf.keras.layers.BatchNormalization):
 #     def call(self, x, training=False):                      # BN has 2 types: training mode , inference mode
@@ -379,7 +383,7 @@ def SR_module_v24(p_lr, p_hr, p_hrx2=None, num_channels=None, dilation=False, nu
         p_hrx2 = p_hrx2 + p_hr      
 
         p_hrx2 = convolutional(p_hrx2, (3,3, num_channels/2, num_channels), downsample=True) #(104x104x128) #14
-        # p_hrx2 = convolutional(p_hrx2, (1,1, num_channels, num_channels/2))
+        p_hrx2 = convolutional(p_hrx2, (1,1, num_channels, num_channels/2))
     return p_hrx2
 
 #Implementation of feature texture transfer (FTT model)
@@ -800,10 +804,10 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
             # fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)
             if USE_SUPERVISION and USE_ADAPTATION_LAYER:
                 fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)   #adaptation layer
-            conv = convolutional(conv, (3, 3, 64*k*2, 128*k*2), dilation=dilation)                          #517 520 523
-            conv_sbbox = convolutional(conv, (1, 1, 128*k*2, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
+            conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)                          #517 520 523
+            conv_sbbox = convolutional(conv, (1, 1, 128*k, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
             
-            conv = convolutional(route_2, (3, 3, 128*k, 128*k), downsample=True, dilation=dilation)      #488 + 4 ->492
+            conv = convolutional(route_2, (3, 3, 64*k, 128*k), downsample=True, dilation=dilation)      #488 + 4 ->492
             conv = tf.concat([conv, route_3], axis=-1)                                                  #493
 
             conv = convolutional(conv, (1, 1, 256*k, 128*k), dilation=dilation)                         #

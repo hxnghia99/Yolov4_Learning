@@ -110,9 +110,10 @@ class Dataset(object):
             #Get data inside annotation
             image_path, bboxes_annotations = annotation
             image = cv2.imread(image_path)
-            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        bboxes = np.array([list(map(float, box.split(','))) for box in bboxes_annotations], np.float32)
-        
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        bboxes = list(np.array([list(map(float, box.split(','))) for box in bboxes_annotations], np.float32))
+        bboxes.sort(key=lambda x: (x[2]-x[0]+1)*(x[3]-x[1]+1))
+        bboxes = np.array(bboxes, np.float32)
         #return raw image and bboxes
         if mAP:
             return image, bboxes

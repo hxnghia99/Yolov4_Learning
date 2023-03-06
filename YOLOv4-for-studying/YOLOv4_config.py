@@ -22,11 +22,11 @@ MODEL_BRANCH_TYPE               = ["P2", "P5m"]
 USE_FTT_P2                      = True                             #affect new backbone CSPDarknet52
 USE_FTT_P3                      = False                             
 USE_FTT_P4                      = False
-USE_FTT_DEVELOPING_VERSION      = True                             #activate SR-module
-SR_MODULE_VERSION               = "v2.4"                            # in list ['v2.2', 'v2.3', 'v2.4']
+USE_FTT_DEVELOPING_VERSION      = False                             #activate SR-module
+SR_MODULE_VERSION               = "v2.2"                            # in list ['v2.2', 'v2.3', 'v2.4']
 USE_SDCAB_BLOCK_IN_FTT          = False
 USE_NEW_BACKBONE                = False                             #Force to use NEW BACKBONE CSPDARKNET52 regardless of above model settings
-USE_SUPERVISION                 = True                             #when True, use at least 1 FTT module --> create teacher model
+USE_SUPERVISION                 = False                             #when True, use at least 1 FTT module --> create teacher model
 USE_ADAPTATION_LAYER            = False
 LAMDA_FMAP_LOSS                 = 100
 TEACHER_DILATION                = False                             #teacher uses dilation convolution or not
@@ -36,7 +36,7 @@ CHANNEL_TIMES_K                 = 1
 TEST_FLOPS                      = True
 
 USE_SUPER_RESOLUTION_INPUT      = False
-
+USE_GAN_LIKE_TRAINING           = False
 """
 MODEL_BRANCH_TYPE = [largest layer to be head, stop layer of backbone]
     - original    =             P3n         |           P5n     xxx
@@ -93,7 +93,10 @@ TEST_INPUT_SIZE                 = YOLO_INPUT_SIZE
 TEST_DATA_AUG                   = False
 
 #Anchor box settings
-YOLO_MAX_BBOX_PER_SCALE         = 64
+if TRAINING_DATASET_TYPE == "VISDRONE":
+    YOLO_MAX_BBOX_PER_SCALE         = 180
+elif TRAINING_DATASET_TYPE == "LG":
+    YOLO_MAX_BBOX_PER_SCALE         = 64
 ANCHORS_PER_GRID_CELL           = 3
 ANCHORS_PER_GRID_CELL_SMALL     = 5
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
@@ -126,16 +129,18 @@ if USE_NEW_BACKBONE:
 # YOLO_ANCHORS                    = [[[5, 8], [8, 18], [14, 12]],
 #                                    [[16, 28], [29, 18], [27, 43]],
 #                                    [[53, 29], [60, 60], [123, 97]]]
-# #5 Visdrone anchors 416x416 only for sliced images
-if USE_5_ANCHORS_SMALL_SCALE:
-    ADDITIONAL_SMALL_ANCHOR         = [2, 18]
-    YOLO_ANCHORS                    = [np.array([[7, 9], [10, 18], [21, 14], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
-                                    np.array([[16, 28], [38, 23], [25, 42]]),
-                                    np.array([[69, 38], [45, 67], [111, 95]])]
-else:
-    YOLO_ANCHORS                    = np.array([np.array([[7, 9], [10, 18], [21, 14]]),
-                                    np.array([[16, 28], [38, 23], [25, 42]]),
-                                    np.array([[69, 38], [45, 67], [111, 95]])])
+
+if TRAINING_DATASET_TYPE == "LG":
+    #5 Visdrone anchors 416x416 only for sliced images
+    if USE_5_ANCHORS_SMALL_SCALE:
+        ADDITIONAL_SMALL_ANCHOR         = [2, 18]
+        YOLO_ANCHORS                    = [np.array([[7, 9], [10, 18], [21, 14], ADDITIONAL_SMALL_ANCHOR, ADDITIONAL_SMALL_ANCHOR]),
+                                        np.array([[16, 28], [38, 23], [25, 42]]),
+                                        np.array([[69, 38], [45, 67], [111, 95]])]
+    else:
+        YOLO_ANCHORS                    = np.array([np.array([[7, 9], [10, 18], [21, 14]]),
+                                        np.array([[16, 28], [38, 23], [25, 42]]),
+                                        np.array([[69, 38], [45, 67], [111, 95]])])
 
 # # #6 LG-5k-v3 size 224x128:
 # if USE_5_ANCHORS_SMALL_SCALE:
@@ -169,6 +174,14 @@ else:
 #     YOLO_ANCHORS                    = [ np.array([[6, 12], [14, 12], [10, 21]])/2,
 #                                         np.array([[36, 20], [22, 36], [50, 32]])/2,
 #                                         np.array([[64, 70], [57, 96], [119, 63]])/2]
+
+elif TRAINING_DATASET_TYPE == "VISDRONE":
+    #9 Visdrone anchors 992x640
+    YOLO_ANCHORS                    = np.array([[[3, 4], [7, 8], [15, 13]],            #224x128
+                                    [[22, 30], [34, 20], [45, 37]],
+                                    [[88, 58], [65, 83], [127, 64]]]) * (2 if YOLO_INPUT_SIZE[0]==960 else 1)
+
+
 
 #Training settings
 TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according validation loss (True recommended)

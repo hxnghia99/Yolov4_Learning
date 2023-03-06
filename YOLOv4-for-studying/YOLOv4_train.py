@@ -83,14 +83,14 @@ def main():
         # for i in range(462):
         #     yolo.layers[i].set_weights(yolo_teacher.layers[i].get_weights())
 
-        #discriminator model:
-        discriminator = srgan_discriminator()
-
-        #Perceptual loss for GAN
-        # vgg = vgg_19_model()
-        resnet34 = resnet_34_model()
-
-        disc_optimizer = tf.keras.optimizers.Adam()
+        if USE_GAN_LIKE_TRAINING:
+            #discriminator model:
+            discriminator = srgan_discriminator()
+            #Perceptual loss for GAN
+            # vgg = vgg_19_model()
+            resnet34 = resnet_34_model()
+            disc_optimizer = tf.keras.optimizers.Adam()
+            
         # #care: 511, 512, 513
         # for i in range(439, 514):
         #     name = yolo_teacher.layers[i].name
@@ -166,7 +166,6 @@ def main():
                     lr = TRAIN_LR_END + 0.5 * (TRAIN_LR_INIT - TRAIN_LR_END)*(
                         (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))    
                 optimizer.lr.assign(lr.numpy())
-                disc_optimizer.lr.assign(lr.numpy())
                 #increase global steps 
                 global_steps.assign_add(1)
 
@@ -219,7 +218,7 @@ def main():
                         fmap_teacher = fmap_backbone[i]
                         conv_teacher = conv_backbone[i]
                         loss_items = compute_loss(pred, conv, *target[i], i, CLASSES_PATH=YOLO_CLASS_PATH, fmap_teacher=conv_teacher, fmap_student=conv_student, fmap_student_mid=fmap_student, fmap_teacher_mid=fmap_teacher)
-                    if i==0:
+                    if i==0 and USE_GAN_LIKE_TRAINING:
                         fmap_student = pred_result[6]
                         fmap_student_output = discriminator(fmap_student, training=True)
                         fmap_teacher = fmap_backbone[0]
@@ -227,6 +226,9 @@ def main():
                         gan_loss_items = GAN_loss(fmap_student, fmap_teacher, fmap_student_output, fmap_teacher_output, resnet34)
                         gen_loss        += gan_loss_items[0]
                         disc_loss       += gan_loss_items[1]
+                    else:
+                        gen_loss = tf.Variable(0.0)
+                        disc_loss = tf.Variable(0.0)
                     giou_loss       += loss_items[0]
                     conf_loss       += loss_items[1]
                     prob_loss       += loss_items[2]
@@ -237,9 +239,9 @@ def main():
                 #backpropagate
                 model_gradients = model_tape.gradient(total_loss, yolo.trainable_variables)
                 optimizer.apply_gradients(zip(model_gradients, yolo.trainable_variables))
-
-                discriminator_gradients = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
-                disc_optimizer.apply_gradients(zip(discriminator_gradients, discriminator.trainable_variables))
+                if USE_GAN_LIKE_TRAINING:
+                    discriminator_gradients = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
+                    disc_optimizer.apply_gradients(zip(discriminator_gradients, discriminator.trainable_variables))
                 # update learning rate
                 if global_steps < warmup_steps:
                     lr = global_steps / warmup_steps * TRAIN_LR_INIT
@@ -247,6 +249,8 @@ def main():
                     lr = TRAIN_LR_END + 0.5 * (TRAIN_LR_INIT - TRAIN_LR_END)*(
                         (1 + tf.cos((global_steps - warmup_steps) / (total_steps - warmup_steps) * np.pi)))    
                 optimizer.lr.assign(lr.numpy())
+                if USE_GAN_LIKE_TRAINING:
+                    disc_optimizer.lr.assign(lr.numpy())
                 #increase global steps 
                 global_steps.assign_add(1)
 
@@ -260,8 +264,9 @@ def main():
                     if USE_SUPERVISION:
                         tf.summary.scalar("training_loss/gb_loss", gb_loss, step=global_steps)
                         tf.summary.scalar("training_loss/pos_pixel_loss", pos_pixel_loss, step=global_steps)
-                        tf.summary.scalar("training_loss/generator_loss", gen_loss, step=global_steps)
-                        tf.summary.scalar("training_loss/discriminator_loss", disc_loss, step=global_steps)
+                        if USE_GAN_LIKE_TRAINING:
+                            tf.summary.scalar("training_loss/generator_loss", gen_loss, step=global_steps)
+                            tf.summary.scalar("training_loss/discriminator_loss", disc_loss, step=global_steps)
                 training_writer.flush()   
             return global_steps.numpy(), optimizer.lr.numpy(), giou_loss.numpy(), conf_loss.numpy(), prob_loss.numpy(), total_loss.numpy(), gb_loss.numpy(), pos_pixel_loss.numpy(), gen_loss.numpy(), disc_loss.numpy()
 
@@ -312,8 +317,9 @@ def main():
                 total_train += results[5]    
                 gb_train += results[6]
                 pos_pixel_train += results[7]
-                gen_loss += results[8]
-                disc_loss += results[9]
+                if USE_GAN_LIKE_TRAINING:
+                    gen_loss += results[8]
+                    disc_loss += results[9]
             else:
                 sys.stdout.write("\rEpoch ={:2.0f} step= {:5.0f}/{} : lr={:.10f} - giou_loss={:8.4f} - conf_loss={:10.4f} - prob_loss={:8.4f} - total_loss={:10.4f}"
                     .format(epoch+1, current_step, steps_per_epoch, results[1], results[2], results[3], results[4], results[5]))
@@ -331,8 +337,9 @@ def main():
             if USE_SUPERVISION:
                 tf.summary.scalar("loss/gb_val", gb_train/steps_per_epoch, step=epoch)
                 tf.summary.scalar("loss/pos_pixel_val", pos_pixel_train/steps_per_epoch, step=epoch)
-                tf.summary.scalar("loss/gen_loss", gen_loss/steps_per_epoch, step=epoch)
-                tf.summary.scalar("loss/disc_loss", disc_loss/steps_per_epoch, step=epoch)
+                if USE_GAN_LIKE_TRAINING:
+                    tf.summary.scalar("loss/gen_loss", gen_loss/steps_per_epoch, step=epoch)
+                    tf.summary.scalar("loss/disc_loss", disc_loss/steps_per_epoch, step=epoch)
         training_writer.flush()
 
         # print validate summary data
