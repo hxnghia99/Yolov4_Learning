@@ -224,16 +224,15 @@ def main():
                         fmap_teacher = fmap_backbone[0]
                         fmap_teacher_output = discriminator(fmap_teacher, training=True)
                         gan_loss_items = GAN_loss(fmap_student, fmap_teacher, fmap_student_output, fmap_teacher_output, resnet34)
-                        gen_loss        += gan_loss_items[0]
-                        disc_loss       += gan_loss_items[1]
                     else:
-                        gen_loss = tf.Variable(0.0)
-                        disc_loss = tf.Variable(0.0)
+                        gan_loss_items = tf.Variable([0.0, 0.0])
                     giou_loss       += loss_items[0]
                     conf_loss       += loss_items[1]
                     prob_loss       += loss_items[2]
                     gb_loss         += loss_items[3]
                     pos_pixel_loss  += loss_items[4]
+                    gen_loss        += gan_loss_items[0]
+                    disc_loss       += gan_loss_items[1]
                 #calculate total of loss
                 total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss + gen_loss
                 #backpropagate

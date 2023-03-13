@@ -43,8 +43,8 @@ def GAN_loss(fmap_student, fmap_teacher, student_output, teacher_output, model):
         sr_loss = binary_cross_entropy(tf.zeros_like(sr_out), sr_out)
         return hr_loss + sr_loss
 
-    perceptual_loss = (cont_loss(fmap_student, fmap_teacher)*1.5 + 0.001*adversarial_loss(student_output))
-    disc_loss = discriminator_loss(teacher_output, student_output)*100
+    perceptual_loss = (cont_loss(fmap_student, fmap_teacher)*1.5 + 0.001*adversarial_loss(student_output))*10
+    disc_loss = discriminator_loss(teacher_output, student_output)*1000
     
     return perceptual_loss, disc_loss
 
@@ -271,10 +271,10 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # teacher_pred_prob   = decode_fmap_teacher[:,:,:,:,5:]
         # prob_loss           = frgrd_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=teacher_pred_prob, logits=student_raw_prob)
 
-        # alpha = 1.0
-        # giou_loss = alpha*tf.reduce_mean(tf.reduce_sum(giou_loss, axis=[1,2,3,4])) #+ (1-alpha)*giou_loss_1
-        # conf_loss = alpha*tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4])) #+ (1-alpha)*conf_loss_1
-        # prob_loss = alpha*tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4])) #+ (1-alpha)*prob_loss_1
+        # alpha = 0.2
+        # giou_loss = alpha*tf.reduce_mean(tf.reduce_sum(giou_loss, axis=[1,2,3,4])) + (1-alpha)*giou_loss_1
+        # conf_loss = alpha*tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4])) + (1-alpha)*conf_loss_1
+        # prob_loss = alpha*tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4])) + (1-alpha)*prob_loss_1
         
         # if fmap_teacher_mid == None:
         #     gb_loss = tf.Variable(0.0)

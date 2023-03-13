@@ -149,6 +149,14 @@ class Dataset(object):
         else:
             image, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes, sr_net=self.sr_net)
 
+        if FILTER_GT_BBOX_SIZE:
+            temp = []
+            for bbox in bboxes:
+                num_pixels = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+                if num_pixels >= MIN_NUM_PIXEL:
+                    temp.append(bbox)
+            bboxes = temp
+
         if USE_SUPERVISION:
             return image, bboxes, image_x2
 
@@ -161,7 +169,7 @@ class Dataset(object):
         #shape [3, gcell, gcell, anchors, 5 + num_classes]
         label = [np.zeros((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell_small if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
                             for i in range(self.num_output_levels)]
-        bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4), dtype=np.float32) for _ in range(self.num_output_levels)]
+        bboxes_xywh = [np.zeros((self.max_bbox_per_scale[0], 4), dtype=np.float32), np.zeros((self.max_bbox_per_scale[1], 4), dtype=np.float32), np.zeros((self.max_bbox_per_scale[2], 4), dtype=np.float32)]
         bboxes_idx = np.zeros((self.num_output_levels,), dtype=np.int32)  
         if USE_5_ANCHORS_SMALL_SCALE:
             label_flag =  [np.ones((self.output_gcell_sizes_h[i], self.output_gcell_sizes_w[i], self.num_anchors_per_gcell_small if (i==0 and USE_5_ANCHORS_SMALL_SCALE) else self.num_anchors_per_gcell), dtype=np.bool_)
@@ -212,7 +220,7 @@ class Dataset(object):
                         label_flag[i][row,column,best_idx] = False
                     #store true bboxes at scale i
                     if TRAINING_DATASET_TYPE == "VISDRONE":
-                        bboxes_id = int(bboxes_idx[i] % self.max_bbox_per_scale)
+                        bboxes_id = int(bboxes_idx[i] % self.max_bbox_per_scale[i])
                         bboxes_xywh[i][bboxes_id, :4]   = bbox_xywh
                     else:
                         bboxes_xywh[i][bboxes_idx[i], :4]   = bbox_xywh
@@ -235,7 +243,7 @@ class Dataset(object):
                 label[best_scale_idx][row, column, best_anchor_idx, 5:] = smooth_onehot
                 #store true bbox corresponding to the above label bbox
                 if TRAINING_DATASET_TYPE == "VISDRONE":
-                    bboxes_id = int(bboxes_idx[best_scale_idx] % self.max_bbox_per_scale)
+                    bboxes_id = int(bboxes_idx[best_scale_idx] % self.max_bbox_per_scale[best_scale_idx])
                     bboxes_xywh[best_scale_idx][bboxes_id, :4] = bbox_xywh
                 else:
                     bboxes_xywh[best_scale_idx][bboxes_idx[best_scale_idx], :4] = bbox_xywh
@@ -260,9 +268,9 @@ class Dataset(object):
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
             batch_label_lbboxes = np.zeros((self.batch_size, self.output_gcell_sizes_h[2], self.output_gcell_sizes_w[2],
                                             self.num_anchors_per_gcell, 5 + self.num_classes), dtype=np.float32)
-            batch_sbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32)
-            batch_mbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32)
-            batch_lbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32)
+            batch_sbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale[0], 4), dtype=np.float32)
+            batch_mbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale[1], 4), dtype=np.float32)
+            batch_lbboxes       = np.zeros((self.batch_size, self.max_bbox_per_scale[2], 4), dtype=np.float32)
             #Read annotations, then read image and label, finally store them
             num_annotations = 0
             if self.batchs_count < self.num_batchs:

@@ -9,7 +9,6 @@
 #===============================================================#
 
 # TRAINING INFORMATION
-#YOLOv4-FTT-P2 + whole-LG
 
 import numpy as np
 
@@ -28,7 +27,7 @@ USE_SDCAB_BLOCK_IN_FTT          = False
 USE_NEW_BACKBONE                = False                             #Force to use NEW BACKBONE CSPDARKNET52 regardless of above model settings
 USE_SUPERVISION                 = False                             #when True, use at least 1 FTT module --> create teacher model
 USE_ADAPTATION_LAYER            = False
-LAMDA_FMAP_LOSS                 = 100
+LAMDA_FMAP_LOSS                 = 200
 TEACHER_DILATION                = False                             #teacher uses dilation convolution or not
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION         #teacher uses weights from student or fixed pretrained weights
 USE_5_ANCHORS_SMALL_SCALE       = False and (not USE_SUPERVISION)   #do not use together with SUPERVISION
@@ -77,14 +76,17 @@ OVERLAP_RATIO                   = [0.2, 0.2]
 MIN_AREA_RATIO                  = 0.2
 
 
-TRAIN_BATCH_SIZE                = 6
-TEST_BATCH_SIZE                 = 6
+TRAIN_BATCH_SIZE                = 16
+TEST_BATCH_SIZE                 = 16
 
 #overall settings
 YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
 YOLO_V4_COCO_WEIGHTS            = "YOLOv4-for-studying/model_data/yolov4.weights"
-YOLO_INPUT_SIZE                 = [224, 128]
 USE_LOADED_WEIGHT               = True
+
+YOLO_INPUT_SIZE                 = [224, 128]
+FILTER_GT_BBOX_SIZE             = True
+MIN_NUM_PIXEL                   = 8
 
 #Dataset configurations
 TRAIN_INPUT_SIZE                = YOLO_INPUT_SIZE
@@ -94,9 +96,9 @@ TEST_DATA_AUG                   = False
 
 #Anchor box settings
 if TRAINING_DATASET_TYPE == "VISDRONE":
-    YOLO_MAX_BBOX_PER_SCALE         = 180
+    YOLO_MAX_BBOX_PER_SCALE         = [180, 180, 180]
 elif TRAINING_DATASET_TYPE == "LG":
-    YOLO_MAX_BBOX_PER_SCALE         = 64
+    YOLO_MAX_BBOX_PER_SCALE         = [64, 64, 64]
 ANCHORS_PER_GRID_CELL           = 3
 ANCHORS_PER_GRID_CELL_SMALL     = 5
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
@@ -140,7 +142,7 @@ if TRAINING_DATASET_TYPE == "LG":
     else:
         YOLO_ANCHORS                    = np.array([np.array([[7, 9], [10, 18], [21, 14]]),
                                         np.array([[16, 28], [38, 23], [25, 42]]),
-                                        np.array([[69, 38], [45, 67], [111, 95]])])
+                                        np.array([[69, 38], [45, 67], [111, 95]])]) * (2 if YOLO_INPUT_SIZE[0]==448 else 1)
 
 # # #6 LG-5k-v3 size 224x128:
 # if USE_5_ANCHORS_SMALL_SCALE:
@@ -188,14 +190,14 @@ TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according valida
 TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 50
-TRAIN_LR_END                    = 1e-6
+TRAIN_EPOCHS                    = 80
+TRAIN_LR_END                    = 5e-7
 if MODEL_BRANCH_TYPE[0] == "P(-1)":
     TRAIN_LR_INIT               = 2e-3
 elif MODEL_BRANCH_TYPE[0] == "P0":
     TRAIN_LR_INIT               = 1e-3
 elif MODEL_BRANCH_TYPE[0] == "P3n" or MODEL_BRANCH_TYPE[0] == "P2":
-    TRAIN_LR_INIT               = 1e-4
+    TRAIN_LR_INIT               = 5e-5
 YOLO_LOSS_IOU_THRESHOLD         = 0.5
 
 
@@ -213,10 +215,10 @@ elif TRAINING_DATASET_TYPE == "LG":
     YOLO_CLASS_PATH             = "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt"
     # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
     # VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_100samples.txt"
-    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
-    # VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
-    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_5k.txt"
-    VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/validate_700.txt"
+    TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_lg_total.txt"
+    VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"
+    # TRAIN_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/train_5k.txt"
+    # VALID_ANNOTATION_PATH       = "YOLOv4-for-studying/dataset/LG_DATASET/validate_700.txt"
     RELATIVE_PATH               = 'E:/dataset/TOTAL/'
     PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
     
@@ -276,8 +278,8 @@ if EVALUATION_DATASET_TYPE == "COCO":
     VALIDATE_MAP_RESULT_PATH    = "YOLOv4-for-studying/mAP/results_coco.txt"
 
 elif EVALUATION_DATASET_TYPE == "LG":
-    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
-    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/evaluate_1300.txt" 
+    TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/test_lg_total.txt"  
+    # TEST_ANNOTATION_PATH        = "YOLOv4-for-studying/dataset/LG_DATASET/evaluate_1300.txt" 
     if EVALUATE_TRANSFER:
         EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
         # EVALUATION_WEIGHT_FILE  = f"YOLOv4-for-studying/checkpoints/checkpoints_original_subset_224x128/{EVALUATION_DATASET_TYPE.lower()}_dataset_transfer_{YOLO_INPUT_SIZE[0]}x{YOLO_INPUT_SIZE[1]}/yolov4_{EVALUATION_DATASET_TYPE.lower()}_transfer"
