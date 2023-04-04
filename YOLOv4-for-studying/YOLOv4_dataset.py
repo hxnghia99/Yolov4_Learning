@@ -163,11 +163,11 @@ class Dataset(object):
                     temp.append(bbox)
             bboxes = temp
 
-        image_test = draw_bbox(np.array(image*255.0, np.uint8), np.round(bboxes), YOLO_CLASS_PATH)
-        cv2.imshow("test", cv2.resize(image_test, (960,540)))
-        if cv2.waitKey() == 'q':
-            pass
-        print("A")
+        # image_test = draw_bbox(np.array(image*255.0, np.uint8), np.round(bboxes), YOLO_CLASS_PATH)
+        # cv2.imshow("test", cv2.resize(image_test, (960,540)))
+        # if cv2.waitKey() == 'q':
+        #     pass
+        # print("A")
 
         if USE_SUPERVISION:
             return image, bboxes, image_x2
@@ -346,7 +346,9 @@ class Dataset(object):
             _, w, _ = image.shape
             image = image[:, ::-1, :]
             bboxes[:, [0,2]] = w - bboxes[:, [2,0]]         #change xmin, xmax after flip
-            if list(image_sr)!=None:
+            if image_sr==None:
+                pass
+            else:
                 image_sr = image_sr[:, ::-1, :]
         return image, bboxes, image_sr
         
@@ -373,7 +375,9 @@ class Dataset(object):
             bboxes[:, [0, 2]] = bboxes[:, [0, 2]] - crop_xmin
             bboxes[:, [1, 3]] = bboxes[:, [1, 3]] - crop_ymin
             #apply to SR-image
-            if list(image_sr)!=None:
+            if image_sr==None:
+                pass
+            else:
                 h_sr, w_sr,_ = image_sr.shape
                 crop_xmin_sr = round(crop_xmin*w_sr/w)
                 crop_ymin_sr = round(crop_ymin*h_sr/h)
@@ -404,7 +408,9 @@ class Dataset(object):
             bboxes[:, [0, 2]] = bboxes[:, [0, 2]] + tx
             bboxes[:, [1, 3]] = bboxes[:, [1, 3]] + ty
             #apply to SR-image
-            if list(image_sr)!=None:
+            if image_sr==None:
+                pass
+            else:
                 h_sr, w_sr,_ = image_sr.shape
                 tx_sr = tx*w_sr/w
                 ty_sr = ty*h_sr/h
