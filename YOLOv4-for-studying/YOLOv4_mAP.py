@@ -22,6 +22,7 @@ from YOLOv4_slicing import *
 import shutil
 import json
 import time
+import glob
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if len(gpus) > 0:
@@ -58,7 +59,7 @@ def all_points_interpolation_AP(prec, rec):
 
 #Calculate AP for each class, mAP of the model
 def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_threshold=VALIDATE_IOU_THRESHOLD, TEST_INPUT_SIZE=TEST_INPUT_SIZE, 
-            CLASSES_PATH=YOLO_COCO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH, sr_net=None):
+            CLASSES_PATH=YOLO_COCO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH):
     if USE_PRIMARY_EVALUATION_METRIC:
         MIN_OVERLAP_RANGE = np.array([50+i*5 for i in range(10)], dtype=np.int32)
         print(f"\n Calculating primary mAP (0.5:0.95)... \n")
@@ -86,14 +87,22 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     gt_counter_per_class_large = {}
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
-        original_image, gt_bboxes = dataset.parse_annotation(annotation, mAP=True)
+        if USE_SUPER_RESOLUTION_INPUT:
+            original_image, gt_bboxes, _  = dataset.parse_annotation(annotation, True)
+        else:
+            original_image, gt_bboxes  = dataset.parse_annotation(annotation, True)
         original_h, original_w, _ = original_image.shape
-
 
         #eliminate ignored region class and "other" class
         if EVALUATION_DATASET_TYPE == "VISDRONE":
             bbox_mask = np.logical_and(gt_bboxes[:,4]>-0.5, gt_bboxes[:,4]<9.5)
             gt_bboxes = gt_bboxes[bbox_mask]
+
+        if FILTER_GT_BBOX_SIZE:
+            _, gt_bboxes_resized = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE, np.copy(gt_bboxes))
+            gt_bboxes_flag = np.multiply.reduce(np.array(gt_bboxes_resized)[:,2:4] - np.array(gt_bboxes_resized)[:,0:2], axis=-1) >= MIN_NUM_PIXEL
+            gt_bboxes = np.array(gt_bboxes)[gt_bboxes_flag]
+
 
         num_gt_bboxes = len(gt_bboxes)
         if len(gt_bboxes) == 0:
@@ -266,28 +275,22 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     json_pred = [[] for _ in range(num_gt_classes)]
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
-        original_image, bboxes = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
-        
+        if USE_SUPER_RESOLUTION_INPUT:
+            original_image, _, image = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
+        else:
+            original_image, _ = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
+            
         original_h, original_w, _ = original_image.shape
         # Create a new model using image original size scaling to 32
         if EVALUATE_ORIGINAL_SIZE:
             TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
         
-        # t1 = time.time()
-        # #preprocess, bboxes as (xmin, ymin, xmax, ymax)
-        # if USE_SUPER_RESOLUTION_INPUT:
-        #     _, bboxes = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE, bboxes)
-        #     image = image_preprocess(np.copy(original_image), [224, 128])
-        #     # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        #     image = sr_net(image[np.newaxis,...]*255.0, training=False)[0]
-            
-        #     image = image / 255.0
-        #     image_data = image[np.newaxis, ...]
-        # else:
-        image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
+        if USE_SUPER_RESOLUTION_INPUT:
+            image = image_preprocess(np.copy(image), TEST_INPUT_SIZE)
+        else:
+            image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
         image_data = image[np.newaxis, ...].astype(np.float32)
         
-
         #measure time to make prediction
         t1 = time.time()
         pred_bboxes = Yolo(image_data, training=False)
@@ -331,6 +334,12 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             #getting mask of removed bboxes
             removed_bbox_mask = tf.math.logical_or(removed_ignored_mask, removed_other_mask)
             pred_bboxes = tf.expand_dims(pred_bboxes, axis=0)[tf.expand_dims(tf.math.logical_not(removed_bbox_mask), axis=0)]
+
+            if FILTER_GT_BBOX_SIZE:
+                _, pred_bboxes_resized = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE, np.copy(pred_bboxes))
+                pred_bboxes_flag = np.multiply.reduce(np.array(pred_bboxes_resized)[:,2:4] - np.array(pred_bboxes_resized)[:,0:2], axis=-1) >= MIN_NUM_PIXEL
+                pred_bboxes = np.array(pred_bboxes)[pred_bboxes_flag]
+
 
         # test_image = draw_bbox(cv2.cvtColor(np.copy(original_image), cv2.COLOR_BGR2RGB), np.copy(bboxes), "YOLOv4-for-studying/dataset/LG_DATASET/lg_class_names.txt", show_label=True)
         # cv2.imshow("Ground truth", cv2.resize(test_image, (1280, 720)))
@@ -405,8 +414,13 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                                                     np.min((gt_coordinates[2], pred_coordinates[2])),
                                                     np.min((gt_coordinates[3], pred_coordinates[3]))])
                             intersect_w, intersect_h = intersection[2:] - intersection[:2]
+                            # intersect_w, intersect_h = intersection[2:] - intersection[:2] + 1
                             if intersect_w > 0 and intersect_h > 0:
                                 overlap = bboxes_iou_from_minmax(gt_coordinates[np.newaxis,:], pred_coordinates[np.newaxis,:])
+                                # # compute overlap (IoU) = area of intersection / area of union
+                                # union_area = (pred_coordinates[2] - pred_coordinates[0] + 1) * (pred_coordinates[3] - pred_coordinates[1] + 1) + \
+                                # (gt_coordinates[2] - gt_coordinates[0]+ 1) * (gt_coordinates[3] - gt_coordinates[1] + 1) - intersect_w * intersect_h
+                                # overlap = intersect_w * intersect_h / union_area
                                 if overlap > overlap_max:
                                     overlap_max = overlap
                                     gt_match = obj
@@ -637,9 +651,9 @@ def load_weights_old_new(weights_file):
 
 if __name__ == '__main__':
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
-    # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_P0/yolov4_lg_transfer"
-    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128/epoch-46_valid-loss-13.22/yolov4_lg_transfer"
-    # weights_file = "YOLOv4-for-studying/checkpoints/epoch-33_valid-loss-276.93/yolov4_visdrone_from_scratch"
+    # weights_file = "YOLOv4-for-studying/checkpoints/epoch-50_valid-loss-7.69/yolov4_lg_transfer"
+    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224X128/epoch-70_valid-loss-6.94/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/Num-209_visdrone_dataset_transfer_480x288_origin/epoch-51_valid-loss-267.88/yolov4_visdrone_transfer"
     # weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False)
     # yolo = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
@@ -647,6 +661,8 @@ if __name__ == '__main__':
     # yolo = load_weights_old_new(weights_file)
 
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE, EVAL_MODE=True)
+    
+    
     if USE_CUSTOM_WEIGHTS:
         if EVALUATION_DATASET_TYPE == "COCO":
             load_yolov4_weights(yolo, weights_file)
@@ -656,14 +672,15 @@ if __name__ == '__main__':
     # temp = len(yolo.weights)
     # for i in range(temp):
     #     yolot.weights[i].assign(yolo.weights[i])
-        
-    #Super-resolution network initialization
-    if USE_SUPER_RESOLUTION_INPUT:
-        sr_net             = edsr()
-        sr_net.load_weights(SR_NETWORK_WEIGHT_PATH)
-    
-
     get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
-            CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH, sr_net=sr_net if USE_SUPER_RESOLUTION_INPUT else None)
+            CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)
 
 
+    # PATH = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_448x256/*"
+    # list_path = glob.glob(PATH)
+    # for i,path in enumerate(list_path):
+    #     VALIDATE_MAP_RESULT_PATH = f"YOLOv4-for-studying/mAP/results-lg_{i+51}.txt"
+    #     yolo.load_weights(path + "/yolov4_lg_transfer")
+
+    #     get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
+    #         CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)

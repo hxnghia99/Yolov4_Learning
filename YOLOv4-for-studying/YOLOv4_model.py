@@ -117,8 +117,8 @@ def residual_block(input_layer, input_channel, filter_num1, filter_num2, activat
 
 #Define CSPDarknet53 network architecture
 def CSPDarknet53(input_data, dilation=False):
-    input_data = convolutional(input_data, (3, 3, 3, 32*k), activate_type="mish", dilation=dilation)                     #output: 416 x 416 x 32  # 0(input) +5 -> 5 
     route_0 = input_data
+    input_data = convolutional(input_data, (3, 3, 3, 32*k), activate_type="mish", dilation=dilation)                     #output: 416 x 416 x 32  # 0(input) +5 -> 5 
     input_data = convolutional(input_data, (3, 3, 32*k, 64*k), downsample=True, activate_type='mish', dilation=dilation)   #output: 208 x 208 x 64  # 5 +1(ZeroPad)+5->11           #2
 
     #CSP block 1
@@ -262,7 +262,7 @@ def CSPDarknet53(input_data, dilation=False):
         elif MODEL_BRANCH_TYPE[1] == "P5n":
             return route_2, route_3, route_4, input_data
         elif MODEL_BRANCH_TYPE[1] == "P5m":
-            return route_1, route_2, route_3, route_4, input_data
+            return route_0, route_1, route_2, route_3, route_4, input_data
 
 
 #Implementation of feature texture transfer (FTT model)
@@ -502,7 +502,7 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
     elif MODEL_BRANCH_TYPE[1] == "P3":
         route_0, route_1, route_2, conv = CSPDarknet53(input_layer)   
     elif MODEL_BRANCH_TYPE[1] == "P5m":
-        route_1, route_2, route_3, route_4, conv = CSPDarknet53(input_layer, dilation=dilation_bb)
+        route_0, route_1, route_2, route_3, route_4, conv = CSPDarknet53(input_layer, dilation=dilation_bb)
         # backbone_P2, backbone_P3, backbone_P4, backbone_P5 = route_2, route_3, route_4, conv
     
     """ PANet bottom up layers """
@@ -582,6 +582,47 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
                 conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
                 conv = convolutional(conv, (1, 1, 128*k, 64*k), dilation=dilation)                       #output: 104 x 104 x 64
             # fmap_P2 = conv
+
+        # route_0 = tf.image.resize(route_0, (256, 448), method='bilinear')
+        # route_0 = convolutional(route_0, (3,3, 3, 16))
+
+        # route_0_1 = convolutional(route_0, (1,1, 16, 16))
+        # route_0 = convolutional(route_0, (1,1, 16, 16))
+        # route_0 = residual_block(route_0, 16, 8, 16)
+        # route_0 = tf.concat([route_0, route_0_1], axis=-1)
+        # route_0 = convolutional(route_0, (1,1, 32, 16))
+        # route_0 = convolutional(route_0, (3,3, 16, 32), downsample=True)
+
+        # route_0_1 = convolutional(route_0, (1,1, 32, 32))
+        # route_0 = convolutional(route_0, (1,1, 32, 32))
+        # route_0 = residual_block(route_0, 32, 16, 32)
+        # route_0 = tf.concat([route_0, route_0_1], axis=-1)
+        # route_0 = convolutional(route_0, (1,1, 64, 32))
+        # route_0 = convolutional(route_0, (3,3, 32, 64), downsample=True)
+
+        # route_0_1 = convolutional(route_0, (1,1, 64, 64))
+        # route_0 = convolutional(route_0, (1,1, 64, 64))
+        # route_0 = residual_block(route_0, 64, 32, 64)
+        # route_0 = tf.concat([route_0, route_0_1], axis=-1)
+        # route_0 = convolutional(route_0, (1,1, 128, 64))
+        # route_0 = convolutional(route_0, (3,3, 64, 128), downsample=True)
+
+        # route_0_1 = convolutional(route_0, (1,1, 128, 128))
+        # route_0 = convolutional(route_0, (1,1, 128, 128))
+        # route_0 = residual_block(route_0, 128, 64, 128)                                 #32x56x128
+        # route_0 = tf.concat([route_0, route_0_1], axis=-1)
+        # route_0 = convolutional(route_0, (1,1, 256, 128))
+        # loc_fmap = convolutional(route_0, (1,1, 128, 1), bn=True, activate=False)
+        # loc_fmap = tf.math.sigmoid(loc_fmap)
+
+        # route_mean = tf.math.reduce_mean(conv, axis=-1, keepdims=True)
+        # route_max = tf.math.reduce_max(conv, axis=-1, keepdims=True)
+        # concat = tf.concat([route_mean, route_max], axis=-1)                #get concatenation of mean and max pooling
+        # concat = convolutional(concat, (1, 1, 2, 1), bn=True, activate=False) #do convolution with bn and without activation
+        # concat = tf.math.sigmoid(concat)                                    #use sigmoid as activation function
+        # concat = concat * loc_fmap
+        # conv = conv * concat
+
 
 
     """ Additional upsampling: 3 times to original image size """
@@ -804,8 +845,11 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
             # fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)
             if USE_SUPERVISION and USE_ADAPTATION_LAYER:
                 fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)   #adaptation layer
+            # conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
+            # fmap_P2 = conv
             conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)                          #517 520 523
-            conv_sbbox = convolutional(conv, (1, 1, 128*k, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
+            # conv = tf.concat([conv, route_0], axis=-1)
+            conv_sbbox = convolutional(conv, (1, 1, 256*k, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
             
             conv = convolutional(route_2, (3, 3, 64*k, 128*k), downsample=True, dilation=dilation)      #488 + 4 ->492
             conv = tf.concat([conv, route_3], axis=-1)                                                  #493

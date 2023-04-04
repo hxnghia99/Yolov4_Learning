@@ -10,6 +10,8 @@
 
 # TRAINING INFORMATION
 
+
+
 import numpy as np
 
 """ ------ IMPORTANT SETTING ------ """
@@ -17,8 +19,8 @@ import numpy as np
 TRAINING_DATASET_TYPE           = "LG"
 TRAIN_TRANSFER                  = True
 TRAIN_FROM_CHECKPOINT           = False
-MODEL_BRANCH_TYPE               = ["P2", "P5m"]
-USE_FTT_P2                      = True                             #affect new backbone CSPDarknet52
+MODEL_BRANCH_TYPE               = ["P3n", "P5n"]
+USE_FTT_P2                      = False                             #affect new backbone CSPDarknet52
 USE_FTT_P3                      = False                             
 USE_FTT_P4                      = False
 USE_FTT_DEVELOPING_VERSION      = False                             #activate SR-module
@@ -27,7 +29,7 @@ USE_SDCAB_BLOCK_IN_FTT          = False
 USE_NEW_BACKBONE                = False                             #Force to use NEW BACKBONE CSPDARKNET52 regardless of above model settings
 USE_SUPERVISION                 = False                             #when True, use at least 1 FTT module --> create teacher model
 USE_ADAPTATION_LAYER            = False
-LAMDA_FMAP_LOSS                 = 200
+LAMDA_FMAP_LOSS                 = 100
 TEACHER_DILATION                = False                             #teacher uses dilation convolution or not
 TRAINING_SHARING_WEIGHTS        = False or TEACHER_DILATION         #teacher uses weights from student or fixed pretrained weights
 USE_5_ANCHORS_SMALL_SCALE       = False and (not USE_SUPERVISION)   #do not use together with SUPERVISION
@@ -84,8 +86,8 @@ YOLO_COCO_CLASS_PATH            = "YOLOv4-for-studying/dataset/coco/coco.names"
 YOLO_V4_COCO_WEIGHTS            = "YOLOv4-for-studying/model_data/yolov4.weights"
 USE_LOADED_WEIGHT               = True
 
-YOLO_INPUT_SIZE                 = [224, 128]
-FILTER_GT_BBOX_SIZE             = True
+YOLO_INPUT_SIZE                 = [448, 256]
+FILTER_GT_BBOX_SIZE             = False
 MIN_NUM_PIXEL                   = 8
 
 #Dataset configurations
@@ -98,7 +100,7 @@ TEST_DATA_AUG                   = False
 if TRAINING_DATASET_TYPE == "VISDRONE":
     YOLO_MAX_BBOX_PER_SCALE         = [180, 180, 180]
 elif TRAINING_DATASET_TYPE == "LG":
-    YOLO_MAX_BBOX_PER_SCALE         = [64, 64, 64]
+    YOLO_MAX_BBOX_PER_SCALE         = [62, 30, 6]
 ANCHORS_PER_GRID_CELL           = 3
 ANCHORS_PER_GRID_CELL_SMALL     = 5
 ANCHOR_SELECTION_IOU_THRESHOLD  = 0.3
@@ -190,14 +192,14 @@ TRAIN_SAVE_BEST_ONLY            = True  # saves only best model according valida
 TRAIN_SAVE_CHECKPOINT           = False # saves all best validated checkpoints in training process (may require a lot disk space) (False recommended)
 TRAIN_LOAD_IMAGES_TO_RAM        = False
 TRAIN_WARMUP_EPOCHS             = 2
-TRAIN_EPOCHS                    = 80
-TRAIN_LR_END                    = 5e-7
+TRAIN_EPOCHS                    = 100
+TRAIN_LR_END                    = 1e-6
 if MODEL_BRANCH_TYPE[0] == "P(-1)":
     TRAIN_LR_INIT               = 2e-3
 elif MODEL_BRANCH_TYPE[0] == "P0":
     TRAIN_LR_INIT               = 1e-3
 elif MODEL_BRANCH_TYPE[0] == "P3n" or MODEL_BRANCH_TYPE[0] == "P2":
-    TRAIN_LR_INIT               = 5e-5
+    TRAIN_LR_INIT               = 1e-4
 YOLO_LOSS_IOU_THRESHOLD         = 0.5
 
 

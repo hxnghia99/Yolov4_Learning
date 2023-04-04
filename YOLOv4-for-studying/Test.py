@@ -85,22 +85,26 @@ image_truth             = draw_bbox(np.copy(original_image), bboxes, CLASSES_PAT
 image_label_sbboxes     = draw_bbox(np.copy(original_image), label[0], CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
 image_gt_sbboxes        = draw_bbox(np.copy(original_image), label[3], CLASSES_PATH=YOLO_CLASS_PATH, show_label=False, show_grids=True)
 
-from YOLOv4_SR_network import edsr
-sr_net = edsr()
-sr_net.load_weights(SR_NETWORK_WEIGHT_PATH)
+''' FOR SUPER_RESOLUTION INPUT IMAGE '''
+# from YOLOv4_SR_network import edsr
+# sr_net = edsr()
+# sr_net.load_weights(SR_NETWORK_WEIGHT_PATH)
 
-image = image_preprocess(np.copy(original_image), [224, 128])
-# image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-image = sr_net(image[np.newaxis,...]*255.0, training=False)[0]
-image = image / 255.0
-image_data = image[np.newaxis, ...]
+# image = image_preprocess(np.copy(original_image), [224, 128])
+# # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+# image = sr_net(image[np.newaxis,...]*255.0, training=False)[0]
+# image = image / 255.0
+# image_data = image[np.newaxis, ...]
 
 
 size = YOLO_INPUT_SIZE
 compare_fmap_w_teacher = False
 compare_pred_w_teacher = False
 show_only_pred_student = True
-student_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_448x256/epoch-47_valid-loss-7.51/yolov4_lg_transfer"
+student_weight = "YOLOv4-for-studying/checkpoints/Num-193_lg_dataset_transfer_224x128/epoch-37_valid-loss-7.33/yolov4_lg_transfer"
+# student_weight = "YOLOv4-for-studying/checkpoints/Num-194_lg_dataset_transfer_224x128/epoch-37_valid-loss-7.37/yolov4_lg_transfer"
+# student_weight = "YOLOv4-for-studying/checkpoints/Num-195_lg_dataset_transfer_224x128/epoch-42_valid-loss-7.06/yolov4_lg_transfer"
+# student_weight = "YOLOv4-for-studying/checkpoints/Num-196_lg_dataset_transfer_224x128/epoch-39_valid-loss-6.96/yolov4_lg_transfer"
 # teacher_weight = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_448x256/epoch-36_valid-loss-8.48_origin-dilate-bb/yolov4_lg_transfer"
 # teacher_weight = "YOLOv4-for-studying/checkpoints/Num-105_lg_dataset_transfer_224x128/epoch-45_valid-loss-10.95_medium-anchor/yolov4_lg_transfer"
 #Create YOLO model

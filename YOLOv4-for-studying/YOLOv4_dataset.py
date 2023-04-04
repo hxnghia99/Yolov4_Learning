@@ -17,7 +17,6 @@ from YOLOv4_utils import *
 from YOLOv4_config import *
 import random
 import collections
-from YOLOv4_SR_network import edsr
 
 
 class Dataset(object):
@@ -62,12 +61,8 @@ class Dataset(object):
         #Testing
         self.testing = TESTING
 
-        #Super-resolution network initialization
-        if USE_SUPER_RESOLUTION_INPUT:
-            self.sr_net             = edsr()
-            self.sr_net.load_weights(SR_NETWORK_WEIGHT_PATH)
-        else:
-            self.sr_net             = None
+        #Super-resolution input path
+        self.sr_path = "YOLOv4-for-studying/dataset/LG_DATASET/SR/"
 
     #special method to give number of batchs in dataset
     def __len__(self):
@@ -102,7 +97,7 @@ class Dataset(object):
                 final_annotations.append([image_path, bboxes_annotations])
         return final_annotations                                        #shape [num_samples, 2], item includes image_path + [list of bboxes]
 
-    #Receive annotation, preprocess image and produce image+bboxes in size 416x416
+     #Receive annotation, preprocess image and produce image+bboxes in size 416x416
     def parse_annotation(self, annotation, mAP=False):
         if TRAIN_LOAD_IMAGES_TO_RAM:
             image, bboxes_annotations = annotation[2], annotation[1]
@@ -110,19 +105,34 @@ class Dataset(object):
             #Get data inside annotation
             image_path, bboxes_annotations = annotation
             image = cv2.imread(image_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            #Use super-resolution input image
+            if USE_SUPER_RESOLUTION_INPUT:
+                image_path = self.sr_path + image_path.split("/")[-1].split(".")[0] + '.npy'
+                image_sr = np.load(image_path)
+                # image_sr = cv2.cvtColor(image_sr, cv2.COLOR_BGR2RGB)
+        #Transform and sort bboxes in ascending order of area
         bboxes = list(np.array([list(map(float, box.split(','))) for box in bboxes_annotations], np.float32))
         bboxes.sort(key=lambda x: (x[2]-x[0]+1)*(x[3]-x[1]+1))
         bboxes = np.array(bboxes, np.float32)
+        
         #return raw image and bboxes
         if mAP:
+            if USE_SUPER_RESOLUTION_INPUT:
+                return image, bboxes, image_sr
             return image, bboxes
-
+        
         """ DATA AUGMENTATION if needed """
+        #bboxes [xy_min, xy_max]
         if self.data_aug:
-            image, bboxes = self.random_horizontal_flip(np.copy(image), np.copy(bboxes))
-            image, bboxes = self.random_crop(np.copy(image), np.copy(bboxes))
-            image, bboxes = self.random_translate(np.copy(image), np.copy(bboxes))
+            if not USE_SUPER_RESOLUTION_INPUT:
+                image, bboxes, _ = self.random_horizontal_flip(np.copy(image), np.copy(bboxes))
+                image, bboxes, _ = self.random_crop(np.copy(image), np.copy(bboxes))
+                image, bboxes, _ = self.random_translate(np.copy(image), np.copy(bboxes))
+            else:
+                image, bboxes, image_sr = self.random_horizontal_flip(np.copy(image), np.copy(bboxes), np.copy(image_sr))
+                image, bboxes, image_sr = self.random_crop(np.copy(image), np.copy(bboxes), np.copy(image_sr))
+                image, bboxes, image_sr = self.random_translate(np.copy(image), np.copy(bboxes), np.copy(image_sr))
 
         if TRAINING_DATASET_TYPE == "VISDRONE":
             """
@@ -135,19 +145,15 @@ class Dataset(object):
                     image[y_tl:y_br, x_tl:x_br] = 128.0 #make ignored region into gray
             bboxes = bboxes[bbox_mask]
 
+        #image-x2 for teacher
         if USE_SUPERVISION:
             image_x2 = image_preprocess(np.copy(image), self.input_size_x2, sizex2_flag=True)       #flag to use BICUBIC Interpolation
 
-        #preprocess, bboxes as (xmin, ymin, xmax, ymax)
+        #image preprocessing
+        image, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes)
         if USE_SUPER_RESOLUTION_INPUT:
-            _, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes)
-            image = image_preprocess(np.copy(image), np.array((np.array(self.input_size, dtype=np.int32)/2), np.int32))
-            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            image = self.sr_net(image[np.newaxis,...]*255.0, training=False)[0]
-            image = image / 255.0
-            # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        else:
-            image, bboxes = image_preprocess(np.copy(image), self.input_size, bboxes, sr_net=self.sr_net)
+            image_sr = image_preprocess(np.copy(image_sr), self.input_size)
+
 
         if FILTER_GT_BBOX_SIZE:
             temp = []
@@ -157,11 +163,17 @@ class Dataset(object):
                     temp.append(bbox)
             bboxes = temp
 
+        image_test = draw_bbox(np.array(image*255.0, np.uint8), np.round(bboxes), YOLO_CLASS_PATH)
+        cv2.imshow("test", cv2.resize(image_test, (960,540)))
+        if cv2.waitKey() == 'q':
+            pass
+        print("A")
+
         if USE_SUPERVISION:
             return image, bboxes, image_x2
-
+        elif USE_SUPER_RESOLUTION_INPUT:
+            return image_sr, bboxes
         return image, bboxes
-        
 
     #Find the best anchors for each bbox at each scale
     def preprocess_true_bboxes(self, bboxes):       #bbox: [xy_min, xy_max]
@@ -327,57 +339,78 @@ class Dataset(object):
                 raise StopIteration
 
     #Data augmentation with 3 methods
-    def random_horizontal_flip(self, image, bboxes):
+    def random_horizontal_flip(self, image, bboxes, image_sr=None):
         image = np.array(image)
         bboxes = np.array(bboxes)
         if random.random() < 0.5:
             _, w, _ = image.shape
             image = image[:, ::-1, :]
             bboxes[:, [0,2]] = w - bboxes[:, [2,0]]         #change xmin, xmax after flip
-        return image, bboxes
-    def random_crop(self, image, bboxes):
+            if list(image_sr)!=None:
+                image_sr = image_sr[:, ::-1, :]
+        return image, bboxes, image_sr
+        
+    def random_crop(self, image, bboxes, image_sr=None):
         image = np.array(image)
         bboxes = np.array(bboxes)
         if random.random() < 0.5:
             h, w, _ = image.shape
+            #largest bbox covering all gt_bboxes: [xy_min, xy_max]
             max_bbox = np.concatenate([np.min(bboxes[:, 0:2], axis=0), np.max(bboxes[:, 2:4], axis=0)], axis=-1)
-
+            #max translation: left, up, right, down
             max_l_trans = max_bbox[0]
             max_u_trans = max_bbox[1]
             max_r_trans = w - max_bbox[2]
             max_d_trans = h - max_bbox[3]
-
+            #crop part
             crop_xmin = max(0, int(max_bbox[0] - random.uniform(0, max_l_trans)))
             crop_ymin = max(0, int(max_bbox[1] - random.uniform(0, max_u_trans)))
             crop_xmax = max(w, int(max_bbox[2] + random.uniform(0, max_r_trans)))
             crop_ymax = max(h, int(max_bbox[3] + random.uniform(0, max_d_trans)))
-
+            #cropped image
             image = image[crop_ymin : crop_ymax, crop_xmin : crop_xmax]
-
+            #new bbox coordinates
             bboxes[:, [0, 2]] = bboxes[:, [0, 2]] - crop_xmin
             bboxes[:, [1, 3]] = bboxes[:, [1, 3]] - crop_ymin
-        return image, bboxes
-    def random_translate(self, image, bboxes):
+            #apply to SR-image
+            if list(image_sr)!=None:
+                h_sr, w_sr,_ = image_sr.shape
+                crop_xmin_sr = round(crop_xmin*w_sr/w)
+                crop_ymin_sr = round(crop_ymin*h_sr/h)
+                crop_xmax_sr = round(crop_xmax*w_sr/w)
+                crop_ymax_sr = round(crop_ymax*h_sr/h)
+                image_sr = image_sr[crop_ymin_sr : crop_ymax_sr, crop_xmin_sr : crop_xmax_sr]
+        return image, bboxes, image_sr
+    
+    def random_translate(self, image, bboxes, image_sr=None):
         image = np.array(image)
         bboxes = np.array(bboxes)
         if random.random() < 0.5:
             h, w, _ = image.shape
+            #largest bbox covering all gt_bboxes: [xy_min, xy_max]
             max_bbox = np.concatenate([np.min(bboxes[:, 0:2], axis=0), np.max(bboxes[:, 2:4], axis=0)], axis=-1)
-
+            #max translation: left, up, right, down
             max_l_trans = max_bbox[0]
             max_u_trans = max_bbox[1]
             max_r_trans = w - max_bbox[2]
             max_d_trans = h - max_bbox[3]
-
+            #max translation according to x-axis, y-axis
             tx = random.uniform(-(max_l_trans - 1), (max_r_trans - 1))
             ty = random.uniform(-(max_u_trans - 1), (max_d_trans - 1))
-
+            #code
             M = np.array([[1, 0, tx], [0, 1, ty]])
             image = cv2.warpAffine(image, M, (w, h))
-
+            #bbox translation
             bboxes[:, [0, 2]] = bboxes[:, [0, 2]] + tx
             bboxes[:, [1, 3]] = bboxes[:, [1, 3]] + ty
-        return image, bboxes
+            #apply to SR-image
+            if list(image_sr)!=None:
+                h_sr, w_sr,_ = image_sr.shape
+                tx_sr = tx*w_sr/w
+                ty_sr = ty*h_sr/h
+                M_sr = np.array([[1, 0, tx_sr], [0, 1, ty_sr]])
+                image_sr = cv2.warpAffine(image_sr, M_sr, (w_sr, h_sr))
+        return image, bboxes, image_sr
 
 
     #Function to test when reading annotation

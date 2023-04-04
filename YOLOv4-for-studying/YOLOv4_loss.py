@@ -220,8 +220,8 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # input_size_h    = tf.Variable(TRAIN_INPUT_SIZE[1], dtype=tf.float32)
         # input_size_w    = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
         # yolo_scale_offset       = [4, 8, 16]
-        # yolo_anchors            = YOLO_ANCHORS
-        # decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
+        # yolo_anchors            = np.array(YOLO_ANCHORS, np.float32)
+        # decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors/2.0)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
         # decode_fmap_student     = decode(fmap_student, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #understand student output as prediction in x2 image
 
         # # """ Combine teacher prediction and hard label """
@@ -238,17 +238,17 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # # decode_fmap_teacher     = tf.cast(decode_fmap_teacher, tf.float32)
         
         # scores                  = decode_fmap_teacher[:,:,:,:,4:5] * tf.math.reduce_max(decode_fmap_teacher[:,:,:,:,5:], axis=-1, keepdims=True)
-        # frgrd_respond_1           = tf.cast(scores >= 0.5, tf.float32)
+        # frgrd_respond           = tf.cast(scores >= 0.5, tf.float32)
         # teacher_xywh            = decode_fmap_teacher[:, :, :, :, :4]
         # ious                    = bboxes_iou_from_xywh(teacher_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
         # #                           shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
         # max_iou                 = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
-        # frgrd_respond_2         = tf.cast(max_iou >= 0.5, tf.float32)
-        # frgrd_respond           = tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32)
+        # # frgrd_respond_2         = tf.cast(max_iou >= 0.5, tf.float32)
+        # # frgrd_respond           = tf.cast(tf.math.logical_and(tf.cast(frgrd_respond_1, tf.bool), tf.cast(frgrd_respond_2, tf.bool)), tf.float32)
         # bkgrd_respond           = (1 - frgrd_respond) * tf.cast(max_iou < 0.5, tf.float32)
         # conf_flag               = tf.cast(tf.math.logical_or(tf.cast(frgrd_respond,tf.bool), tf.cast(bkgrd_respond,tf.bool)),tf.float32)
 
-        # fmap_teacher = tf.reshape(fmap_teacher, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASSES))
+        # # fmap_teacher = tf.reshape(fmap_teacher, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASSES))
         # fmap_student = tf.reshape(fmap_student, (batch_size, output_size_h, output_size_w, 3, 5 + NUM_CLASSES))
         # #Having 4 fmaps: fmap_student + decode_fmap_student, fmap_teacher + decode_fmap_teacher
         
@@ -271,23 +271,25 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # teacher_pred_prob   = decode_fmap_teacher[:,:,:,:,5:]
         # prob_loss           = frgrd_respond * tf.nn.sigmoid_cross_entropy_with_logits(labels=teacher_pred_prob, logits=student_raw_prob)
 
-        # alpha = 0.2
+        # alpha = 0.25
         # giou_loss = alpha*tf.reduce_mean(tf.reduce_sum(giou_loss, axis=[1,2,3,4])) + (1-alpha)*giou_loss_1
         # conf_loss = alpha*tf.reduce_mean(tf.reduce_sum(conf_loss, axis=[1,2,3,4])) + (1-alpha)*conf_loss_1
         # prob_loss = alpha*tf.reduce_mean(tf.reduce_sum(prob_loss, axis=[1,2,3,4])) + (1-alpha)*prob_loss_1
         
         # if fmap_teacher_mid == None:
         #     gb_loss = tf.Variable(0.0)
-        # elif fmap_teacher_mid != None and i==0:
-        # # else:
+        # # elif fmap_teacher_mid != None and i==0:
+        # #     # binary_cross_entropy = BinaryCrossentropy(from_logits=False)
+        # #     # gb_loss = binary_cross_entropy(tf.math.reduce_max(teacher_pred_conf[:,:,:,:,0], axis=-1, keepdims=True), fmap_student_mid)
+        # else:
         #     # fmap_student_mid = tf.math.top_k(fmap_student_mid, k=fmap_size_c)[0]
         #     # fmap_teacher_mid = tf.math.top_k(fmap_teacher_mid, k=fmap_size_c)[0]
         #     fmap_student_mid = normalize_fmap(fmap_student_mid)
         #     fmap_teacher_mid = normalize_fmap(fmap_teacher_mid)
         #     # gb_loss = tf.math.reduce_mean(tf.square(fmap_teacher_mid - fmap_student_mid))
         #     gb_loss = 1 - ssim(fmap_teacher_mid, fmap_student_mid)
-        # else:
-        #     gb_loss = tf.Variable(0.0)
+        # # else:
+        # #     gb_loss = tf.Variable(0.0)
         # pos_obj_loss = tf.Variable(0.0)
 
 

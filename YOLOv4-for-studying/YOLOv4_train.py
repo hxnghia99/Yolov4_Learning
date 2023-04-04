@@ -78,7 +78,7 @@ def main():
         #yolov4 teacher network
         yolo_teacher = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
         if not TRAINING_SHARING_WEIGHTS:
-            yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-110_lg_dataset_transfer_448x256/epoch-37_valid-loss-8.52/yolov4_lg_transfer")
+            yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-200_lg_dataset_transfer_448x256/epoch-35_valid-loss-8.77/yolov4_lg_transfer")
             print("Finished loading weights into teacher ...")
         # for i in range(462):
         #     yolo.layers[i].set_weights(yolo_teacher.layers[i].get_weights())
@@ -206,7 +206,7 @@ def main():
             fmap_backbone = [fmap_bb_P3, fmap_bb_P4, fmap_bb_P5]
             conv_backbone = [conv_P3, conv_P4, conv_P5] 
 
-            with tf.GradientTape() as model_tape, tf.GradientTape() as disc_tape:
+            with tf.GradientTape() as model_tape:#, tf.GradientTape() as disc_tape:
                 pred_result = yolo(image_data, training=True)       #conv+pred: small -> medium -> large : shape [scale, batch size, output size, output size, ...]
                 giou_loss=conf_loss=prob_loss=gb_loss=pos_pixel_loss=gen_loss=disc_loss=0
                 num_scales = len(YOLO_SCALE_OFFSET)
@@ -238,9 +238,9 @@ def main():
                 #backpropagate
                 model_gradients = model_tape.gradient(total_loss, yolo.trainable_variables)
                 optimizer.apply_gradients(zip(model_gradients, yolo.trainable_variables))
-                if USE_GAN_LIKE_TRAINING:
-                    discriminator_gradients = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
-                    disc_optimizer.apply_gradients(zip(discriminator_gradients, discriminator.trainable_variables))
+                # if USE_GAN_LIKE_TRAINING:
+                #     discriminator_gradients = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
+                #     disc_optimizer.apply_gradients(zip(discriminator_gradients, discriminator.trainable_variables))
                 # update learning rate
                 if global_steps < warmup_steps:
                     lr = global_steps / warmup_steps * TRAIN_LR_INIT
@@ -401,11 +401,11 @@ def main():
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(detection_loss/num_testset))
             yolo.save_weights(save_directory)
-        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset and epoch>=30:
+        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset and epoch>=50:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_valid-loss-{detection_loss/num_testset:.2f}")
             save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
-            best_val_loss = detection_loss/num_testset
+            best_val_loss = 100000# detection_loss/num_testset
             print("Save best weights at epoch = ", epoch+1, end="\n")
         if (epoch+1) == TRAIN_EPOCHS:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_final-loss-{detection_loss/num_testset:.2f}")

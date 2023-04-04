@@ -3,15 +3,21 @@ import cv2
 import numpy as np
 import sys
 
+#FOR TRAINING SR_NETWORK
+
+
 type = "train"
 # type = "test"
 
 
-file_path = f"YOLOv4-for-studying/dataset/LG_DATASET/{type}_lg_total.txt"
-RELATIVE_PATH               = 'E:/dataset/TOTAL/'
-PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
-reso_x2 = [448,256]
-reso_x1 = [224,128]
+file_path = f"YOLOv4-for-studying/dataset/Visdrone_DATASET/{type}.txt"
+# RELATIVE_PATH               = 'E:/dataset/TOTAL/'
+# PREFIX_PATH                 = '.\YOLOv4-for-studying/dataset\LG_DATASET'
+RELATIVE_PATH               = ""
+PREFIX_PATH                 = ""
+
+reso_x2 = [832,512]
+reso_x1 = [416,256]
 
 lr_file_path = file_path.split(type)[0] + "LR/"
 hr_file_path = file_path.split(type)[0] + "HR/"
@@ -56,5 +62,7 @@ with open(file_path, "r") as f1:
 
         cv2.imwrite(lr_file_path_saving, image_x1)
         cv2.imwrite(hr_file_path_saving, image_x2)
+        
+        sys.stdout.write("\rLoaded image: {}".format(i))
 
 print("\nFinished!")
