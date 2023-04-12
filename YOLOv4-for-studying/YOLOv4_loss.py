@@ -221,7 +221,7 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
         # input_size_w    = tf.Variable(TRAIN_INPUT_SIZE[0], dtype=tf.float32)
         # yolo_scale_offset       = [4, 8, 16]
         # yolo_anchors            = np.array(YOLO_ANCHORS, np.float32)
-        # decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors/2.0)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
+        # decode_fmap_teacher     = decode(fmap_teacher, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #shape [batch, height, width, 3, 8]  --> prediction in 448x256
         # decode_fmap_student     = decode(fmap_student, NUM_CLASSES, i, yolo_scale_offset, yolo_anchors)      #understand student output as prediction in x2 image
 
         # # """ Combine teacher prediction and hard label """

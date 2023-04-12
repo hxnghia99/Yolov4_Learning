@@ -842,13 +842,9 @@ def YOLOv4_detector(input_layer, NUM_CLASS, dilation=False, dilation_bb=False, M
         else:
             route_2 = conv
             fmap_P2 = conv
-            # fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)
             if USE_SUPERVISION and USE_ADAPTATION_LAYER:
                 fmap_P2 = convolutional(conv, (1, 1, 64*k, 128), dilation=dilation)   #adaptation layer
-            # conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)
-            # fmap_P2 = conv
             conv = convolutional(conv, (3, 3, 64*k, 128*k), dilation=dilation)                          #517 520 523
-            # conv = tf.concat([conv, route_0], axis=-1)
             conv_sbbox = convolutional(conv, (1, 1, 256*k, (ANCHORS_PER_GRID_CELL_SMALL if USE_5_ANCHORS_SMALL_SCALE else ANCHORS_PER_GRID_CELL) * (NUM_CLASS + 5)), activate=False, bn=False, dilation=dilation)
             
             conv = convolutional(route_2, (3, 3, 64*k, 128*k), downsample=True, dilation=dilation)      #488 + 4 ->492

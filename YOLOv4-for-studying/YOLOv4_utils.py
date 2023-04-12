@@ -120,14 +120,14 @@ input: (3) image, target_size, gt_boxes(opt)
 output: new image padded the resized old image 
 obj:    create image to put into YOLO model
 ##################################'''
-def image_preprocess(image, target_size, gt_boxes=None, sizex2_flag=False):
+def image_preprocess(image, target_size, gt_boxes=None, sizex2_flag=False, sr_flag=False):
     target_size_w, target_size_h = target_size
     image_h, image_w, _ = image.shape   
     resize_ratio = min(target_size_w/image_w, target_size_h/image_h)                      #resize ratio of the larger coordinate into 416
     new_image_w, new_image_h = int(resize_ratio*image_w), int(resize_ratio*image_h)
     
     if sizex2_flag:
-        image_resized = cv2.resize(image, (new_image_w, new_image_h))#,interpolation=cv2.INTER_CUBIC)                     #the original image is resized into 416 x smaller coordinate
+        image_resized = cv2.resize(image, (new_image_w, new_image_h), interpolation=cv2.INTER_CUBIC)                     #the original image is resized into 416 x smaller coordinate
     else:
         image_resized = cv2.resize(image, (new_image_w, new_image_h))
 
@@ -140,6 +140,10 @@ def image_preprocess(image, target_size, gt_boxes=None, sizex2_flag=False):
         return image_padded
 
     else: #gt_boxes have shape of [xmin, ymin, xmax, ymax]
+        if sr_flag:
+            gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * resize_ratio
+            gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * resize_ratio
+            return image_padded, gt_boxes
         gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * resize_ratio + dw
         gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * resize_ratio + dh
         return image_padded, gt_boxes

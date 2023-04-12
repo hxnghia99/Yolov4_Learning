@@ -9,11 +9,8 @@
 #===============================================================#
 
 
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import sys
 import numpy as np
-import tensorflow as tf
 from YOLOv4_dataset import Dataset
 from YOLOv4_model import *
 from YOLOv4_utils import *
@@ -23,6 +20,10 @@ import shutil
 import json
 import time
 import glob
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import tensorflow as tf
+
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if len(gpus) > 0:
@@ -88,9 +89,9 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
         if USE_SUPER_RESOLUTION_INPUT:
-            original_image, gt_bboxes, _  = dataset.parse_annotation(annotation, True)
+            original_image, gt_bboxes, _  = dataset.parse_annotation(annotation, mAP=True)
         else:
-            original_image, gt_bboxes  = dataset.parse_annotation(annotation, True)
+            original_image, gt_bboxes  = dataset.parse_annotation(annotation, mAP=True)
         original_h, original_w, _ = original_image.shape
 
         #eliminate ignored region class and "other" class
@@ -143,11 +144,6 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                         temp.append(gt_bbox)
                 gt_bboxes_small = np.array(temp)
             
-                #eliminate ignored region class and "other" class
-                if EVALUATION_DATASET_TYPE == "VISDRONE" and len(gt_bboxes_small)!=0:
-                    bbox_mask = np.logical_and(gt_bboxes_small[:,4]>-0.5, gt_bboxes_small[:,4]<9.5)
-                    gt_bboxes_small = gt_bboxes_small[bbox_mask]
-
                 num_gt_bboxes = len(gt_bboxes_small)
                 if len(gt_bboxes_small) == 0:
                     gt_coordinates  = []
@@ -185,11 +181,6 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                         temp.append(gt_bbox)
                 gt_bboxes_medium = np.array(temp)
             
-                #eliminate ignored region class and "other" class
-                if EVALUATION_DATASET_TYPE == "VISDRONE":
-                    bbox_mask = np.logical_and(gt_bboxes_medium[:,4]>-0.5, gt_bboxes_medium[:,4]<9.5)
-                    gt_bboxes_medium = gt_bboxes_medium[bbox_mask]
-
                 num_gt_bboxes = len(gt_bboxes_medium)
                 if len(gt_bboxes_medium) == 0:
                     gt_coordinates  = []
@@ -226,11 +217,6 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
                     if (width * height > 96**2 ):
                         temp.append(gt_bbox)
                 gt_bboxes_large = np.array(temp)
-    
-                #eliminate ignored region class and "other" class
-                if EVALUATION_DATASET_TYPE == "VISDRONE":
-                    bbox_mask = np.logical_and(gt_bboxes_large[:,4]>-0.5, gt_bboxes_large[:,4]<9.5)
-                    gt_bboxes_large = gt_bboxes_large[bbox_mask]
 
                 num_gt_bboxes = len(gt_bboxes_large)
                 if len(gt_bboxes_large) == 0:
@@ -268,7 +254,6 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     num_gt_classes = len(gt_class_names)
     
 
-    
 
     #Calculate average FPS and store prediction bboxes to a list of specific classes
     times = []
@@ -276,9 +261,9 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
     for index in range(dataset.num_samples):
         annotation = dataset.annotations[index]
         if USE_SUPER_RESOLUTION_INPUT:
-            original_image, _, image = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
+            original_image, bboxes, image_sr = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
         else:
-            original_image, _ = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
+            original_image, bboxes = dataset.parse_annotation(annotation, True)     #including cv2.cvtColor
             
         original_h, original_w, _ = original_image.shape
         # Create a new model using image original size scaling to 32
@@ -286,9 +271,13 @@ def get_mAP(Yolo, dataset, score_threshold=VALIDATE_SCORE_THRESHOLD, iou_thresho
             TEST_INPUT_SIZE = [int(np.ceil(original_w/32))*32, int(np.ceil(original_h/32))*32]
         
         if USE_SUPER_RESOLUTION_INPUT:
-            image = image_preprocess(np.copy(image), TEST_INPUT_SIZE)
+            image = image_preprocess(np.copy(image_sr), TEST_INPUT_SIZE)
         else:
-            image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
+            if TEST_INPUT_SIZE[0] == 448 and not USE_SUPERVISION:
+                image = image_preprocess(np.copy(original_image), TEST_INPUT_SIZE)
+            else:   
+                image = image_preprocess(np.copy(original_image), np.int32(np.array(TEST_INPUT_SIZE)*2))
+                image = image_preprocess(np.copy(image)*255.0, TEST_INPUT_SIZE)
         image_data = image[np.newaxis, ...].astype(np.float32)
         
         #measure time to make prediction
@@ -651,8 +640,8 @@ def load_weights_old_new(weights_file):
 
 if __name__ == '__main__':
     # weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_P5_nFTT_P2/yolov4_lg_transfer"
-    # weights_file = "YOLOv4-for-studying/checkpoints/epoch-50_valid-loss-7.69/yolov4_lg_transfer"
-    weights_file = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224X128/epoch-70_valid-loss-6.94/yolov4_lg_transfer"
+    # weights_file = "YOLOv4-for-studying/checkpoints/epoch-41_valid-loss-9.82/yolov4_lg_transfer"
+    weights_file = "YOLOv4-for-studying/checkpoints/Num-229_lg_dataset_transfer_448x256/epoch-87_valid-loss-5.41/yolov4_lg_transfer"
     # weights_file = "YOLOv4-for-studying/checkpoints/Num-209_visdrone_dataset_transfer_480x288_origin/epoch-51_valid-loss-267.88/yolov4_visdrone_transfer"
     # weights_file = EVALUATION_WEIGHT_FILE
     yolo = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, Modified_model=False)
@@ -663,24 +652,24 @@ if __name__ == '__main__':
     testset = Dataset('test', TEST_INPUT_SIZE=YOLO_INPUT_SIZE, EVAL_MODE=True)
     
     
-    if USE_CUSTOM_WEIGHTS:
-        if EVALUATION_DATASET_TYPE == "COCO":
-            load_yolov4_weights(yolo, weights_file)
-        else:
-            yolo.load_weights(weights_file) # use custom weights   
-    # yolot = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, dilation_bb=True)
-    # temp = len(yolo.weights)
-    # for i in range(temp):
-    #     yolot.weights[i].assign(yolo.weights[i])
-    get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
-            CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)
-
-
-    # PATH = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_448x256/*"
-    # list_path = glob.glob(PATH)
-    # for i,path in enumerate(list_path):
-    #     VALIDATE_MAP_RESULT_PATH = f"YOLOv4-for-studying/mAP/results-lg_{i+51}.txt"
-    #     yolo.load_weights(path + "/yolov4_lg_transfer")
-
-    #     get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
+    # if USE_CUSTOM_WEIGHTS:
+    #     if EVALUATION_DATASET_TYPE == "COCO":
+    #         load_yolov4_weights(yolo, weights_file)
+    #     else:
+    #         yolo.load_weights(weights_file) # use custom weights   
+    # # yolot = YOLOv4_Model(CLASSES_PATH=YOLO_CLASS_PATH, dilation_bb=True)
+    # # temp = len(yolo.weights)
+    # # for i in range(temp):
+    # #     yolot.weights[i].assign(yolo.weights[i])
+    # get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
     #         CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)
+
+
+    PATH = "YOLOv4-for-studying/checkpoints/lg_dataset_transfer_224x128_v2.4/*"
+    list_path = glob.glob(PATH)
+    for i,path in enumerate(list_path):
+        VALIDATE_MAP_RESULT_PATH = f"YOLOv4-for-studying/mAP/results-lg_{i+51}.txt"
+        yolo.load_weights(path + "/yolov4_lg_transfer")
+
+        get_mAP(yolo, testset, score_threshold=TEST_SCORE_THRESHOLD, iou_threshold=TEST_IOU_THRESHOLD, TEST_INPUT_SIZE=YOLO_INPUT_SIZE,
+            CLASSES_PATH=YOLO_CLASS_PATH, GT_DIR=VALIDATE_GT_RESULTS_DIR, mAP_PATH=VALIDATE_MAP_RESULT_PATH)

@@ -88,7 +88,7 @@ USE_LOADED_WEIGHT               = True
 
 YOLO_INPUT_SIZE                 = [448, 256]
 FILTER_GT_BBOX_SIZE             = False
-MIN_NUM_PIXEL                   = 8
+MIN_NUM_PIXEL                   = 4
 
 #Dataset configurations
 TRAIN_INPUT_SIZE                = YOLO_INPUT_SIZE
@@ -98,7 +98,7 @@ TEST_DATA_AUG                   = False
 
 #Anchor box settings
 if TRAINING_DATASET_TYPE == "VISDRONE":
-    YOLO_MAX_BBOX_PER_SCALE         = [180, 180, 180]
+    YOLO_MAX_BBOX_PER_SCALE         = [451, 86, 23]
 elif TRAINING_DATASET_TYPE == "LG":
     YOLO_MAX_BBOX_PER_SCALE         = [62, 30, 6]
 ANCHORS_PER_GRID_CELL           = 3

@@ -9,26 +9,27 @@
 #===============================================================#
 
 
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 import sys
 from tensorflow.python.client import device_lib
 print(device_lib.list_local_devices())
 import shutil
-
 import numpy as np
-import tensorflow as tf
 from YOLOv4_dataset import Dataset
 from YOLOv4_model   import YOLOv4_Model, create_YOLOv4_backbone, srgan_discriminator
 from YOLOv4_loss    import compute_loss, GAN_loss
 from YOLOv4_utils   import load_yolov4_weights
 from YOLOv4_config  import *
 from YOLOv4_Fmap_train import create_YOLOv4_student
-
 from YOLOv4_SR_network import vgg_19_model, resnet_50_model, resnet_34_model
 
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import tensorflow as tf
 import logging
 tf.get_logger().setLevel(logging.ERROR)
+
+
 
 
 
@@ -78,7 +79,7 @@ def main():
         #yolov4 teacher network
         yolo_teacher = create_YOLOv4_backbone(CLASSES_PATH=YOLO_CLASS_PATH)
         if not TRAINING_SHARING_WEIGHTS:
-            yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-200_lg_dataset_transfer_448x256/epoch-35_valid-loss-8.77/yolov4_lg_transfer")
+            yolo_teacher.load_weights("./YOLOv4-for-studying/checkpoints/Num-229_lg_dataset_transfer_448x256/epoch-87_valid-loss-5.41/yolov4_lg_transfer")
             print("Finished loading weights into teacher ...")
         # for i in range(462):
         #     yolo.layers[i].set_weights(yolo_teacher.layers[i].get_weights())
@@ -237,7 +238,12 @@ def main():
                 total_loss = giou_loss + conf_loss + prob_loss + gb_loss + pos_pixel_loss + gen_loss
                 #backpropagate
                 model_gradients = model_tape.gradient(total_loss, yolo.trainable_variables)
-                optimizer.apply_gradients(zip(model_gradients, yolo.trainable_variables))
+                if USE_ADAPTATION_LAYER:
+                    flag = np.array([np.isnan(np.array(gradient)).any() for gradient in model_gradients]).any()
+                    if not flag:
+                        optimizer.apply_gradients(zip(model_gradients, yolo.trainable_variables))
+                else:
+                    optimizer.apply_gradients(zip(model_gradients, yolo.trainable_variables))
                 # if USE_GAN_LIKE_TRAINING:
                 #     discriminator_gradients = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
                 #     disc_optimizer.apply_gradients(zip(discriminator_gradients, discriminator.trainable_variables))
@@ -401,17 +407,17 @@ def main():
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(detection_loss/num_testset))
             yolo.save_weights(save_directory)
-        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset and epoch>=50:
+        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset and epoch>=50 if TRAINING_DATASET_TYPE=='LG' else 15:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_valid-loss-{detection_loss/num_testset:.2f}")
             save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = 100000# detection_loss/num_testset
             print("Save best weights at epoch = ", epoch+1, end="\n")
-        if (epoch+1) == TRAIN_EPOCHS:
-            save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_final-loss-{detection_loss/num_testset:.2f}")
-            save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
-            yolo.save_weights(save_directory)
-            print("Save weights at last epoch = ", epoch+1, end="\n")
+        # if (epoch+1) == TRAIN_EPOCHS:
+        #     save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_final-loss-{detection_loss/num_testset:.2f}")
+        #     save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
+        #     yolo.save_weights(save_directory)
+        #     print("Save weights at last epoch = ", epoch+1, end="\n")
 
 if __name__ == '__main__':
     main()
