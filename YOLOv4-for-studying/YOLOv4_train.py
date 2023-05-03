@@ -14,6 +14,7 @@ import sys
 from tensorflow.python.client import device_lib
 print(device_lib.list_local_devices())
 import shutil
+import time
 import numpy as np
 from YOLOv4_dataset import Dataset
 from YOLOv4_model   import YOLOv4_Model, create_YOLOv4_backbone, srgan_discriminator
@@ -28,8 +29,6 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import tensorflow as tf
 import logging
 tf.get_logger().setLevel(logging.ERROR)
-
-
 
 
 
@@ -306,6 +305,7 @@ def main():
 
     best_val_loss = float('inf') # should be large at start
     for epoch in range(TRAIN_EPOCHS):
+        t_start = time.time()
         #Get a batch of training data to train
         giou_train, conf_train, prob_train, total_train, gb_train, pos_pixel_train, gen_loss, disc_loss = 0, 0, 0, 0, 0, 0, 0, 0
         for image_data, target in trainset:
@@ -394,12 +394,25 @@ def main():
         validate_writer.flush()
         if USE_SUPERVISION:
             # print validate summary data 
-            print("\rValidation : giou_valid:{:7.2f} - conf_valid:{:7.2f} - prob_valid:{:7.2f} - total_valid:{:7.2f} - total_fmap:{:6.2f}\n".
+            print("\rValidation : giou_valid:{:7.2f} - conf_valid:{:7.2f} - prob_valid:{:7.2f} - total_valid:{:7.2f} - total_fmap:{:6.2f}".
                 format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset, (gb_val+pos_pixel_val)/num_testset))
         else:
             # print validate summary data 
-            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f}\n".
+            print("\rValidation : giou_valid_loss:{:7.2f} - conf_valid_loss:{:7.2f} - prob_valid_loss:{:7.2f} - total_valid_loss:{:7.2f}".
                 format(giou_val/num_testset, conf_val/num_testset, prob_val/num_testset, total_val/num_testset))
+
+        t_epoch = time.time() - t_start
+        if t_epoch < 60:
+            print("Training time : {:.2f}s".format(t_epoch))
+        elif t_epoch < 3600:
+            m = int(t_epoch/60)
+            s = t_epoch - m*60
+            print("Training time : {:d}m {:.2f}s".format(m, s))
+        else:
+            h = int(t_epoch/3600)
+            m = int((t_epoch-h*3600)/60)
+            s = t_epoch - h*3600 - m*60
+            print("Training time : {:d}h {:d}m {:.2f}s".format(h, m, s))
 
         if not USE_SUPERVISION:
             detection_loss = total_val
@@ -407,17 +420,21 @@ def main():
         if TRAIN_SAVE_CHECKPOINT and not TRAIN_SAVE_BEST_ONLY:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, TRAIN_MODEL_NAME+"_val_loss_{:7.2f}".format(detection_loss/num_testset))
             yolo.save_weights(save_directory)
-        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset and epoch>=50 if TRAINING_DATASET_TYPE=='LG' else 15:
+        if TRAIN_SAVE_BEST_ONLY and best_val_loss>detection_loss/num_testset and epoch>= 50 if TRAINING_DATASET_TYPE=='LG' else 15:
             save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_valid-loss-{detection_loss/num_testset:.2f}")
             save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
             yolo.save_weights(save_directory)
             best_val_loss = 100000# detection_loss/num_testset
-            print("Save best weights at epoch = ", epoch+1, end="\n")
+            print("Save best weights at epoch = {}\n".format(epoch+1))
+        else:
+            print("")
         # if (epoch+1) == TRAIN_EPOCHS:
         #     save_directory = os.path.join(TRAIN_CHECKPOINTS_FOLDER, f"epoch-{epoch+1}_final-loss-{detection_loss/num_testset:.2f}")
         #     save_directory = os.path.join(save_directory, TRAIN_MODEL_NAME)
         #     yolo.save_weights(save_directory)
         #     print("Save weights at last epoch = ", epoch+1, end="\n")
+        
+
 
 if __name__ == '__main__':
     main()

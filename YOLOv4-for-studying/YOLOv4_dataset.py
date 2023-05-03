@@ -164,8 +164,9 @@ class Dataset(object):
         if self.input_size[0] == 448 and not USE_SUPERVISION:
             image = image_preprocess(np.copy(image), self.input_size)
         else:
-            image = image_preprocess(np.copy(image), self.input_size_x2)
-            image = image_preprocess(np.copy(image)*255.0, self.input_size)
+            # image = image_preprocess(np.copy(image), self.input_size_x2)
+            # image = image_preprocess(np.copy(image)*255.0, self.input_size)
+            image = image_preprocess(np.copy(image), self.input_size)
 
         if USE_SUPER_RESOLUTION_INPUT:
             image_sr, bboxes_sr = image_preprocess(np.copy(image_sr), self.input_size, np.copy(bboxes_sr))
@@ -278,6 +279,7 @@ class Dataset(object):
         #Get label at each scale
         label_sbboxes, label_mbboxes, label_lbboxes = label
         sbboxes, mbboxes, lbboxes = bboxes_xywh
+        sbboxes, mbboxes, lbboxes = None, None, None
         return label_sbboxes, label_mbboxes, label_lbboxes, sbboxes, mbboxes, lbboxes
     
     def __iter__(self):
@@ -382,8 +384,8 @@ class Dataset(object):
             #crop part
             crop_xmin = max(0, int(max_bbox[0] - random.uniform(0, max_l_trans)))
             crop_ymin = max(0, int(max_bbox[1] - random.uniform(0, max_u_trans)))
-            crop_xmax = max(w, int(max_bbox[2] + random.uniform(0, max_r_trans)))
-            crop_ymax = max(h, int(max_bbox[3] + random.uniform(0, max_d_trans)))
+            crop_xmax = min(w, int(max_bbox[2] + random.uniform(0, max_r_trans)))
+            crop_ymax = min(h, int(max_bbox[3] + random.uniform(0, max_d_trans)))
             #cropped image
             image = image[crop_ymin : crop_ymax, crop_xmin : crop_xmax]
             #new bbox coordinates
@@ -393,10 +395,10 @@ class Dataset(object):
             if image_sr is not None:
                 h_sr, w_sr,_ = image_sr.shape  
                 max_bbox_sr = np.concatenate([np.min(bboxes_sr[:, 0:2], axis=0), np.max(bboxes_sr[:, 2:4], axis=0)], axis=-1)
-                crop_xmin_sr = floor(np.minimum(crop_xmin*w_sr/w, max_bbox_sr[0]))
-                crop_ymin_sr = floor(np.minimum(crop_ymin*h_sr/h, max_bbox_sr[1]))
-                crop_xmax_sr = ceil(np.maximum(crop_xmax*w_sr/w, max_bbox_sr[2]))
-                crop_ymax_sr = ceil(np.maximum(crop_ymax*h_sr/h, max_bbox_sr[3]))
+                crop_xmin_sr = max(0, floor(np.minimum(crop_xmin*w_sr/w, max_bbox_sr[0])))
+                crop_ymin_sr = max(0, floor(np.minimum(crop_ymin*h_sr/h, max_bbox_sr[1])))
+                crop_xmax_sr = min(w_sr, ceil(np.maximum(crop_xmax*w_sr/w, max_bbox_sr[2])))
+                crop_ymax_sr = min(h_sr, ceil(np.maximum(crop_ymax*h_sr/h, max_bbox_sr[3])))
 
                 image_sr = image_sr[crop_ymin_sr : crop_ymax_sr, crop_xmin_sr : crop_xmax_sr]
                 #new bbox coordinates

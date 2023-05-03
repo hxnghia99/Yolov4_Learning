@@ -82,10 +82,27 @@ def compute_loss(pred, conv, label, gt_bboxes, i=0, CLASSES_PATH=YOLO_COCO_CLASS
     giou_loss = label_respond * bbox_loss_scale * (1 - giou)  
     
     
-    # *** Calculate confidence score loss for grid cell containing objects and background ***
-    ious = bboxes_iou_from_xywh(pred_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
-    #              shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
-    max_iou = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
+    #convert label_xywh into shape [batch_size, : , 4]
+    gt_bboxes_from_label    = tf.reshape(label_xywh, (batch_size, -1, 4))
+    flag_gt_bboxes          = tf.math.reduce_prod(gt_bboxes_from_label[:,:,2:4], axis=-1)>0     #flag of gt_bboxes (duplicated)
+    max_iou = None
+    for i in range(batch_size):
+        gt_bboxes_from_label_batch = gt_bboxes_from_label[i][flag_gt_bboxes[i]]         #gt_bboxes at specific batch
+        #translate gt_bboxes to the left and compare with original one to elimate the duplicated gt_bboxes
+        mask_left   = tf.math.reduce_all(tf.not_equal(tf.subtract(tf.concat([gt_bboxes_from_label_batch[1:,:], tf.zeros((1,4))], axis=0), gt_bboxes_from_label_batch), 0), axis=-1)
+        gt_bboxes_from_label_batch = gt_bboxes_from_label_batch[mask_left]
+        #calculate iou between each prediction and all gt_bboxes at specific batch
+        ious_batch = tf.expand_dims(bboxes_iou_from_xywh(tf.expand_dims(pred_xywh, axis=4)[i], tf.expand_dims(tf.expand_dims(tf.expand_dims(gt_bboxes_from_label_batch, axis=0), axis=1), axis=2)), axis=0)
+        if max_iou == None:            
+            max_iou = tf.expand_dims(tf.reduce_max(ious_batch, axis=-1), axis=-1)
+        else:
+            max_iou = tf.concat([max_iou, tf.expand_dims(tf.reduce_max(ious_batch, axis=-1), axis=-1)], axis=0)
+
+
+    # # *** Calculate confidence score loss for grid cell containing objects and background ***
+    # ious = bboxes_iou_from_xywh(pred_xywh[:, :, :, :, np.newaxis, :], gt_bboxes[:, np.newaxis, np.newaxis, np.newaxis, :, :])   #shape [batch, output, output, 3, 100]
+    # #              shape [batch, output size, output size, 3, 1, 4]  shape [batch, 1, 1, 1, 100, 4]
+    # max_iou = tf.expand_dims(tf.reduce_max(ious, axis=-1), axis=-1)    #shape [batch, output, output, 3, 1]
     bkgrd_respond = (1 - label_respond) * tf.cast(max_iou < YOLO_LOSS_IOU_THRESHOLD, tf.float32)
     conf_focal = tf.pow(label_respond - pred_conf, 2) 
     conf_loss = conf_focal * (
